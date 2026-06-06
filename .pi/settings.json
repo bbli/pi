@@ -1,0 +1,7 @@
+{
+  "theme": "high-contrast",
+  "packages": [
+    "/home/ir/Software/pi/.pi/npm/node_modules/pi-btw",
+    "/home/ir/Software/pi/.pi/npm/node_modules/pi-observational-memory"
+  ]
+}
