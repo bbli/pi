@@ -147,7 +147,7 @@ export type AgentSessionEvent =
 	  }
 	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
 	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
-	| { type: "turn_end_injection"; status: "suppressed" | "error" };
+	| { type: "turn_end_injection"; status: "suppressed" | "injected" | "error" };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -976,6 +976,7 @@ export class AgentSession {
 			this.sessionManager.appendCustomMessageEntry("injectedUser", injectedMsg.content, true, undefined);
 			this._emit({ type: "message_start", message: injectedMsg });
 			this._emit({ type: "message_end", message: injectedMsg });
+			this._emit({ type: "turn_end_injection", status: "injected" });
 			return true;
 		} catch {
 			// Turn-end injection is advisory; degrade gracefully on side-session failure.

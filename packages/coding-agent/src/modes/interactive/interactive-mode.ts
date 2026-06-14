@@ -3018,6 +3018,8 @@ export class InteractiveMode {
 			case "turn_end_injection": {
 				if (event.status === "suppressed") {
 					this.showStatus("Turn-end reviewer: nothing flagged");
+				} else if (event.status === "injected") {
+					this.showStatus("Turn-end reviewer: flagged items above");
 				} else {
 					this.showWarning("Turn-end reviewer: side call failed");
 				}
