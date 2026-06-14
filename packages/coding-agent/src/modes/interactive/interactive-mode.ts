@@ -3015,6 +3015,14 @@ export class InteractiveMode {
 				this.ui.requestRender();
 				break;
 			}
+			case "turn_end_injection": {
+				if (event.status === "suppressed") {
+					this.showStatus("Turn-end reviewer: nothing flagged");
+				} else {
+					this.showWarning("Turn-end reviewer: side call failed");
+				}
+				break;
+			}
 		}
 	}
 

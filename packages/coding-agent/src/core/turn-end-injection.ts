@@ -2,9 +2,9 @@
  * Turn-end injection framework.
  *
  * Runs a separate read-only LLM call after the main agent loop completes.
- * Extensions register questions via pi.registerTurnEndQuestion(); the last
- * assistant response from the side call is returned as plain text to be
- * surfaced to the user (and later injected into the main context).
+ * Extensions register questions via pi.registerTurnEndQuestion(); if the
+ * reviewer determines there is something actionable, it signals with
+ * HAS_TURN_END_QUESTION and the response is injected into the main context.
  */
 
 import type { AssistantMessage } from "@earendil-works/pi-ai";
@@ -14,13 +14,38 @@ import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
 
+/**
+ * Sentinel token the reviewer must place on its own line at the start of its
+ * response when it has something actionable to flag. Responses that do not
+ * contain this token are silently discarded, so a forgetful or uncertain
+ * reviewer produces no injection rather than noise.
+ */
+const SENTINEL = "HAS_TURN_END_QUESTION";
+
 const REVIEWER_SYSTEM_PROMPT = [
 	"You are a read-only reviewer of a completed coding session.",
 	"You have access to the full conversation history and read-only tools (read, grep, find, ls).",
 	"Your sole purpose is to inspect the current conversation history and answer the provided questions, possibly searching the codebase if necessary.",
 	"Do not make any edits, writes, or other modifications.",
 	"Be direct and concise.",
+	`RESPONSE FORMAT: only respond if you identify something genuinely actionable. If you do, your response MUST begin with the token ${SENTINEL} on its own line, followed by your message. If there is nothing actionable, output nothing at all.`,
 ].join(" ");
+
+/**
+ * Parse the reviewer's raw response text. Returns the actionable content
+ * (everything after the sentinel line) or undefined if the sentinel is absent.
+ */
+function parseReviewerResponse(text: string): string | undefined {
+	const lines = text.split("\n");
+	const idx = lines.findIndex((l) => l.trim() === SENTINEL);
+	if (idx === -1) return undefined;
+	return (
+		lines
+			.slice(idx + 1)
+			.join("\n")
+			.trim() || undefined
+	);
+}
 
 function createReviewerResourceLoader(): ResourceLoader {
 	const extensionsResult = { extensions: [], errors: [], runtime: createExtensionRuntime() };
@@ -37,25 +62,11 @@ function createReviewerResourceLoader(): ResourceLoader {
 	};
 }
 
-function getLastAssistantText(session: AgentSession): string | undefined {
-	for (let i = session.state.messages.length - 1; i >= 0; i--) {
-		const msg = session.state.messages[i];
-		if (msg.role !== "assistant") continue;
-		const assistant = msg as AssistantMessage;
-		const text = assistant.content
-			.filter((c) => c.type === "text")
-			.map((c) => (c as Extract<typeof c, { type: "text" }>).text)
-			.join("\n")
-			.trim();
-		if (text) return text;
-	}
-	return undefined;
-}
-
 /**
  * Run a separate read-only LLM call with the given questions against the main
- * session's context. Returns the reviewer's last assistant response text, or
- * undefined if the side call produced no usable response.
+ * session's context. Returns the actionable content from the reviewer's
+ * response (the text after the HAS_TURN_END_QUESTION sentinel), or undefined
+ * if the reviewer found nothing actionable or the side call failed.
  */
 export async function runTurnEndInjection(questions: string[], mainSession: AgentSession): Promise<string | undefined> {
 	if (questions.length === 0) return undefined;
@@ -70,6 +81,7 @@ export async function runTurnEndInjection(questions: string[], mainSession: Agen
 		thinkingLevel: "off",
 		tools: ["read", "grep", "find", "ls"],
 		resourceLoader: createReviewerResourceLoader(),
+		cwd: mainSession.cwd,
 	});
 
 	try {
@@ -80,23 +92,34 @@ export async function runTurnEndInjection(questions: string[], mainSession: Agen
 		);
 		session.agent.state.messages = context.messages;
 
-		await session.prompt(questions.join("\n\n"), { source: "extension" });
+		// Restate the format rule in the user message so the sentinel instruction
+		// appears at both ends of the prompt (system prompt + user turn).
+		const prompt = [
+			...questions,
+			"",
+			`If any of the above warrant action, start your response with ${SENTINEL} on its own line. Otherwise output nothing.`,
+		].join("\n");
+		await session.prompt(prompt, { source: "extension" });
 
-		// Find the last assistant message to check stop reason.
-		let lastMsg: AssistantMessage | undefined;
+		// Single backward scan: validate stop reason and extract text together
+		// so both checks operate on the same message.
 		for (let i = session.state.messages.length - 1; i >= 0; i--) {
 			const m = session.state.messages[i];
-			if (m.role === "assistant") {
-				lastMsg = m as AssistantMessage;
-				break;
+			if (m.role !== "assistant") continue;
+			const assistant = m as AssistantMessage;
+			if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
+				return undefined;
 			}
+			const raw = assistant.content
+				.filter((c) => c.type === "text")
+				.map((c) => (c as Extract<typeof c, { type: "text" }>).text)
+				.join("\n")
+				.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+				.trim();
+			if (raw) return parseReviewerResponse(raw);
+			// Last assistant message had no text (tool-use only); keep scanning.
 		}
-
-		if (!lastMsg || lastMsg.stopReason === "error" || lastMsg.stopReason === "aborted") {
-			return undefined;
-		}
-
-		return getLastAssistantText(session);
+		return undefined;
 	} finally {
 		try {
 			await session.abort();

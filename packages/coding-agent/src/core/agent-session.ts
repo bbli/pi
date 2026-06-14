@@ -146,7 +146,8 @@ export type AgentSessionEvent =
 			errorMessage?: string;
 	  }
 	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
-	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
+	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
+	| { type: "turn_end_injection"; status: "suppressed" | "error" };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -291,8 +292,6 @@ export class AgentSession {
 	// Extension system
 	private _extensionRunner!: ExtensionRunner;
 	private _turnIndex = 0;
-	/** Set at the start of each _runAgentPrompt call; cleared after turn-end injection fires once. */
-	private _pendingTurnEndInjection = false;
 
 	private _resourceLoader: ResourceLoader;
 	private _customTools: ToolDefinition[];
@@ -842,6 +841,11 @@ export class AgentSession {
 		return this.agent.followUpMode;
 	}
 
+	/** Working directory for this session */
+	get cwd(): string {
+		return this._cwd;
+	}
+
 	/** Current session file path, or undefined if sessions are disabled */
 	get sessionFile(): string | undefined {
 		return this.sessionManager.getSessionFile();
@@ -937,15 +941,46 @@ export class AgentSession {
 	// =========================================================================
 
 	private async _runAgentPrompt(messages: AgentMessage | AgentMessage[]): Promise<void> {
-		this._pendingTurnEndInjection = true;
 		try {
 			await this.agent.prompt(messages);
 			while (await this._handlePostAgentRun()) {
 				await this.agent.continue();
 			}
+			// Retries and compaction are resolved. Fire turn-end injection once.
+			if (await this._maybeRunTurnEndInjection()) {
+				await this.agent.continue();
+				while (await this._handlePostAgentRun()) {
+					await this.agent.continue();
+				}
+			}
 		} finally {
-			this._pendingTurnEndInjection = false;
 			this._flushPendingBashMessages();
+		}
+	}
+
+	private async _maybeRunTurnEndInjection(): Promise<boolean> {
+		const questions = this._extensionRunner.getTurnEndQuestions();
+		if (questions.length === 0) return false;
+		try {
+			const response = await runTurnEndInjection(questions, this);
+			if (!response) {
+				this._emit({ type: "turn_end_injection", status: "suppressed" });
+				return false;
+			}
+			const injectedMsg: InjectedUserMessage = {
+				role: "injectedUser",
+				content: `Turn-end review flagged the following:\n\n${response}`,
+				timestamp: Date.now(),
+			};
+			this.agent.state.messages.push(injectedMsg);
+			this.sessionManager.appendCustomMessageEntry("injectedUser", injectedMsg.content, true, undefined);
+			this._emit({ type: "message_start", message: injectedMsg });
+			this._emit({ type: "message_end", message: injectedMsg });
+			return true;
+		} catch {
+			// Turn-end injection is advisory; degrade gracefully on side-session failure.
+			this._emit({ type: "turn_end_injection", status: "error" });
+			return false;
 		}
 	}
 
@@ -972,27 +1007,6 @@ export class AgentSession {
 
 		if (await this._checkCompaction(msg)) {
 			return true;
-		}
-
-		// Turn-end injection: fire once per _runAgentPrompt call, after retry and compaction.
-		if (this._pendingTurnEndInjection) {
-			this._pendingTurnEndInjection = false;
-			const questions = this._extensionRunner.getTurnEndQuestions();
-			if (questions.length > 0) {
-				const response = await runTurnEndInjection(questions, this);
-				if (response) {
-					const injectedMsg: InjectedUserMessage = {
-						role: "injectedUser",
-						content: `Sorry to disturb you from the task at hand, but have you considered the following points:\n\n${response}`,
-						timestamp: Date.now(),
-					};
-					this.agent.state.messages.push(injectedMsg);
-					this.sessionManager.appendCustomMessageEntry("injectedUser", injectedMsg.content, true, undefined);
-					this._emit({ type: "message_start", message: injectedMsg });
-					this._emit({ type: "message_end", message: injectedMsg });
-					return true;
-				}
-			}
 		}
 
 		// The agent loop drains both queues before emitting agent_end. Any messages
