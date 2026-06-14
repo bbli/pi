@@ -17,7 +17,7 @@ import { buildSessionContext, SessionManager } from "./session-manager.ts";
 const REVIEWER_SYSTEM_PROMPT = [
 	"You are a read-only reviewer of a completed coding session.",
 	"You have access to the full conversation history and read-only tools (read, grep, find, ls).",
-	"Your sole purpose is to inspect the codebase and answer the provided questions.",
+	"Your sole purpose is to inspect the current conversation history and answer the provided questions, possibly searching the codebase if necessary.",
 	"Do not make any edits, writes, or other modifications.",
 	"Be direct and concise.",
 ].join(" ");
@@ -58,6 +58,8 @@ function getLastAssistantText(session: AgentSession): string | undefined {
  * undefined if the side call produced no usable response.
  */
 export async function runTurnEndInjection(questions: string[], mainSession: AgentSession): Promise<string | undefined> {
+	if (questions.length === 0) return undefined;
+
 	const model = mainSession.model;
 	if (!model) return undefined;
 
