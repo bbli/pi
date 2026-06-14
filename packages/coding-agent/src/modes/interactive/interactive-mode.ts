@@ -70,6 +70,7 @@ import type {
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
 	ExtensionWidgetOptions,
+	TurnEndQuestionEntry,
 } from "../../core/extensions/index.ts";
 import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/footer-data-provider.ts";
 import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
@@ -2536,6 +2537,11 @@ export class InteractiveMode {
 			if (text === "/name" || text.startsWith("/name ")) {
 				this.handleNameCommand(text);
 				this.editor.setText("");
+				return;
+			}
+			if (text === "/question" || text.startsWith("/question ")) {
+				this.editor.setText("");
+				await this.handleQuestionCommand(text);
 				return;
 			}
 			if (text === "/session") {
@@ -5250,6 +5256,61 @@ export class InteractiveMode {
 		this.session.setSessionName(name);
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new Text(theme.fg("dim", `Session name set: ${name}`), 1, 0));
+		this.ui.requestRender();
+	}
+
+	private async handleQuestionCommand(text: string): Promise<void> {
+		const arg = text.replace(/^\/question\s*/, "").trim();
+
+		if (arg) {
+			this.session.extensionRunner.addUserTurnEndQuestion(arg);
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(
+				new Text(theme.fg("dim", `Turn-end question added (cleared on /reload): ${arg}`), 1, 0),
+			);
+			this.ui.requestRender();
+			return;
+		}
+
+		// No args: show interactive list to add or remove questions.
+		const runner = this.session.extensionRunner;
+		const ADD_LABEL = "+ Add new question\u2026";
+
+		const allEntries: TurnEndQuestionEntry[] = runner.getAllTurnEndQuestionEntries();
+
+		// Build uniquely-labelled options. Number each entry so duplicate question
+		// texts produce distinct selector labels.
+		const entryLabels = allEntries.map((e, i) => {
+			const sourceLabel = e.source === "user" ? "user" : path.basename(e.source);
+			return `${i + 1}. [${sourceLabel}] ${e.question}`;
+		});
+
+		const title =
+			allEntries.length === 0 ? "Turn-end questions — none registered" : "Turn-end questions (select to remove)";
+
+		const selected = await this.showExtensionSelector(title, [ADD_LABEL, ...entryLabels]);
+		if (!selected) return;
+
+		if (selected === ADD_LABEL) {
+			const question = await this.showExtensionInput("Add turn-end question", "Enter your question\u2026");
+			if (!question?.trim()) return;
+			runner.addUserTurnEndQuestion(question.trim());
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(
+				new Text(theme.fg("dim", `Turn-end question added (cleared on /reload): ${question.trim()}`), 1, 0),
+			);
+			this.ui.requestRender();
+			return;
+		}
+
+		// Determine which entry was selected by matching the label string.
+		const entryIndex = entryLabels.indexOf(selected);
+		if (entryIndex === -1) return;
+		const entry = allEntries[entryIndex];
+		if (!entry) return;
+		runner.removeTurnEndQuestionEntry(entry);
+		this.chatContainer.addChild(new Spacer(1));
+		this.chatContainer.addChild(new Text(theme.fg("dim", `Turn-end question removed: ${entry.question}`), 1, 0));
 		this.ui.requestRender();
 	}
 

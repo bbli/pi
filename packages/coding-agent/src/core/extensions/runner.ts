@@ -189,6 +189,15 @@ export async function emitSessionShutdownEvent(
 	return false;
 }
 
+/** A single registered turn-end question with its source and position, used for display and removal. */
+export interface TurnEndQuestionEntry {
+	question: string;
+	/** "user" for questions registered via /question, or the extension path for extension-registered ones. */
+	source: "user" | string;
+	/** 0-based index within the source array. Used to verify the entry still exists before removal. */
+	sourceIndex: number;
+}
+
 const noOpUIContext: ExtensionUIContext = {
 	select: async () => undefined,
 	confirm: async () => false,
@@ -250,6 +259,7 @@ export class ExtensionRunner {
 	private shortcutDiagnostics: ResourceDiagnostic[] = [];
 	private commandDiagnostics: ResourceDiagnostic[] = [];
 	private staleMessage: string | undefined;
+	private _userTurnEndQuestions: string[] = [];
 
 	constructor(
 		extensions: Extension[],
@@ -375,13 +385,71 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
-	/** Collect all turn-end questions registered across all extensions. */
+	/** Collect all turn-end questions registered across all extensions and by the user. */
 	getTurnEndQuestions(): string[] {
 		const questions: string[] = [];
 		for (const ext of this.extensions) {
 			questions.push(...ext.turnEndQuestions);
 		}
+		questions.push(...this._userTurnEndQuestions);
 		return questions;
+	}
+
+	/** Add a user-registered turn-end question. */
+	addUserTurnEndQuestion(question: string): void {
+		this._userTurnEndQuestions.push(question);
+	}
+
+	/**
+	 * Remove a user-registered turn-end question by 0-based index.
+	 * Returns false if the index is out of bounds.
+	 */
+	removeUserTurnEndQuestion(index: number): boolean {
+		if (index < 0 || index >= this._userTurnEndQuestions.length) return false;
+		this._userTurnEndQuestions.splice(index, 1);
+		return true;
+	}
+
+	/** Return a read-only view of user-registered turn-end questions. */
+	getUserTurnEndQuestions(): readonly string[] {
+		return this._userTurnEndQuestions;
+	}
+
+	/**
+	 * Return all registered turn-end questions as labelled entries, combining
+	 * user-registered and extension-registered questions.
+	 *
+	 * Each entry carries enough information to remove it via removeTurnEndQuestionEntry().
+	 */
+	getAllTurnEndQuestionEntries(): TurnEndQuestionEntry[] {
+		const entries: TurnEndQuestionEntry[] = [];
+		for (const ext of this.extensions) {
+			for (let i = 0; i < ext.turnEndQuestions.length; i++) {
+				entries.push({ question: ext.turnEndQuestions[i], source: ext.path, sourceIndex: i });
+			}
+		}
+		for (let i = 0; i < this._userTurnEndQuestions.length; i++) {
+			entries.push({ question: this._userTurnEndQuestions[i], source: "user", sourceIndex: i });
+		}
+		return entries;
+	}
+
+	/**
+	 * Remove the question described by a TurnEndQuestionEntry.
+	 * For user entries, removes from the user list. For extension entries, removes from
+	 * that extension's list. Returns false if the entry no longer exists.
+	 */
+	removeTurnEndQuestionEntry(entry: TurnEndQuestionEntry): boolean {
+		if (entry.source === "user") {
+			if (this._userTurnEndQuestions[entry.sourceIndex] !== entry.question) return false;
+			this._userTurnEndQuestions.splice(entry.sourceIndex, 1);
+			return true;
+		}
+		const ext = this.extensions.find((e) => e.path === entry.source);
+		if (!ext) return false;
+		if (ext.turnEndQuestions[entry.sourceIndex] !== entry.question) return false;
+		ext.turnEndQuestions.splice(entry.sourceIndex, 1);
+		return true;
 	}
 
 	/** Return the registered tree filter predicate, or undefined if none is set. */

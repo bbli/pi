@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `/question` interactive command to manage turn-end review questions at runtime. `/question <text>` adds a question; `/question` (no args) opens a selector to add new questions or remove existing ones (including extension-registered questions).
+
 ### Fixed
 
 - Fixed built-in tool expand hints to style closing parentheses consistently ([#5359](https://github.com/earendil-works/pi/issues/5359)).
