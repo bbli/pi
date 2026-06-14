@@ -82,6 +82,7 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
+			turnEndQuestions: [],
 		};
 	}
 
@@ -256,6 +257,7 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
+			turnEndQuestions: [],
 		};
 
 		createSession([throwingExtension]);
@@ -305,6 +307,7 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
+			turnEndQuestions: [],
 		};
 
 		const extension2: Extension = {
@@ -336,6 +339,7 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
+			turnEndQuestions: [],
 		};
 
 		createSession([extension1, extension2]);

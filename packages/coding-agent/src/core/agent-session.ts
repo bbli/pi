@@ -79,7 +79,7 @@ import {
 	wrapRegisteredTools,
 } from "./extensions/index.ts";
 import { emitSessionShutdownEvent } from "./extensions/runner.ts";
-import type { BashExecutionMessage, CustomMessage } from "./messages.ts";
+import type { BashExecutionMessage, CustomMessage, InjectedUserMessage } from "./messages.ts";
 import type { ModelRegistry } from "./model-registry.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
 import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.ts";
@@ -92,6 +92,7 @@ import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-promp
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
+import { runTurnEndInjection } from "./turn-end-injection.ts";
 
 // ============================================================================
 // Skill Block Parsing
@@ -290,6 +291,8 @@ export class AgentSession {
 	// Extension system
 	private _extensionRunner!: ExtensionRunner;
 	private _turnIndex = 0;
+	/** Set at the start of each _runAgentPrompt call; cleared after turn-end injection fires once. */
+	private _pendingTurnEndInjection = false;
 
 	private _resourceLoader: ResourceLoader;
 	private _customTools: ToolDefinition[];
@@ -934,12 +937,14 @@ export class AgentSession {
 	// =========================================================================
 
 	private async _runAgentPrompt(messages: AgentMessage | AgentMessage[]): Promise<void> {
+		this._pendingTurnEndInjection = true;
 		try {
 			await this.agent.prompt(messages);
 			while (await this._handlePostAgentRun()) {
 				await this.agent.continue();
 			}
 		} finally {
+			this._pendingTurnEndInjection = false;
 			this._flushPendingBashMessages();
 		}
 	}
@@ -967,6 +972,27 @@ export class AgentSession {
 
 		if (await this._checkCompaction(msg)) {
 			return true;
+		}
+
+		// Turn-end injection: fire once per _runAgentPrompt call, after retry and compaction.
+		if (this._pendingTurnEndInjection) {
+			this._pendingTurnEndInjection = false;
+			const questions = this._extensionRunner.getTurnEndQuestions();
+			if (questions.length > 0) {
+				const response = await runTurnEndInjection(questions, this);
+				if (response) {
+					const injectedMsg: InjectedUserMessage = {
+						role: "injectedUser",
+						content: `Sorry to disturb you from the task at hand, but have you considered the following points:\n\n${response}`,
+						timestamp: Date.now(),
+					};
+					this.agent.state.messages.push(injectedMsg);
+					this.sessionManager.appendCustomMessageEntry("injectedUser", injectedMsg.content, true, undefined);
+					this._emit({ type: "message_start", message: injectedMsg });
+					this._emit({ type: "message_end", message: injectedMsg });
+					return true;
+				}
+			}
 		}
 
 		// The agent loop drains both queues before emitting agent_end. Any messages

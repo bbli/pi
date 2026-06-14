@@ -235,6 +235,17 @@ function createExtensionAPI(
 			extension.messageRenderers.set(customType, renderer as MessageRenderer);
 		},
 
+		registerTurnEndQuestion(question: string): () => void {
+			runtime.assertActive();
+			extension.turnEndQuestions.push(question);
+			return () => {
+				const index = extension.turnEndQuestions.indexOf(question);
+				if (index !== -1) {
+					extension.turnEndQuestions.splice(index, 1);
+				}
+			};
+		},
+
 		// Flag access - checks extension registered it, reads from runtime
 		getFlag(name: string): boolean | string | undefined {
 			runtime.assertActive();
@@ -368,6 +379,7 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 		commands: new Map(),
 		flags: new Map(),
 		shortcuts: new Map(),
+		turnEndQuestions: [],
 	};
 }
 

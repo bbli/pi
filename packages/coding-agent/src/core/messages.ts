@@ -66,6 +66,18 @@ export interface CompactionSummaryMessage {
 	timestamp: number;
 }
 
+/**
+ * Message injected into the main context after a turn-end injection side call.
+ *
+ * The LLM sees this as a user message on the next turn. It is persisted to the
+ * session as a custom entry with customType "injectedUser".
+ */
+export interface InjectedUserMessage {
+	role: "injectedUser";
+	content: string;
+	timestamp: number;
+}
+
 // Extend CustomAgentMessages via declaration merging
 declare module "@earendil-works/pi-agent-core" {
 	interface CustomAgentMessages {
@@ -73,6 +85,7 @@ declare module "@earendil-works/pi-agent-core" {
 		custom: CustomMessage;
 		branchSummary: BranchSummaryMessage;
 		compactionSummary: CompactionSummaryMessage;
+		injectedUser: InjectedUserMessage;
 	}
 }
 
@@ -179,6 +192,12 @@ export function convertToLlm(messages: AgentMessage[]): Message[] {
 						content: [
 							{ type: "text" as const, text: COMPACTION_SUMMARY_PREFIX + m.summary + COMPACTION_SUMMARY_SUFFIX },
 						],
+						timestamp: m.timestamp,
+					};
+				case "injectedUser":
+					return {
+						role: "user",
+						content: [{ type: "text" as const, text: m.content }],
 						timestamp: m.timestamp,
 					};
 				case "user":

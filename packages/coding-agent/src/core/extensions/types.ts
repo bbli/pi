@@ -1179,6 +1179,18 @@ export interface ExtensionAPI {
 	/** Register a custom renderer for CustomMessageEntry. */
 	registerMessageRenderer<T = unknown>(customType: string, renderer: MessageRenderer<T>): void;
 
+	/**
+	 * Register a question to be asked in a separate read-only LLM call after each agent turn completes.
+	 *
+	 * When the agent finishes a turn and all questions have been collected, a side call is made with
+	 * a read-only system prompt and the registered questions. The last assistant response from that
+	 * call is injected back into the main context as an InjectedUserMessage, which triggers another
+	 * assistant turn as if the user had responded.
+	 *
+	 * Returns an unsubscriber that removes this question.
+	 */
+	registerTurnEndQuestion(question: string): () => void;
+
 	// =========================================================================
 	// Actions
 	// =========================================================================
@@ -1564,6 +1576,8 @@ export interface Extension {
 	commands: Map<string, RegisteredCommand>;
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
+	/** Questions registered via registerTurnEndQuestion(). */
+	turnEndQuestions: string[];
 }
 
 /** Result of loading extensions. */

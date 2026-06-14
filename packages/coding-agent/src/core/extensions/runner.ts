@@ -375,6 +375,15 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
+	/** Collect all turn-end questions registered across all extensions. */
+	getTurnEndQuestions(): string[] {
+		const questions: string[] = [];
+		for (const ext of this.extensions) {
+			questions.push(...ext.turnEndQuestions);
+		}
+		return questions;
+	}
+
 	/** Return the registered tree filter predicate, or undefined if none is set. */
 	getTreeFilter(): ((id: string) => boolean) | undefined {
 		const filters = this.runtime.treeFilters;

@@ -3141,6 +3141,14 @@ export class InteractiveMode {
 				// Tool results are rendered inline with tool calls, handled separately
 				break;
 			}
+			case "injectedUser": {
+				if (this.chatContainer.children.length > 0) {
+					this.chatContainer.addChild(new Spacer(1));
+				}
+				const injectedComponent = new UserMessageComponent(message.content, this.getMarkdownThemeWithSettings());
+				this.chatContainer.addChild(injectedComponent);
+				break;
+			}
 			default: {
 				const _exhaustive: never = message;
 			}
