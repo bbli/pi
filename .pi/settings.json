@@ -1,7 +1,8 @@
 {
   "theme": "high-contrast",
   "packages": [
-    "/home/ir/Software/pi/.pi/npm/node_modules/pi-btw",
-    "/home/ir/Software/pi/.pi/npm/node_modules/pi-observational-memory"
-  ]
+    "npm:pi-smart-fetch",
+    "npm:pi-interactive-shell"
+  ],
+  "lastChangelogVersion": "0.78.1"
 }
