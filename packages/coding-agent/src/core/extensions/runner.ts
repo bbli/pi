@@ -375,6 +375,13 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
+	/** Return the registered tree filter predicate, or undefined if none is set. */
+	getTreeFilter(): ((id: string) => boolean) | undefined {
+		const filters = this.runtime.treeFilters;
+		if (filters.length === 0) return undefined;
+		return (id) => filters.every((fn) => fn(id));
+	}
+
 	/** Get all registered tools from all extensions (first registration per name wins). */
 	getAllRegisteredTools(): RegisteredTool[] {
 		const toolsByName = new Map<string, RegisteredTool>();

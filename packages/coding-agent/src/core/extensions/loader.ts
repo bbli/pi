@@ -164,6 +164,7 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		unregisterProvider: (name) => {
 			runtime.pendingProviderRegistrations = runtime.pendingProviderRegistrations.filter((r) => r.name !== name);
 		},
+		treeFilters: [],
 	};
 
 	return runtime;
@@ -320,6 +321,11 @@ function createExtensionAPI(
 		unregisterProvider(name: string) {
 			runtime.assertActive();
 			runtime.unregisterProvider(name, extension.path);
+		},
+
+		addTreeFilter(fn: (id: string) => boolean): void {
+			runtime.assertActive();
+			runtime.treeFilters.push(fn);
 		},
 
 		events: eventBus,

@@ -1315,6 +1315,13 @@ export interface ExtensionAPI {
 	 */
 	unregisterProvider(name: string): void;
 
+	/**
+	 * Register a predicate that hides tree nodes from both the builtin /tree picker
+	 * and any extension tree picker that respects the filter.
+	 * All registered filters are AND-composed: a node is visible only if every filter returns true.
+	 */
+	addTreeFilter(fn: (id: string) => boolean): void;
+
 	/** Shared event bus for extension communication. */
 	events: EventBus;
 }
@@ -1472,6 +1479,8 @@ export interface ExtensionRuntimeState {
 	 */
 	registerProvider: (name: string, config: ProviderConfig, extensionPath?: string) => void;
 	unregisterProvider: (name: string, extensionPath?: string) => void;
+	/** Filter functions used to hide tree nodes from /tree and extension-managed tree pickers. All filters are AND-composed. */
+	treeFilters: Array<(id: string) => boolean>;
 }
 
 /**

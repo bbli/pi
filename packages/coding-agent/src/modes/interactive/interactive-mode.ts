@@ -80,7 +80,7 @@ import { DefaultPackageManager } from "../../core/package-manager.ts";
 import { BUILT_IN_PROVIDER_DISPLAY_NAMES } from "../../core/provider-display-names.ts";
 import type { ResourceDiagnostic } from "../../core/resource-loader.ts";
 import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../core/session-cwd.ts";
-import { type SessionContext, SessionManager } from "../../core/session-manager.ts";
+import { type SessionContext, SessionManager, type SessionTreeNode } from "../../core/session-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.ts";
@@ -142,6 +142,10 @@ import {
 /** Interface for components that can be expanded/collapsed */
 interface Expandable {
 	setExpanded(expanded: boolean): void;
+}
+
+function pruneTree(nodes: SessionTreeNode[], filter: (id: string) => boolean): SessionTreeNode[] {
+	return nodes.filter((n) => filter(n.entry.id)).map((n) => ({ ...n, children: pruneTree(n.children, filter) }));
 }
 
 function isExpandable(obj: unknown): obj is Expandable {
@@ -4308,7 +4312,9 @@ export class InteractiveMode {
 	}
 
 	private showTreeSelector(initialSelectedId?: string): void {
-		const tree = this.sessionManager.getTree();
+		const rawTree = this.sessionManager.getTree();
+		const treeFilter = this.session.extensionRunner.getTreeFilter();
+		const tree = treeFilter ? pruneTree(rawTree, treeFilter) : rawTree;
 		const realLeafId = this.sessionManager.getLeafId();
 		const initialFilterMode = this.settingsManager.getTreeFilterMode();
 

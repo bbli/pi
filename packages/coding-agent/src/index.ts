@@ -312,6 +312,7 @@ export {
 	ExtensionEditorComponent,
 	ExtensionInputComponent,
 	ExtensionSelectorComponent,
+	type FilterMode,
 	FooterComponent,
 	keyHint,
 	keyText,

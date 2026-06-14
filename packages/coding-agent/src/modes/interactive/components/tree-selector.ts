@@ -1162,6 +1162,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		onLabelChange?: (entryId: string, label: string | undefined) => void,
 		initialSelectedId?: string,
 		initialFilterMode?: FilterMode,
+		title?: string,
 	) {
 		super();
 
@@ -1180,7 +1181,7 @@ export class TreeSelectorComponent extends Container implements Focusable {
 
 		this.addChild(new Spacer(1));
 		this.addChild(new DynamicBorder());
-		this.addChild(new Text(theme.bold("  Session Tree"), 1, 0));
+		this.addChild(new Text(theme.bold(`  ${title ?? "Session Tree"}`), 1, 0));
 		const filterKeys = [
 			keyText("app.tree.filter.default"),
 			keyText("app.tree.filter.noTools"),
