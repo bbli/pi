@@ -43,6 +43,11 @@ function collectDescendants(node: TreeNode): string[] {
 export default function rewindExtension(pi: ExtensionAPI): void {
 	const rewoundIds = new Set<string>();
 
+	// Register once. The predicate closes over the live rewoundIds set, so any
+	// subsequent mutations (session_start restore or /rewind command) are
+	// automatically reflected without re-registering.
+	pi.addTreeFilter((id) => !rewoundIds.has(id));
+
 	pi.on("session_start", (_event, ctx) => {
 		// Restore rewound IDs from the last persisted state in this session.
 		rewoundIds.clear();
@@ -53,7 +58,6 @@ export default function rewindExtension(pi: ExtensionAPI): void {
 				const data = (entry as CustomEntry<RewindState>).data;
 				if (data?.rewoundIds) {
 					for (const id of data.rewoundIds) rewoundIds.add(id);
-					pi.setTreeFilter((id) => !rewoundIds.has(id));
 				}
 				break;
 			}
@@ -66,7 +70,7 @@ export default function rewindExtension(pi: ExtensionAPI): void {
 			const rawTree = ctx.sessionManager.getTree();
 			const leafId = ctx.sessionManager.getLeafId();
 
-			const treeFilter = pi.getTreeFilter();
+			const treeFilter = rewoundIds.size > 0 ? (id: string) => !rewoundIds.has(id) : undefined;
 			const tree = treeFilter ? pruneTree(rawTree, treeFilter) : rawTree;
 
 			const selectedId = await ctx.ui.custom<string | undefined>(
@@ -99,7 +103,6 @@ export default function rewindExtension(pi: ExtensionAPI): void {
 				rewoundIds.add(id);
 			}
 
-			pi.setTreeFilter((id) => !rewoundIds.has(id));
 			pi.appendEntry(REWIND_STATE_TYPE, { rewoundIds: [...rewoundIds] } satisfies RewindState);
 		},
 	});
