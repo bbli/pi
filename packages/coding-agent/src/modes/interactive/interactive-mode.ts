@@ -5259,16 +5259,25 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
+	private appendChatStatus(msg: string): void {
+		this.chatContainer.addChild(new Spacer(1));
+		this.chatContainer.addChild(new Text(theme.fg("dim", msg), 1, 0));
+		this.ui.requestRender();
+	}
+
+	private addTurnEndQuestionWithFeedback(runner: ExtensionRunner, question: string): void {
+		const added = runner.addUserTurnEndQuestion(question);
+		const msg = added
+			? `Turn-end question added (cleared on /reload): ${question}`
+			: `Turn-end question already registered: ${question}`;
+		this.appendChatStatus(msg);
+	}
+
 	private async handleQuestionCommand(text: string): Promise<void> {
 		const arg = text.replace(/^\/question\s*/, "").trim();
 
 		if (arg) {
-			this.session.extensionRunner.addUserTurnEndQuestion(arg);
-			this.chatContainer.addChild(new Spacer(1));
-			this.chatContainer.addChild(
-				new Text(theme.fg("dim", `Turn-end question added (cleared on /reload): ${arg}`), 1, 0),
-			);
-			this.ui.requestRender();
+			this.addTurnEndQuestionWithFeedback(this.session.extensionRunner, arg);
 			return;
 		}
 
@@ -5278,8 +5287,9 @@ export class InteractiveMode {
 
 		const allEntries: TurnEndQuestionEntry[] = runner.getAllTurnEndQuestionEntries();
 
-		// Build uniquely-labelled options. Number each entry so duplicate question
-		// texts produce distinct selector labels.
+		// Build uniquely-labelled options. Numbering is load-bearing: extensions can
+		// register identical question texts, so labels must be unique for
+		// entryLabels.indexOf(selected) to always resolve to the correct entry.
 		const entryLabels = allEntries.map((e, i) => {
 			const sourceLabel = e.source === "user" ? "user" : path.basename(e.source);
 			return `${i + 1}. [${sourceLabel}] ${e.question}`;
@@ -5294,12 +5304,7 @@ export class InteractiveMode {
 		if (selected === ADD_LABEL) {
 			const question = await this.showExtensionInput("Add turn-end question", "Enter your question\u2026");
 			if (!question?.trim()) return;
-			runner.addUserTurnEndQuestion(question.trim());
-			this.chatContainer.addChild(new Spacer(1));
-			this.chatContainer.addChild(
-				new Text(theme.fg("dim", `Turn-end question added (cleared on /reload): ${question.trim()}`), 1, 0),
-			);
-			this.ui.requestRender();
+			this.addTurnEndQuestionWithFeedback(runner, question.trim());
 			return;
 		}
 
@@ -5309,9 +5314,7 @@ export class InteractiveMode {
 		const entry = allEntries[entryIndex];
 		if (!entry) return;
 		runner.removeTurnEndQuestionEntry(entry);
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(theme.fg("dim", `Turn-end question removed: ${entry.question}`), 1, 0));
-		this.ui.requestRender();
+		this.appendChatStatus(`Turn-end question removed: ${entry.question}`);
 	}
 
 	private handleSessionCommand(): void {

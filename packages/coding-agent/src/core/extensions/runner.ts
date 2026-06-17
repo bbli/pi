@@ -385,19 +385,24 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
-	/** Collect all turn-end questions registered across all extensions and by the user. */
-	getTurnEndQuestions(): string[] {
-		const questions: string[] = [];
-		for (const ext of this.extensions) {
-			questions.push(...ext.turnEndQuestions);
-		}
-		questions.push(...this._userTurnEndQuestions);
-		return questions;
+	/** All question sources in iteration order: one entry per extension, then the user source. */
+	private allQuestionSources(): Array<{ source: string; questions: string[] }> {
+		return [
+			...this.extensions.map((e) => ({ source: e.path, questions: e.turnEndQuestions })),
+			{ source: "user", questions: this._userTurnEndQuestions },
+		];
 	}
 
-	/** Add a user-registered turn-end question. */
-	addUserTurnEndQuestion(question: string): void {
+	/** Collect all turn-end questions registered across all extensions and by the user. */
+	getTurnEndQuestions(): string[] {
+		return this.allQuestionSources().flatMap(({ questions }) => questions);
+	}
+
+	/** Add a user-registered turn-end question. Returns false if the question is already registered by any source. */
+	addUserTurnEndQuestion(question: string): boolean {
+		if (this.getTurnEndQuestions().includes(question)) return false;
 		this._userTurnEndQuestions.push(question);
+		return true;
 	}
 
 	/**
@@ -423,32 +428,23 @@ export class ExtensionRunner {
 	 */
 	getAllTurnEndQuestionEntries(): TurnEndQuestionEntry[] {
 		const entries: TurnEndQuestionEntry[] = [];
-		for (const ext of this.extensions) {
-			for (let i = 0; i < ext.turnEndQuestions.length; i++) {
-				entries.push({ question: ext.turnEndQuestions[i], source: ext.path, sourceIndex: i });
+		for (const { source, questions } of this.allQuestionSources()) {
+			for (let i = 0; i < questions.length; i++) {
+				entries.push({ question: questions[i], source, sourceIndex: i });
 			}
-		}
-		for (let i = 0; i < this._userTurnEndQuestions.length; i++) {
-			entries.push({ question: this._userTurnEndQuestions[i], source: "user", sourceIndex: i });
 		}
 		return entries;
 	}
 
 	/**
 	 * Remove the question described by a TurnEndQuestionEntry.
-	 * For user entries, removes from the user list. For extension entries, removes from
-	 * that extension's list. Returns false if the entry no longer exists.
+	 * Returns false if the entry no longer exists.
 	 */
 	removeTurnEndQuestionEntry(entry: TurnEndQuestionEntry): boolean {
-		if (entry.source === "user") {
-			if (this._userTurnEndQuestions[entry.sourceIndex] !== entry.question) return false;
-			this._userTurnEndQuestions.splice(entry.sourceIndex, 1);
-			return true;
-		}
-		const ext = this.extensions.find((e) => e.path === entry.source);
-		if (!ext) return false;
-		if (ext.turnEndQuestions[entry.sourceIndex] !== entry.question) return false;
-		ext.turnEndQuestions.splice(entry.sourceIndex, 1);
+		const src = this.allQuestionSources().find((s) => s.source === entry.source);
+		if (!src) return false;
+		if (src.questions[entry.sourceIndex] !== entry.question) return false;
+		src.questions.splice(entry.sourceIndex, 1);
 		return true;
 	}
 

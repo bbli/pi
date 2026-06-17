@@ -823,6 +823,84 @@ describe("ExtensionRunner", () => {
 		});
 	});
 
+	describe("turn-end questions", () => {
+		it("removes a question from extension-only state", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerTurnEndQuestion("ext q1");
+					pi.registerTurnEndQuestion("ext q2");
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "turn-end.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			const entries = runner.getAllTurnEndQuestionEntries();
+			expect(entries).toHaveLength(2);
+
+			const toRemove = entries.find((e) => e.question === "ext q1")!;
+			expect(runner.removeTurnEndQuestionEntry(toRemove)).toBe(true);
+
+			expect(runner.getTurnEndQuestions()).toEqual(["ext q2"]);
+		});
+
+		it("removes a question from user-only state", () => {
+			const runtime = createExtensionRuntime();
+			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+
+			runner.addUserTurnEndQuestion("user q1");
+			runner.addUserTurnEndQuestion("user q2");
+
+			const entries = runner.getAllTurnEndQuestionEntries();
+			expect(entries).toHaveLength(2);
+
+			const toRemove = entries.find((e) => e.question === "user q1")!;
+			expect(runner.removeTurnEndQuestionEntry(toRemove)).toBe(true);
+
+			expect(runner.getTurnEndQuestions()).toEqual(["user q2"]);
+			expect(runner.getUserTurnEndQuestions()).toEqual(["user q2"]);
+		});
+
+		it("rejects a user question that is already registered by an extension", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerTurnEndQuestion("shared q");
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "turn-end.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			expect(runner.addUserTurnEndQuestion("shared q")).toBe(false);
+			expect(runner.getTurnEndQuestions()).toEqual(["shared q"]);
+		});
+
+		it("removes questions from mixed extension and user state", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerTurnEndQuestion("ext q");
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "turn-end.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			runner.addUserTurnEndQuestion("user q");
+
+			expect(runner.getTurnEndQuestions()).toEqual(["ext q", "user q"]);
+
+			const extEntry = runner.getAllTurnEndQuestionEntries().find((e) => e.source !== "user")!;
+			expect(runner.removeTurnEndQuestionEntry(extEntry)).toBe(true);
+			expect(runner.getTurnEndQuestions()).toEqual(["user q"]);
+
+			const userEntry = runner.getAllTurnEndQuestionEntries().find((e) => e.source === "user")!;
+			expect(runner.removeTurnEndQuestionEntry(userEntry)).toBe(true);
+			expect(runner.getTurnEndQuestions()).toEqual([]);
+		});
+	});
+
 	describe("hasHandlers", () => {
 		it("returns true when handlers exist for event type", async () => {
 			const extCode = `
