@@ -17,7 +17,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const MAX_RETRIES = 3;
+// Lines of non-empty output from the failed command to feed back to the agent.
+// Blank lines are excluded from the count, so actual content may span more raw lines.
 const TAIL_LINES = 20;
+const CHECK_TIMEOUT_MS = 120_000;
 
 export default function checkGuard(pi: ExtensionAPI) {
 	let checkCommand: string | null = null;
@@ -36,7 +39,14 @@ export default function checkGuard(pi: ExtensionAPI) {
 	pi.on("agent_end", async (_event, ctx) => {
 		if (!checkCommand) return;
 
-		const result = await pi.exec("sh", ["-c", checkCommand], { cwd: ctx.cwd });
+		const result = await pi.exec("sh", ["-c", checkCommand], { cwd: ctx.cwd, timeout: CHECK_TIMEOUT_MS });
+
+		if (result.killed) {
+			if (ctx.hasUI) {
+				ctx.ui.notify(`/check: command timed out after ${CHECK_TIMEOUT_MS / 1000}s`, "warning");
+			}
+			return;
+		}
 
 		if (result.code === 0) {
 			retryCount = 0;
