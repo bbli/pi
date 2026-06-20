@@ -11,6 +11,7 @@
  *
  * Usage:
  *   /check npm run check   - register a check command
+ *   /check list            - show the currently registered command
  *   /check                 - clear the registered command
  *
  * The check runs after each full agent run (agent_end). If it fails, the
@@ -122,9 +123,16 @@ export default function checkGuard(pi: ExtensionAPI) {
 
 	pi.registerCommand("check", {
 		description:
-			"Register a bash experimental check command to run after each agent run. Agent iterates if it fails. No args clears it.",
+			"Register a bash experimental check command to run after each agent run. Agent iterates if it fails. `list` shows current. No args clears it.",
 		handler: async (args, ctx) => {
 			const cmd = args.trim();
+			if (cmd === "list") {
+				ctx.ui.notify(
+					checkCommand ? `Current check: \`${checkCommand}\`` : "(no check registered)",
+					"info",
+				);
+				return;
+			}
 			if (!cmd) {
 				checkCommand = null;
 				retryCount = 0;
