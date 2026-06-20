@@ -39,7 +39,7 @@ export default function consider(pi: ExtensionAPI): void {
 		if (checks.length === 0) return;
 
 		state = { status: "running" };
-		pi.runReviewer([...checks])
+		pi.runReviewer(checks.map((c) => c.text))
 			.then((result) => {
 				if (result) {
 					state = { status: "done", result };
@@ -65,11 +65,13 @@ export default function consider(pi: ExtensionAPI): void {
 			"evaluated by a read-only reviewer side-session after every inner agent turn. " +
 			"If a check is violated, the reviewer's feedback is steered into the conversation. " +
 			"For deterministic, command-line-runnable assertions, use manage_check instead. " +
-			"Register checks at the start of a long task and remove them when the task is complete.",
+			"Each check may carry a removalCondition describing when it should be removed. " +
+			"Call list periodically to review active checks and remove any whose removalCondition has been met.",
 		promptSnippet: "manage_considerations: add/remove/list per-turn thinking checks",
 		promptGuidelines: [
 			"Use manage_considerations to register subjective invariants the LLM should evaluate after each turn (e.g. 'did you git commit after completing this step?').",
-			"Register checks at the start of a multi-step plan. Remove them when the plan is complete.",
+			"When adding a check, always supply a removalCondition so you know when to remove it.",
+			"Periodically call manage_considerations with action=list to review active checks and remove any whose removalCondition has been met.",
 			"For deterministic checks that can be verified by running a command, use manage_check instead.",
 		],
 		parameters: Type.Object({
@@ -77,13 +79,21 @@ export default function consider(pi: ExtensionAPI): void {
 				description: "Operation to perform",
 			}),
 			check: Type.Optional(Type.String({ description: "The check text (required for add and remove)" })),
+			removalCondition: Type.Optional(
+				Type.String({
+					description: "Condition describing when this check should be removed (used with action=add)",
+				}),
+			),
 		}),
 		execute: async (_id, params) => {
 			console.error("[manage_considerations] called with", params);
 			if (params.action === "list") {
 				const checks = pi.getTurnChecks();
+				const lines = checks.map((c) =>
+					c.removalCondition ? `- ${c.text} [remove when: ${c.removalCondition}]` : `- ${c.text}`,
+				);
 				return {
-					content: [{ type: "text", text: checks.join("\n") || "(no checks registered)" }],
+					content: [{ type: "text", text: lines.join("\n") || "(no checks registered)" }],
 					details: undefined,
 				};
 			}
@@ -96,8 +106,12 @@ export default function consider(pi: ExtensionAPI): void {
 						details: undefined,
 					};
 				}
-				pi.registerTurnCheck(params.check);
-				return { content: [{ type: "text", text: `Added check: ${params.check}` }], details: undefined };
+				const removalCondition = params.removalCondition?.trim() || undefined;
+				pi.registerTurnCheck({ text: params.check, removalCondition });
+				const confirmMsg = removalCondition
+					? `Added check: ${params.check} [remove when: ${removalCondition}]`
+					: `Added check: ${params.check}`;
+				return { content: [{ type: "text", text: confirmMsg }], details: undefined };
 			}
 
 			if (params.action === "remove") {
@@ -141,7 +155,10 @@ export default function consider(pi: ExtensionAPI): void {
 
 			if (action === "list") {
 				const checks = pi.getTurnChecks();
-				ctx.ui.notify(checks.length ? checks.join("\n") : "(no checks registered)", "info");
+				const lines = checks.map((c) =>
+					c.removalCondition ? `${c.text} [remove when: ${c.removalCondition}]` : c.text,
+				);
+				ctx.ui.notify(lines.length ? lines.join("\n") : "(no checks registered)", "info");
 				return;
 			}
 

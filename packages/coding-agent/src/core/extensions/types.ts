@@ -1087,6 +1087,14 @@ export interface ResolvedCommand extends RegisteredCommand {
 // biome-ignore lint/suspicious/noConfusingVoidType: void allows bare return statements
 export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContext) => Promise<R | void> | R | void;
 
+/** A thinking check registered via registerTurnCheck(). */
+export interface TurnCheck {
+	/** The check text passed to the reviewer LLM. */
+	text: string;
+	/** Optional condition describing when this check should be removed. */
+	removalCondition?: string;
+}
+
 /**
  * ExtensionAPI passed to extension factory functions.
  */
@@ -1187,13 +1195,13 @@ export interface ExtensionAPI {
 	 *
 	 * Returns an unsubscriber that removes this check.
 	 */
-	registerTurnCheck(check: string): () => void;
+	registerTurnCheck(check: TurnCheck): () => void;
 
 	/** Remove a turn check by text. Returns true if the check was found and removed. */
 	removeTurnCheck(check: string): boolean;
 
 	/** Return all currently registered turn checks (extension-registered and user-registered). */
-	getTurnChecks(): readonly string[];
+	getTurnChecks(): readonly TurnCheck[];
 
 	/**
 	 * Run a read-only reviewer side-session with the given questions against the current session history.
@@ -1525,7 +1533,7 @@ export interface ExtensionActions {
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
 	runReviewer: (questions: string[]) => Promise<string | undefined>;
-	getTurnChecks: () => string[];
+	getTurnChecks: () => TurnCheck[];
 	removeTurnCheck: (check: string) => boolean;
 }
 
@@ -1590,7 +1598,7 @@ export interface Extension {
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
 	/** Checks registered via registerTurnCheck(). */
-	turnChecks: string[];
+	turnChecks: TurnCheck[];
 }
 
 /** Result of loading extensions. */

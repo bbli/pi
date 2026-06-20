@@ -54,6 +54,7 @@ import type {
 	ToolCallEventResult,
 	ToolResultEvent,
 	ToolResultEventResult,
+	TurnCheck,
 	UserBashEvent,
 	UserBashEventResult,
 } from "./types.ts";
@@ -250,7 +251,7 @@ export class ExtensionRunner {
 	private shortcutDiagnostics: ResourceDiagnostic[] = [];
 	private commandDiagnostics: ResourceDiagnostic[] = [];
 	private staleMessage: string | undefined;
-	private _userTurnChecks: string[] = [];
+	private _userTurnChecks: TurnCheck[] = [];
 
 	constructor(
 		extensions: Extension[],
@@ -380,20 +381,21 @@ export class ExtensionRunner {
 	}
 
 	/** Collect all turn checks registered across all extensions and by the user. */
-	getTurnChecks(): string[] {
+	getTurnChecks(): TurnCheck[] {
 		return [...this.extensions.flatMap((e) => e.turnChecks), ...this._userTurnChecks];
 	}
 
 	/** Add a user-registered turn check. Returns false if already registered by any source. */
-	addUserTurnCheck(check: string): boolean {
-		if (this.getTurnChecks().includes(check)) return false;
-		this._userTurnChecks.push(check);
+	addUserTurnCheck(check: TurnCheck | string): boolean {
+		const entry: TurnCheck = typeof check === "string" ? { text: check } : check;
+		if (this.getTurnChecks().some((c) => c.text === entry.text)) return false;
+		this._userTurnChecks.push(entry);
 		return true;
 	}
 
 	/** Remove a user-registered turn check by text. Returns false if not found. */
 	removeUserTurnCheck(check: string): boolean {
-		const index = this._userTurnChecks.indexOf(check);
+		const index = this._userTurnChecks.findIndex((c) => c.text === check);
 		if (index === -1) return false;
 		this._userTurnChecks.splice(index, 1);
 		return true;
@@ -406,7 +408,7 @@ export class ExtensionRunner {
 	removeTurnCheck(check: string): boolean {
 		if (this.removeUserTurnCheck(check)) return true;
 		for (const ext of this.extensions) {
-			const index = ext.turnChecks.indexOf(check);
+			const index = ext.turnChecks.findIndex((c) => c.text === check);
 			if (index !== -1) {
 				ext.turnChecks.splice(index, 1);
 				return true;
@@ -416,7 +418,7 @@ export class ExtensionRunner {
 	}
 
 	/** Return a read-only view of user-registered turn checks. */
-	getUserTurnChecks(): readonly string[] {
+	getUserTurnChecks(): readonly TurnCheck[] {
 		return this._userTurnChecks;
 	}
 

@@ -38,6 +38,7 @@ import type {
 	ProviderConfig,
 	RegisteredCommand,
 	ToolDefinition,
+	TurnCheck,
 } from "./types.ts";
 
 /** Modules available to extensions via virtualModules (for compiled Bun binary) */
@@ -238,11 +239,11 @@ function createExtensionAPI(
 			extension.messageRenderers.set(customType, renderer as MessageRenderer);
 		},
 
-		registerTurnCheck(check: string): () => void {
+		registerTurnCheck(check: TurnCheck): () => void {
 			runtime.assertActive();
 			extension.turnChecks.push(check);
 			return () => {
-				const index = extension.turnChecks.indexOf(check);
+				const index = extension.turnChecks.findIndex((c) => c.text === check.text);
 				if (index !== -1) {
 					extension.turnChecks.splice(index, 1);
 				}
@@ -254,7 +255,7 @@ function createExtensionAPI(
 			return runtime.removeTurnCheck(check);
 		},
 
-		getTurnChecks(): readonly string[] {
+		getTurnChecks(): readonly TurnCheck[] {
 			runtime.assertActive();
 			return runtime.getTurnChecks();
 		},

@@ -123,6 +123,7 @@ export type {
 	ToolInfo,
 	ToolRenderResultOptions,
 	ToolResultEvent,
+	TurnCheck,
 	TurnEndEvent,
 	TurnStartEvent,
 	UserBashEvent,
