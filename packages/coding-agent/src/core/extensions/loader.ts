@@ -29,6 +29,7 @@ import type { ExecOptions } from "../exec.ts";
 import { execCommand } from "../exec.ts";
 import { createSyntheticSourceInfo } from "../source-info.ts";
 import type {
+	Consideration,
 	Extension,
 	ExtensionAPI,
 	ExtensionFactory,
@@ -38,7 +39,6 @@ import type {
 	ProviderConfig,
 	RegisteredCommand,
 	ToolDefinition,
-	TurnCheck,
 } from "./types.ts";
 
 /** Modules available to extensions via virtualModules (for compiled Bun binary) */
@@ -150,8 +150,8 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		getThinkingLevel: notInitialized,
 		setThinkingLevel: notInitialized,
 		runReviewer: notInitialized,
-		getTurnChecks: notInitialized,
-		removeTurnCheck: notInitialized,
+		getConsiderations: notInitialized,
+		removeConsideration: notInitialized,
 		flagValues: new Map(),
 		pendingProviderRegistrations: [],
 		assertActive,
@@ -239,25 +239,30 @@ function createExtensionAPI(
 			extension.messageRenderers.set(customType, renderer as MessageRenderer);
 		},
 
-		registerTurnCheck(check: TurnCheck): () => void {
+		registerConsideration(consideration: Consideration): () => void {
 			runtime.assertActive();
-			extension.turnChecks.push(check);
+			const existing = extension.considerations.findIndex((c) => c.text === consideration.text);
+			if (existing !== -1) {
+				extension.considerations[existing] = consideration;
+			} else {
+				extension.considerations.push(consideration);
+			}
 			return () => {
-				const index = extension.turnChecks.findIndex((c) => c.text === check.text);
+				const index = extension.considerations.findIndex((c) => c.text === consideration.text);
 				if (index !== -1) {
-					extension.turnChecks.splice(index, 1);
+					extension.considerations.splice(index, 1);
 				}
 			};
 		},
 
-		removeTurnCheck(check: string): boolean {
+		removeConsideration(text: string): boolean {
 			runtime.assertActive();
-			return runtime.removeTurnCheck(check);
+			return runtime.removeConsideration(text);
 		},
 
-		getTurnChecks(): readonly TurnCheck[] {
+		getConsiderations(): readonly Consideration[] {
 			runtime.assertActive();
-			return runtime.getTurnChecks();
+			return runtime.getConsiderations();
 		},
 
 		runReviewer(questions: string[]): Promise<string | undefined> {
@@ -398,7 +403,7 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 		commands: new Map(),
 		flags: new Map(),
 		shortcuts: new Map(),
-		turnChecks: [],
+		considerations: [],
 	};
 }
 

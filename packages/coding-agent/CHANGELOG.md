@@ -4,8 +4,9 @@
 
 ### Added
 
-- Added `registerTurnCheck`, `removeTurnCheck`, `getTurnChecks`, and `runReviewer` to `ExtensionAPI` for async per-turn reviewer checks driven by extensions.
-- Added `consider` extension: `/consider` slash command and `manage_considerations` LLM tool for registering thinking checks (LLM-evaluated per-turn invariants).
+- Added `registerConsideration`, `removeConsideration`, `getConsiderations`, and `runReviewer` to `ExtensionAPI` for async per-turn reviewer checks driven by extensions. Considerations are stored as `Consideration` objects (`{ text, removalCondition? }`) and support upsert-by-text semantics.
+- Added `Consideration` type to the public package exports.
+- Added `consider` extension: `/consider <text>` to add a consideration, `/consider` (no args) to interactively select and remove one. The `manage_considerations` LLM tool supports `action=add/remove/list` with an optional `removalCondition` field.
 - Added `manage_check` LLM tool to `check-guard` extension for programmatic registration of experimental checks (deterministic bash commands).
 
 ### Removed

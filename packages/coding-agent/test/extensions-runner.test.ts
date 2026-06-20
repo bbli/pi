@@ -72,8 +72,8 @@ describe("ExtensionRunner", () => {
 		getThinkingLevel: () => "off",
 		setThinkingLevel: () => {},
 		runReviewer: async () => undefined,
-		getTurnChecks: () => [],
-		removeTurnCheck: () => false,
+		getConsiderations: () => [],
+		removeConsideration: () => false,
 	};
 
 	const extensionContextActions: ExtensionContextActions = {
@@ -826,101 +826,142 @@ describe("ExtensionRunner", () => {
 		});
 	});
 
-	describe("turn checks", () => {
-		it("registers checks from extension state", async () => {
+	describe("considerations", () => {
+		it("registers considerations from extension state", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerTurnCheck({ text: "ext check 1" });
-					pi.registerTurnCheck({ text: "ext check 2" });
+					pi.registerConsideration({ text: "ext consideration 1" });
+					pi.registerConsideration({ text: "ext consideration 2" });
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.getTurnChecks()).toEqual([{ text: "ext check 1" }, { text: "ext check 2" }]);
+			expect(runner.getConsiderations()).toEqual([{ text: "ext consideration 1" }, { text: "ext consideration 2" }]);
 		});
 
-		it("unsubscriber from registerTurnCheck removes the check", async () => {
+		it("unsubscriber from registerConsideration removes the consideration", async () => {
 			const extCode = `
 				export default function(pi) {
-					const unsub = pi.registerTurnCheck({ text: "to remove" });
-					pi.registerTurnCheck({ text: "to keep" });
+					const unsub = pi.registerConsideration({ text: "to remove" });
+					pi.registerConsideration({ text: "to keep" });
 					unsub();
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.getTurnChecks()).toEqual([{ text: "to keep" }]);
+			expect(runner.getConsiderations()).toEqual([{ text: "to keep" }]);
 		});
 
-		it("adds and removes user-registered checks", () => {
-			const runtime = createExtensionRuntime();
-			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-
-			expect(runner.addUserTurnCheck("user check 1")).toBe(true);
-			expect(runner.addUserTurnCheck("user check 2")).toBe(true);
-			expect(runner.getTurnChecks()).toEqual([{ text: "user check 1" }, { text: "user check 2" }]);
-
-			expect(runner.removeUserTurnCheck("user check 1")).toBe(true);
-			expect(runner.getTurnChecks()).toEqual([{ text: "user check 2" }]);
-			expect(runner.getUserTurnChecks()).toEqual([{ text: "user check 2" }]);
-		});
-
-		it("rejects a duplicate user check already registered by an extension", async () => {
+		it("registerConsideration upserts when text already exists", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerTurnCheck({ text: "shared check" });
+					pi.registerConsideration({ text: "my check" });
+					pi.registerConsideration({ text: "my check", removalCondition: "when done" });
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.addUserTurnCheck("shared check")).toBe(false);
-			expect(runner.getTurnChecks()).toEqual([{ text: "shared check" }]);
+			expect(runner.getConsiderations()).toEqual([{ text: "my check", removalCondition: "when done" }]);
 		});
 
-		it("removeTurnCheck removes from extension checks", async () => {
+		it("adds, upserts, and removes user-registered considerations", () => {
+			const runtime = createExtensionRuntime();
+			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+
+			expect(runner.addUserConsideration("user consideration 1")).toBe(true);
+			expect(runner.addUserConsideration("user consideration 2")).toBe(true);
+			expect(runner.getConsiderations()).toEqual([
+				{ text: "user consideration 1" },
+				{ text: "user consideration 2" },
+			]);
+
+			// upsert updates removalCondition
+			expect(runner.addUserConsideration({ text: "user consideration 1", removalCondition: "when done" })).toBe(
+				true,
+			);
+			expect(runner.getConsiderations()).toEqual([
+				{ text: "user consideration 1", removalCondition: "when done" },
+				{ text: "user consideration 2" },
+			]);
+
+			expect(runner.removeUserConsideration("user consideration 1")).toBe(true);
+			expect(runner.getConsiderations()).toEqual([{ text: "user consideration 2" }]);
+			expect(runner.getUserConsiderations()).toEqual([{ text: "user consideration 2" }]);
+		});
+
+		it("rejects a user consideration whose text is already registered by an extension", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerTurnCheck({ text: "ext check" });
+					pi.registerConsideration({ text: "shared consideration" });
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-			runner.addUserTurnCheck("user check");
 
-			expect(runner.getTurnChecks()).toEqual([{ text: "ext check" }, { text: "user check" }]);
-
-			expect(runner.removeTurnCheck("ext check")).toBe(true);
-			expect(runner.getTurnChecks()).toEqual([{ text: "user check" }]);
-
-			expect(runner.removeTurnCheck("user check")).toBe(true);
-			expect(runner.getTurnChecks()).toEqual([]);
+			expect(runner.addUserConsideration("shared consideration")).toBe(false);
+			expect(runner.getConsiderations()).toEqual([{ text: "shared consideration" }]);
 		});
 
-		it("removeTurnCheck returns false for unknown check", () => {
-			const runtime = createExtensionRuntime();
-			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-			runner.addUserTurnCheck("real check");
-			expect(runner.removeTurnCheck("phantom check")).toBe(false);
-			expect(runner.getTurnChecks()).toEqual([{ text: "real check" }]);
+		it("removeConsideration removes from extension considerations", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerConsideration({ text: "ext consideration" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			runner.addUserConsideration("user consideration");
+
+			expect(runner.getConsiderations()).toEqual([{ text: "ext consideration" }, { text: "user consideration" }]);
+
+			expect(runner.removeConsideration("ext consideration")).toBe(true);
+			expect(runner.getConsiderations()).toEqual([{ text: "user consideration" }]);
+
+			expect(runner.removeConsideration("user consideration")).toBe(true);
+			expect(runner.getConsiderations()).toEqual([]);
 		});
 
-		it("addUserTurnCheck rejects duplicate user check", () => {
+		it("removeConsideration returns false for unknown consideration", () => {
 			const runtime = createExtensionRuntime();
 			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-			expect(runner.addUserTurnCheck("my check")).toBe(true);
-			expect(runner.addUserTurnCheck("my check")).toBe(false);
-			expect(runner.getTurnChecks()).toEqual([{ text: "my check" }]);
+			runner.addUserConsideration("real consideration");
+			expect(runner.removeConsideration("phantom consideration")).toBe(false);
+			expect(runner.getConsiderations()).toEqual([{ text: "real consideration" }]);
+		});
+
+		it("addUserConsideration upserts duplicate user consideration", () => {
+			const runtime = createExtensionRuntime();
+			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+			expect(runner.addUserConsideration("my consideration")).toBe(true);
+			expect(runner.addUserConsideration({ text: "my consideration", removalCondition: "later" })).toBe(true);
+			expect(runner.getConsiderations()).toEqual([{ text: "my consideration", removalCondition: "later" }]);
+		});
+
+		it("registerConsideration preserves removalCondition through roundtrip", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerConsideration({ text: "check", removalCondition: "when done" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			expect(runner.getConsiderations()).toEqual([{ text: "check", removalCondition: "when done" }]);
 		});
 	});
 

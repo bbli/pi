@@ -1087,11 +1087,11 @@ export interface ResolvedCommand extends RegisteredCommand {
 // biome-ignore lint/suspicious/noConfusingVoidType: void allows bare return statements
 export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContext) => Promise<R | void> | R | void;
 
-/** A thinking check registered via registerTurnCheck(). */
-export interface TurnCheck {
-	/** The check text passed to the reviewer LLM. */
+/** A consideration registered via registerConsideration(). */
+export interface Consideration {
+	/** The consideration text passed to the reviewer LLM. */
 	text: string;
-	/** Optional condition describing when this check should be removed. */
+	/** Optional condition describing when this consideration should be removed. */
 	removalCondition?: string;
 }
 
@@ -1188,20 +1188,21 @@ export interface ExtensionAPI {
 	registerMessageRenderer<T = unknown>(customType: string, renderer: MessageRenderer<T>): void;
 
 	/**
-	 * Register a check to be evaluated in a separate read-only LLM call after each inner agent turn.
+	 * Register a consideration to be evaluated in a separate read-only LLM call after each inner agent turn.
 	 *
 	 * The reviewer runs asynchronously alongside the agent loop. If it finds something actionable,
 	 * the result is steered into the main session at the next turn_end.
 	 *
-	 * Returns an unsubscriber that removes this check.
+	 * If a consideration with the same text is already registered, it is replaced (upsert).
+	 * Returns an unsubscriber that removes this consideration.
 	 */
-	registerTurnCheck(check: TurnCheck): () => void;
+	registerConsideration(consideration: Consideration): () => void;
 
-	/** Remove a turn check by text. Returns true if the check was found and removed. */
-	removeTurnCheck(check: string): boolean;
+	/** Remove a consideration by text. Returns true if it was found and removed. */
+	removeConsideration(text: string): boolean;
 
-	/** Return all currently registered turn checks (extension-registered and user-registered). */
-	getTurnChecks(): readonly TurnCheck[];
+	/** Return all currently registered considerations (extension-registered and user-registered). */
+	getConsiderations(): readonly Consideration[];
 
 	/**
 	 * Run a read-only reviewer side-session with the given questions against the current session history.
@@ -1533,8 +1534,8 @@ export interface ExtensionActions {
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
 	runReviewer: (questions: string[]) => Promise<string | undefined>;
-	getTurnChecks: () => TurnCheck[];
-	removeTurnCheck: (check: string) => boolean;
+	getConsiderations: () => Consideration[];
+	removeConsideration: (text: string) => boolean;
 }
 
 /**
@@ -1597,8 +1598,8 @@ export interface Extension {
 	commands: Map<string, RegisteredCommand>;
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
-	/** Checks registered via registerTurnCheck(). */
-	turnChecks: TurnCheck[];
+	/** Considerations registered via registerConsideration(). */
+	considerations: Consideration[];
 }
 
 /** Result of loading extensions. */

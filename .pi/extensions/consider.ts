@@ -5,21 +5,57 @@
  * agent turn. If the reviewer finds a violation, the result is steered into
  * the main session before the next LLM call.
  *
- * These are "thinking checks" — subjective or context-dependent invariants
+ * These are "considerations" — subjective or context-dependent invariants
  * that the LLM evaluates against the conversation history. For deterministic,
  * command-line-runnable assertions, use check.ts instead.
  *
  * Usage:
- *   /consider add <text>    - register a thinking check
- *   /consider remove <text> - remove a thinking check
- *   /consider list          - list all registered checks
- *
- * Example: register "Did you git commit after completing each step?" at the
- * start of a plan to enforce per-step commits throughout execution.
+ *   /consider <text>  - register a consideration (upserts if text already exists)
+ *   /consider         - open interactive list to remove a consideration
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Consideration, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { Container, type SelectItem, SelectList } from "@earendil-works/pi-tui";
+
+const SELECT_LIST_LAYOUT = {
+	minPrimaryColumnWidth: 20,
+	maxPrimaryColumnWidth: 80,
+};
+
+class ConsiderationSelectorComponent extends Container {
+	private selectList: SelectList;
+
+	constructor(
+		considerations: readonly Consideration[],
+		onSelect: (text: string) => void,
+		onCancel: () => void,
+	) {
+		super();
+
+		const items: SelectItem[] = considerations.map((c) => ({
+			value: c.text,
+			label: c.text,
+			description: c.removalCondition ? `remove when: ${c.removalCondition}` : undefined,
+		}));
+
+		this.addChild(new DynamicBorder());
+
+		this.selectList = new SelectList(items, Math.min(items.length, 10), getSelectListTheme(), SELECT_LIST_LAYOUT);
+
+		this.selectList.onSelect = (item) => {
+			onSelect(item.value as string);
+		};
+
+		this.selectList.onCancel = () => {
+			onCancel();
+		};
+
+		this.addChild(this.selectList);
+		this.addChild(new DynamicBorder());
+	}
+}
 
 type ReviewState = { status: "idle" } | { status: "running" } | { status: "done"; result: string };
 
@@ -35,11 +71,11 @@ export default function consider(pi: ExtensionAPI): void {
 
 		if (state.status === "running") return;
 
-		const checks = pi.getTurnChecks();
-		if (checks.length === 0) return;
+		const considerations = pi.getConsiderations();
+		if (considerations.length === 0) return;
 
 		state = { status: "running" };
-		pi.runReviewer(checks.map((c) => c.text))
+		pi.runReviewer(considerations.map((c) => c.text))
 			.then((result) => {
 				if (result) {
 					state = { status: "done", result };
@@ -58,42 +94,42 @@ export default function consider(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "manage_considerations",
-		label: "Manage Consider Checks",
+		label: "Manage Considerations",
 		description:
-			"Add, remove, or list per-turn thinking checks. " +
+			"Add, remove, or list per-turn considerations. " +
 			"These are subjective or context-dependent invariants (e.g. 'did you git commit after completing this step?') " +
 			"evaluated by a read-only reviewer side-session after every inner agent turn. " +
-			"If a check is violated, the reviewer's feedback is steered into the conversation. " +
+			"If a consideration is violated, the reviewer's feedback is steered into the conversation. " +
 			"For deterministic, command-line-runnable assertions, use manage_check instead. " +
-			"Each check may carry a removalCondition describing when it should be removed. " +
-			"Call list periodically to review active checks and remove any whose removalCondition has been met.",
-		promptSnippet: "manage_considerations: add/remove/list per-turn thinking checks",
+			"Each consideration may carry a removalCondition describing when it should be removed. " +
+			"Call list periodically to review active considerations and remove any whose removalCondition has been met.",
+		promptSnippet: "manage_considerations: add/remove/list per-turn considerations",
 		promptGuidelines: [
 			"Use manage_considerations to register subjective invariants the LLM should evaluate after each turn (e.g. 'did you git commit after completing this step?').",
-			"When adding a check, always supply a removalCondition so you know when to remove it.",
-			"Periodically call manage_considerations with action=list to review active checks and remove any whose removalCondition has been met.",
+			"When adding a consideration, always supply a removalCondition so you know when to remove it.",
+			"Periodically call manage_considerations with action=list to review active considerations and remove any whose removalCondition has been met.",
 			"For deterministic checks that can be verified by running a command, use manage_check instead.",
 		],
 		parameters: Type.Object({
 			action: Type.Union([Type.Literal("add"), Type.Literal("remove"), Type.Literal("list")], {
 				description: "Operation to perform",
 			}),
-			check: Type.Optional(Type.String({ description: "The check text (required for add and remove)" })),
+			check: Type.Optional(Type.String({ description: "The consideration text (required for add and remove)" })),
 			removalCondition: Type.Optional(
 				Type.String({
-					description: "Condition describing when this check should be removed (used with action=add)",
+					description: "Condition describing when this consideration should be removed (used with action=add)",
 				}),
 			),
 		}),
 		execute: async (_id, params) => {
 			console.error("[manage_considerations] called with", params);
 			if (params.action === "list") {
-				const checks = pi.getTurnChecks();
-				const lines = checks.map((c) =>
+				const considerations = pi.getConsiderations();
+				const lines = considerations.map((c) =>
 					c.removalCondition ? `- ${c.text} [remove when: ${c.removalCondition}]` : `- ${c.text}`,
 				);
 				return {
-					content: [{ type: "text", text: lines.join("\n") || "(no checks registered)" }],
+					content: [{ type: "text", text: lines.join("\n") || "(no considerations registered)" }],
 					details: undefined,
 				};
 			}
@@ -107,10 +143,10 @@ export default function consider(pi: ExtensionAPI): void {
 					};
 				}
 				const removalCondition = params.removalCondition?.trim() || undefined;
-				pi.registerTurnCheck({ text: params.check, removalCondition });
+				pi.registerConsideration({ text: params.check, removalCondition });
 				const confirmMsg = removalCondition
-					? `Added check: ${params.check} [remove when: ${removalCondition}]`
-					: `Added check: ${params.check}`;
+					? `Added consideration: ${params.check} [remove when: ${removalCondition}]`
+					: `Added consideration: ${params.check}`;
 				return { content: [{ type: "text", text: confirmMsg }], details: undefined };
 			}
 
@@ -122,12 +158,14 @@ export default function consider(pi: ExtensionAPI): void {
 						details: undefined,
 					};
 				}
-				const removed = pi.removeTurnCheck(params.check);
+				const removed = pi.removeConsideration(params.check);
 				return {
 					content: [
 						{
 							type: "text",
-							text: removed ? `Removed check: ${params.check}` : `Check not found: ${params.check}`,
+							text: removed
+								? `Removed consideration: ${params.check}`
+								: `Consideration not found: ${params.check}`,
 						},
 					],
 					isError: !removed,
@@ -140,52 +178,39 @@ export default function consider(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("consider", {
-		description: "Manage thinking checks: /consider add <text> | remove <text> | list",
+		description: "Register a consideration: /consider <text>  |  Remove interactively: /consider",
 		handler: async (args, ctx) => {
-			const trimmed = args.trim();
-			const spaceIdx = trimmed.indexOf(" ");
-			const action = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
-			const text =
-				spaceIdx === -1
-					? ""
-					: trimmed
-							.slice(spaceIdx + 1)
-							.replace(/^"|"$/g, "")
-							.trim();
+			const text = args.trim();
 
-			if (action === "list") {
-				const checks = pi.getTurnChecks();
-				const lines = checks.map((c) =>
-					c.removalCondition ? `${c.text} [remove when: ${c.removalCondition}]` : c.text,
-				);
-				ctx.ui.notify(lines.length ? lines.join("\n") : "(no checks registered)", "info");
+			if (text) {
+				// /consider <text> — add or update a consideration
+				pi.registerConsideration({ text });
+				ctx.ui.notify(`Added consideration: ${text}`, "info");
 				return;
 			}
 
-			if (action === "add") {
-				if (!text) {
-					ctx.ui.notify("Usage: /consider add <text>", "warning");
-					return;
-				}
-				pi.registerTurnCheck(text);
-				ctx.ui.notify(`Added check: ${text}`, "info");
+			// /consider (no args) — interactive removal
+			const considerations = pi.getConsiderations();
+			if (considerations.length === 0) {
+				ctx.ui.notify("(no considerations registered)", "info");
 				return;
 			}
 
-			if (action === "remove") {
-				if (!text) {
-					ctx.ui.notify("Usage: /consider remove <text>", "warning");
-					return;
-				}
-				const removed = pi.removeTurnCheck(text);
-				ctx.ui.notify(
-					removed ? `Removed check: ${text}` : `Check not found: ${text}`,
-					removed ? "info" : "warning",
-				);
-				return;
-			}
+			const selected = await ctx.ui.custom<string | undefined>(
+				(_tui, _theme, _kb, done) =>
+					new ConsiderationSelectorComponent(
+						considerations,
+						(t) => done(t),
+						() => done(undefined),
+					),
+			);
 
-			ctx.ui.notify("Usage: /consider add <text> | remove <text> | list", "warning");
+			if (selected === undefined) return;
+
+			const removed = pi.removeConsideration(selected);
+			if (removed) {
+				ctx.ui.notify(`Removed consideration: ${selected}`, "info");
+			}
 		},
 	});
 }

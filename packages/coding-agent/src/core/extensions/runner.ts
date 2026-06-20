@@ -16,6 +16,7 @@ import type {
 	BeforeAgentStartEventResult,
 	BeforeProviderRequestEvent,
 	CompactOptions,
+	Consideration,
 	ContextEvent,
 	ContextEventResult,
 	ContextUsage,
@@ -54,7 +55,6 @@ import type {
 	ToolCallEventResult,
 	ToolResultEvent,
 	ToolResultEventResult,
-	TurnCheck,
 	UserBashEvent,
 	UserBashEventResult,
 } from "./types.ts";
@@ -251,7 +251,7 @@ export class ExtensionRunner {
 	private shortcutDiagnostics: ResourceDiagnostic[] = [];
 	private commandDiagnostics: ResourceDiagnostic[] = [];
 	private staleMessage: string | undefined;
-	private _userTurnChecks: TurnCheck[] = [];
+	private _userConsiderations: Consideration[] = [];
 
 	constructor(
 		extensions: Extension[],
@@ -292,8 +292,8 @@ export class ExtensionRunner {
 		this.runtime.getThinkingLevel = actions.getThinkingLevel;
 		this.runtime.setThinkingLevel = actions.setThinkingLevel;
 		this.runtime.runReviewer = actions.runReviewer;
-		this.runtime.getTurnChecks = actions.getTurnChecks;
-		this.runtime.removeTurnCheck = actions.removeTurnCheck;
+		this.runtime.getConsiderations = actions.getConsiderations;
+		this.runtime.removeConsideration = actions.removeConsideration;
 
 		// Context actions (required)
 		this.getModel = contextActions.getModel;
@@ -380,46 +380,55 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
-	/** Collect all turn checks registered across all extensions and by the user. */
-	getTurnChecks(): TurnCheck[] {
-		return [...this.extensions.flatMap((e) => e.turnChecks), ...this._userTurnChecks];
+	/** Collect all considerations registered across all extensions and by the user. */
+	getConsiderations(): Consideration[] {
+		return [...this.extensions.flatMap((e) => e.considerations), ...this._userConsiderations];
 	}
 
-	/** Add a user-registered turn check. Returns false if already registered by any source. */
-	addUserTurnCheck(check: TurnCheck | string): boolean {
-		const entry: TurnCheck = typeof check === "string" ? { text: check } : check;
-		if (this.getTurnChecks().some((c) => c.text === entry.text)) return false;
-		this._userTurnChecks.push(entry);
+	/**
+	 * Add or update a user-registered consideration. Upserts by text.
+	 * Returns false only when the text is already registered by an extension (cannot overwrite).
+	 */
+	addUserConsideration(consideration: Consideration | string): boolean {
+		const entry: Consideration = typeof consideration === "string" ? { text: consideration } : consideration;
+		const existsInExtension = this.extensions.flatMap((e) => e.considerations).some((c) => c.text === entry.text);
+		if (existsInExtension) return false;
+		const existingIdx = this._userConsiderations.findIndex((c) => c.text === entry.text);
+		if (existingIdx !== -1) {
+			this._userConsiderations[existingIdx] = entry;
+		} else {
+			this._userConsiderations.push(entry);
+		}
 		return true;
 	}
 
-	/** Remove a user-registered turn check by text. Returns false if not found. */
-	removeUserTurnCheck(check: string): boolean {
-		const index = this._userTurnChecks.findIndex((c) => c.text === check);
+	/** Remove a user-registered consideration by text. Returns false if not found. */
+	removeUserConsideration(text: string): boolean {
+		const index = this._userConsiderations.findIndex((c) => c.text === text);
 		if (index === -1) return false;
-		this._userTurnChecks.splice(index, 1);
+		this._userConsiderations.splice(index, 1);
 		return true;
 	}
 
 	/**
-	 * Remove a turn check by text, searching user checks then extension checks.
+	 * Remove a consideration by text, searching user considerations then extension considerations.
 	 * Returns false if not found in any pool.
 	 */
-	removeTurnCheck(check: string): boolean {
-		if (this.removeUserTurnCheck(check)) return true;
+	removeConsideration(text: string): boolean {
+		if (this.removeUserConsideration(text)) return true;
 		for (const ext of this.extensions) {
-			const index = ext.turnChecks.findIndex((c) => c.text === check);
+			const index = ext.considerations.findIndex((c) => c.text === text);
 			if (index !== -1) {
-				ext.turnChecks.splice(index, 1);
+				ext.considerations.splice(index, 1);
 				return true;
 			}
 		}
 		return false;
 	}
 
-	/** Return a read-only view of user-registered turn checks. */
-	getUserTurnChecks(): readonly TurnCheck[] {
-		return this._userTurnChecks;
+	/** Return a read-only view of user-registered considerations. */
+	getUserConsiderations(): readonly Consideration[] {
+		return this._userConsiderations;
 	}
 
 	/** Return the registered tree filter predicate, or undefined if none is set. */

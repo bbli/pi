@@ -2242,8 +2242,8 @@ export class AgentSession {
 				getThinkingLevel: () => this.thinkingLevel,
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
 				runReviewer: (questions) => runTurnEndInjection(questions, this),
-				getTurnChecks: () => this._extensionRunner.getTurnChecks(),
-				removeTurnCheck: (check) => this._extensionRunner.removeTurnCheck(check),
+				getConsiderations: () => this._extensionRunner.getConsiderations(),
+				removeConsideration: (text) => this._extensionRunner.removeConsideration(text),
 			},
 			{
 				getModel: () => this.model,

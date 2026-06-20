@@ -40,6 +40,7 @@ export type {
 	BuildSystemPromptOptions,
 	// Context
 	CompactOptions,
+	Consideration,
 	// Events - Agent
 	ContextEvent,
 	// Event Results
@@ -148,7 +149,6 @@ export type {
 	ToolResultEvent,
 	ToolResultEventResult,
 	TreePreparation,
-	TurnCheck,
 	TurnEndEvent,
 	TurnStartEvent,
 	// Events - User Bash
