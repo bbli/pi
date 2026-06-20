@@ -1,10 +1,10 @@
 /**
- * Turn-end injection framework.
+ * Reviewer side-session runner.
  *
- * Runs a separate read-only LLM call after the main agent loop completes.
- * Extensions register questions via pi.registerTurnEndQuestion(); if the
- * reviewer determines there is something actionable, it signals with
- * HAS_TURN_END_QUESTION and the response is injected into the main context.
+ * Runs a separate read-only LLM call seeded with the full main session history.
+ * Used by pi.runReviewer() to power per-turn checks registered via the
+ * turn-checks extension. If the reviewer determines there is something
+ * actionable, it signals with HAS_TURN_END_QUESTION and returns the response.
  */
 
 import type { AssistantMessage } from "@earendil-works/pi-ai";

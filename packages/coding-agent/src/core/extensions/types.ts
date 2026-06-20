@@ -1180,16 +1180,26 @@ export interface ExtensionAPI {
 	registerMessageRenderer<T = unknown>(customType: string, renderer: MessageRenderer<T>): void;
 
 	/**
-	 * Register a question to be asked in a separate read-only LLM call after each agent turn completes.
+	 * Register a check to be evaluated in a separate read-only LLM call after each inner agent turn.
 	 *
-	 * When the agent finishes a turn and all questions have been collected, a side call is made with
-	 * a read-only system prompt and the registered questions. The last assistant response from that
-	 * call is injected back into the main context as an InjectedUserMessage, which triggers another
-	 * assistant turn as if the user had responded.
+	 * The reviewer runs asynchronously alongside the agent loop. If it finds something actionable,
+	 * the result is steered into the main session at the next turn_end.
 	 *
-	 * Returns an unsubscriber that removes this question.
+	 * Returns an unsubscriber that removes this check.
 	 */
-	registerTurnEndQuestion(question: string): () => void;
+	registerTurnCheck(check: string): () => void;
+
+	/** Remove a turn check by text. Returns true if the check was found and removed. */
+	removeTurnCheck(check: string): boolean;
+
+	/** Return all currently registered turn checks (extension-registered and user-registered). */
+	getTurnChecks(): readonly string[];
+
+	/**
+	 * Run a read-only reviewer side-session with the given questions against the current session history.
+	 * Returns the actionable response text, or undefined if the reviewer found nothing to flag.
+	 */
+	runReviewer(questions: string[]): Promise<string | undefined>;
 
 	// =========================================================================
 	// Actions
@@ -1514,6 +1524,9 @@ export interface ExtensionActions {
 	setModel: SetModelHandler;
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
+	runReviewer: (questions: string[]) => Promise<string | undefined>;
+	getTurnChecks: () => string[];
+	removeTurnCheck: (check: string) => boolean;
 }
 
 /**
@@ -1576,8 +1589,8 @@ export interface Extension {
 	commands: Map<string, RegisteredCommand>;
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
-	/** Questions registered via registerTurnEndQuestion(). */
-	turnEndQuestions: string[];
+	/** Checks registered via registerTurnCheck(). */
+	turnChecks: string[];
 }
 
 /** Result of loading extensions. */

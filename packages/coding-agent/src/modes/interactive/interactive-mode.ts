@@ -70,7 +70,6 @@ import type {
 	ExtensionUIContext,
 	ExtensionUIDialogOptions,
 	ExtensionWidgetOptions,
-	TurnEndQuestionEntry,
 } from "../../core/extensions/index.ts";
 import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/footer-data-provider.ts";
 import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
@@ -2539,11 +2538,7 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
-			if (text === "/question" || text.startsWith("/question ")) {
-				this.editor.setText("");
-				await this.handleQuestionCommand(text);
-				return;
-			}
+
 			if (text === "/session") {
 				this.handleSessionCommand();
 				this.editor.setText("");
@@ -3021,16 +3016,6 @@ export class InteractiveMode {
 				this.ui.requestRender();
 				break;
 			}
-			case "turn_end_injection": {
-				if (event.status === "suppressed") {
-					this.showStatus("Turn-end reviewer: nothing flagged");
-				} else if (event.status === "injected") {
-					this.showStatus("Turn-end reviewer: flagged items above");
-				} else {
-					this.showWarning("Turn-end reviewer: side call failed");
-				}
-				break;
-			}
 		}
 	}
 
@@ -3157,14 +3142,7 @@ export class InteractiveMode {
 				// Tool results are rendered inline with tool calls, handled separately
 				break;
 			}
-			case "injectedUser": {
-				if (this.chatContainer.children.length > 0) {
-					this.chatContainer.addChild(new Spacer(1));
-				}
-				const injectedComponent = new UserMessageComponent(message.content, this.getMarkdownThemeWithSettings());
-				this.chatContainer.addChild(injectedComponent);
-				break;
-			}
+
 			default: {
 				const _exhaustive: never = message;
 			}
@@ -5257,64 +5235,6 @@ export class InteractiveMode {
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new Text(theme.fg("dim", `Session name set: ${name}`), 1, 0));
 		this.ui.requestRender();
-	}
-
-	private appendChatStatus(msg: string): void {
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(theme.fg("dim", msg), 1, 0));
-		this.ui.requestRender();
-	}
-
-	private addTurnEndQuestionWithFeedback(runner: ExtensionRunner, question: string): void {
-		const added = runner.addUserTurnEndQuestion(question);
-		const msg = added
-			? `Turn-end question added (cleared on /reload): ${question}`
-			: `Turn-end question already registered: ${question}`;
-		this.appendChatStatus(msg);
-	}
-
-	private async handleQuestionCommand(text: string): Promise<void> {
-		const arg = text.replace(/^\/question\s*/, "").trim();
-
-		if (arg) {
-			this.addTurnEndQuestionWithFeedback(this.session.extensionRunner, arg);
-			return;
-		}
-
-		// No args: show interactive list to add or remove questions.
-		const runner = this.session.extensionRunner;
-		const ADD_LABEL = "+ Add new question\u2026";
-
-		const allEntries: TurnEndQuestionEntry[] = runner.getAllTurnEndQuestionEntries();
-
-		// Build uniquely-labelled options. Numbering is load-bearing: extensions can
-		// register identical question texts, so labels must be unique for
-		// entryLabels.indexOf(selected) to always resolve to the correct entry.
-		const entryLabels = allEntries.map((e, i) => {
-			const sourceLabel = e.source === "user" ? "user" : path.basename(e.source);
-			return `${i + 1}. [${sourceLabel}] ${e.question}`;
-		});
-
-		const title =
-			allEntries.length === 0 ? "Turn-end questions — none registered" : "Turn-end questions (select to remove)";
-
-		const selected = await this.showExtensionSelector(title, [ADD_LABEL, ...entryLabels]);
-		if (!selected) return;
-
-		if (selected === ADD_LABEL) {
-			const question = await this.showExtensionInput("Add turn-end question", "Enter your question\u2026");
-			if (!question?.trim()) return;
-			this.addTurnEndQuestionWithFeedback(runner, question.trim());
-			return;
-		}
-
-		// Determine which entry was selected by matching the label string.
-		const entryIndex = entryLabels.indexOf(selected);
-		if (entryIndex === -1) return;
-		const entry = allEntries[entryIndex];
-		if (!entry) return;
-		runner.removeTurnEndQuestionEntry(entry);
-		this.appendChatStatus(`Turn-end question removed: ${entry.question}`);
 	}
 
 	private handleSessionCommand(): void {

@@ -189,15 +189,6 @@ export async function emitSessionShutdownEvent(
 	return false;
 }
 
-/** A single registered turn-end question with its source and position, used for display and removal. */
-export interface TurnEndQuestionEntry {
-	question: string;
-	/** "user" for questions registered via /question, or the extension path for extension-registered ones. */
-	source: "user" | string;
-	/** 0-based index within the source array. Used to verify the entry still exists before removal. */
-	sourceIndex: number;
-}
-
 const noOpUIContext: ExtensionUIContext = {
 	select: async () => undefined,
 	confirm: async () => false,
@@ -259,7 +250,7 @@ export class ExtensionRunner {
 	private shortcutDiagnostics: ResourceDiagnostic[] = [];
 	private commandDiagnostics: ResourceDiagnostic[] = [];
 	private staleMessage: string | undefined;
-	private _userTurnEndQuestions: string[] = [];
+	private _userTurnChecks: string[] = [];
 
 	constructor(
 		extensions: Extension[],
@@ -299,6 +290,9 @@ export class ExtensionRunner {
 		this.runtime.setModel = actions.setModel;
 		this.runtime.getThinkingLevel = actions.getThinkingLevel;
 		this.runtime.setThinkingLevel = actions.setThinkingLevel;
+		this.runtime.runReviewer = actions.runReviewer;
+		this.runtime.getTurnChecks = actions.getTurnChecks;
+		this.runtime.removeTurnCheck = actions.removeTurnCheck;
 
 		// Context actions (required)
 		this.getModel = contextActions.getModel;
@@ -385,67 +379,45 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
-	/** All question sources in iteration order: one entry per extension, then the user source. */
-	private allQuestionSources(): Array<{ source: string; questions: string[] }> {
-		return [
-			...this.extensions.map((e) => ({ source: e.path, questions: e.turnEndQuestions })),
-			{ source: "user", questions: this._userTurnEndQuestions },
-		];
+	/** Collect all turn checks registered across all extensions and by the user. */
+	getTurnChecks(): string[] {
+		return [...this.extensions.flatMap((e) => e.turnChecks), ...this._userTurnChecks];
 	}
 
-	/** Collect all turn-end questions registered across all extensions and by the user. */
-	getTurnEndQuestions(): string[] {
-		return this.allQuestionSources().flatMap(({ questions }) => questions);
+	/** Add a user-registered turn check. Returns false if already registered by any source. */
+	addUserTurnCheck(check: string): boolean {
+		if (this.getTurnChecks().includes(check)) return false;
+		this._userTurnChecks.push(check);
+		return true;
 	}
 
-	/** Add a user-registered turn-end question. Returns false if the question is already registered by any source. */
-	addUserTurnEndQuestion(question: string): boolean {
-		if (this.getTurnEndQuestions().includes(question)) return false;
-		this._userTurnEndQuestions.push(question);
+	/** Remove a user-registered turn check by text. Returns false if not found. */
+	removeUserTurnCheck(check: string): boolean {
+		const index = this._userTurnChecks.indexOf(check);
+		if (index === -1) return false;
+		this._userTurnChecks.splice(index, 1);
 		return true;
 	}
 
 	/**
-	 * Remove a user-registered turn-end question by 0-based index.
-	 * Returns false if the index is out of bounds.
+	 * Remove a turn check by text, searching user checks then extension checks.
+	 * Returns false if not found in any pool.
 	 */
-	removeUserTurnEndQuestion(index: number): boolean {
-		if (index < 0 || index >= this._userTurnEndQuestions.length) return false;
-		this._userTurnEndQuestions.splice(index, 1);
-		return true;
-	}
-
-	/** Return a read-only view of user-registered turn-end questions. */
-	getUserTurnEndQuestions(): readonly string[] {
-		return this._userTurnEndQuestions;
-	}
-
-	/**
-	 * Return all registered turn-end questions as labelled entries, combining
-	 * user-registered and extension-registered questions.
-	 *
-	 * Each entry carries enough information to remove it via removeTurnEndQuestionEntry().
-	 */
-	getAllTurnEndQuestionEntries(): TurnEndQuestionEntry[] {
-		const entries: TurnEndQuestionEntry[] = [];
-		for (const { source, questions } of this.allQuestionSources()) {
-			for (let i = 0; i < questions.length; i++) {
-				entries.push({ question: questions[i], source, sourceIndex: i });
+	removeTurnCheck(check: string): boolean {
+		if (this.removeUserTurnCheck(check)) return true;
+		for (const ext of this.extensions) {
+			const index = ext.turnChecks.indexOf(check);
+			if (index !== -1) {
+				ext.turnChecks.splice(index, 1);
+				return true;
 			}
 		}
-		return entries;
+		return false;
 	}
 
-	/**
-	 * Remove the question described by a TurnEndQuestionEntry.
-	 * Returns false if the entry no longer exists.
-	 */
-	removeTurnEndQuestionEntry(entry: TurnEndQuestionEntry): boolean {
-		const src = this.allQuestionSources().find((s) => s.source === entry.source);
-		if (!src) return false;
-		if (src.questions[entry.sourceIndex] !== entry.question) return false;
-		src.questions.splice(entry.sourceIndex, 1);
-		return true;
+	/** Return a read-only view of user-registered turn checks. */
+	getUserTurnChecks(): readonly string[] {
+		return this._userTurnChecks;
 	}
 
 	/** Return the registered tree filter predicate, or undefined if none is set. */

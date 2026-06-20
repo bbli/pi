@@ -79,7 +79,7 @@ import {
 	wrapRegisteredTools,
 } from "./extensions/index.ts";
 import { emitSessionShutdownEvent } from "./extensions/runner.ts";
-import type { BashExecutionMessage, CustomMessage, InjectedUserMessage } from "./messages.ts";
+import type { BashExecutionMessage, CustomMessage } from "./messages.ts";
 import type { ModelRegistry } from "./model-registry.ts";
 import { expandPromptTemplate, type PromptTemplate } from "./prompt-templates.ts";
 import type { ResourceExtensionPaths, ResourceLoader } from "./resource-loader.ts";
@@ -146,8 +146,7 @@ export type AgentSessionEvent =
 			errorMessage?: string;
 	  }
 	| { type: "auto_retry_start"; attempt: number; maxAttempts: number; delayMs: number; errorMessage: string }
-	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string }
-	| { type: "turn_end_injection"; status: "suppressed" | "injected" | "error" };
+	| { type: "auto_retry_end"; success: boolean; attempt: number; finalError?: string };
 
 /** Listener function for agent session events */
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;
@@ -946,42 +945,8 @@ export class AgentSession {
 			while (await this._handlePostAgentRun()) {
 				await this.agent.continue();
 			}
-			// Retries and compaction are resolved. Fire turn-end injection once.
-			if (await this._maybeRunTurnEndInjection()) {
-				await this.agent.continue();
-				while (await this._handlePostAgentRun()) {
-					await this.agent.continue();
-				}
-			}
 		} finally {
 			this._flushPendingBashMessages();
-		}
-	}
-
-	private async _maybeRunTurnEndInjection(): Promise<boolean> {
-		const questions = this._extensionRunner.getTurnEndQuestions();
-		if (questions.length === 0) return false;
-		try {
-			const response = await runTurnEndInjection(questions, this);
-			if (!response) {
-				this._emit({ type: "turn_end_injection", status: "suppressed" });
-				return false;
-			}
-			const injectedMsg: InjectedUserMessage = {
-				role: "injectedUser",
-				content: `Turn-end review flagged the following:\n\n${response}`,
-				timestamp: Date.now(),
-			};
-			this.agent.state.messages.push(injectedMsg);
-			this.sessionManager.appendCustomMessageEntry("injectedUser", injectedMsg.content, true, undefined);
-			this._emit({ type: "message_start", message: injectedMsg });
-			this._emit({ type: "message_end", message: injectedMsg });
-			this._emit({ type: "turn_end_injection", status: "injected" });
-			return true;
-		} catch {
-			// Turn-end injection is advisory; degrade gracefully on side-session failure.
-			this._emit({ type: "turn_end_injection", status: "error" });
-			return false;
 		}
 	}
 
@@ -2276,6 +2241,9 @@ export class AgentSession {
 				},
 				getThinkingLevel: () => this.thinkingLevel,
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
+				runReviewer: (questions) => runTurnEndInjection(questions, this),
+				getTurnChecks: () => this._extensionRunner.getTurnChecks(),
+				removeTurnCheck: (check) => this._extensionRunner.removeTurnCheck(check),
 			},
 			{
 				getModel: () => this.model,

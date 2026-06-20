@@ -148,6 +148,9 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		setModel: () => Promise.reject(new Error("Extension runtime not initialized")),
 		getThinkingLevel: notInitialized,
 		setThinkingLevel: notInitialized,
+		runReviewer: notInitialized,
+		getTurnChecks: notInitialized,
+		removeTurnCheck: notInitialized,
 		flagValues: new Map(),
 		pendingProviderRegistrations: [],
 		assertActive,
@@ -235,15 +238,30 @@ function createExtensionAPI(
 			extension.messageRenderers.set(customType, renderer as MessageRenderer);
 		},
 
-		registerTurnEndQuestion(question: string): () => void {
+		registerTurnCheck(check: string): () => void {
 			runtime.assertActive();
-			extension.turnEndQuestions.push(question);
+			extension.turnChecks.push(check);
 			return () => {
-				const index = extension.turnEndQuestions.indexOf(question);
+				const index = extension.turnChecks.indexOf(check);
 				if (index !== -1) {
-					extension.turnEndQuestions.splice(index, 1);
+					extension.turnChecks.splice(index, 1);
 				}
 			};
+		},
+
+		removeTurnCheck(check: string): boolean {
+			runtime.assertActive();
+			return runtime.removeTurnCheck(check);
+		},
+
+		getTurnChecks(): readonly string[] {
+			runtime.assertActive();
+			return runtime.getTurnChecks();
+		},
+
+		runReviewer(questions: string[]): Promise<string | undefined> {
+			runtime.assertActive();
+			return runtime.runReviewer(questions);
 		},
 
 		// Flag access - checks extension registered it, reads from runtime
@@ -379,7 +397,7 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 		commands: new Map(),
 		flags: new Map(),
 		shortcuts: new Map(),
-		turnEndQuestions: [],
+		turnChecks: [],
 	};
 }
 

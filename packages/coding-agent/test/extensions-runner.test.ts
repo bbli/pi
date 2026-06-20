@@ -71,6 +71,9 @@ describe("ExtensionRunner", () => {
 		setModel: async () => false,
 		getThinkingLevel: () => "off",
 		setThinkingLevel: () => {},
+		runReviewer: async () => undefined,
+		getTurnChecks: () => [],
+		removeTurnCheck: () => false,
 	};
 
 	const extensionContextActions: ExtensionContextActions = {
@@ -823,81 +826,69 @@ describe("ExtensionRunner", () => {
 		});
 	});
 
-	describe("turn-end questions", () => {
-		it("removes a question from extension-only state", async () => {
+	describe("turn checks", () => {
+		it("registers and deregisters checks from extension state", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerTurnEndQuestion("ext q1");
-					pi.registerTurnEndQuestion("ext q2");
+					pi.registerTurnCheck("ext check 1");
+					pi.registerTurnCheck("ext check 2");
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "turn-end.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			const entries = runner.getAllTurnEndQuestionEntries();
-			expect(entries).toHaveLength(2);
-
-			const toRemove = entries.find((e) => e.question === "ext q1")!;
-			expect(runner.removeTurnEndQuestionEntry(toRemove)).toBe(true);
-
-			expect(runner.getTurnEndQuestions()).toEqual(["ext q2"]);
+			expect(runner.getTurnChecks()).toEqual(["ext check 1", "ext check 2"]);
 		});
 
-		it("removes a question from user-only state", () => {
+		it("adds and removes user-registered checks", () => {
 			const runtime = createExtensionRuntime();
 			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
 
-			runner.addUserTurnEndQuestion("user q1");
-			runner.addUserTurnEndQuestion("user q2");
+			expect(runner.addUserTurnCheck("user check 1")).toBe(true);
+			expect(runner.addUserTurnCheck("user check 2")).toBe(true);
+			expect(runner.getTurnChecks()).toEqual(["user check 1", "user check 2"]);
 
-			const entries = runner.getAllTurnEndQuestionEntries();
-			expect(entries).toHaveLength(2);
-
-			const toRemove = entries.find((e) => e.question === "user q1")!;
-			expect(runner.removeTurnEndQuestionEntry(toRemove)).toBe(true);
-
-			expect(runner.getTurnEndQuestions()).toEqual(["user q2"]);
-			expect(runner.getUserTurnEndQuestions()).toEqual(["user q2"]);
+			expect(runner.removeUserTurnCheck("user check 1")).toBe(true);
+			expect(runner.getTurnChecks()).toEqual(["user check 2"]);
+			expect(runner.getUserTurnChecks()).toEqual(["user check 2"]);
 		});
 
-		it("rejects a user question that is already registered by an extension", async () => {
+		it("rejects a duplicate user check already registered by an extension", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerTurnEndQuestion("shared q");
+					pi.registerTurnCheck("shared check");
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "turn-end.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.addUserTurnEndQuestion("shared q")).toBe(false);
-			expect(runner.getTurnEndQuestions()).toEqual(["shared q"]);
+			expect(runner.addUserTurnCheck("shared check")).toBe(false);
+			expect(runner.getTurnChecks()).toEqual(["shared check"]);
 		});
 
-		it("removes questions from mixed extension and user state", async () => {
+		it("removeTurnCheck removes from extension checks", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerTurnEndQuestion("ext q");
+					pi.registerTurnCheck("ext check");
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "turn-end.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-			runner.addUserTurnEndQuestion("user q");
+			runner.addUserTurnCheck("user check");
 
-			expect(runner.getTurnEndQuestions()).toEqual(["ext q", "user q"]);
+			expect(runner.getTurnChecks()).toEqual(["ext check", "user check"]);
 
-			const extEntry = runner.getAllTurnEndQuestionEntries().find((e) => e.source !== "user")!;
-			expect(runner.removeTurnEndQuestionEntry(extEntry)).toBe(true);
-			expect(runner.getTurnEndQuestions()).toEqual(["user q"]);
+			expect(runner.removeTurnCheck("ext check")).toBe(true);
+			expect(runner.getTurnChecks()).toEqual(["user check"]);
 
-			const userEntry = runner.getAllTurnEndQuestionEntries().find((e) => e.source === "user")!;
-			expect(runner.removeTurnEndQuestionEntry(userEntry)).toBe(true);
-			expect(runner.getTurnEndQuestions()).toEqual([]);
+			expect(runner.removeTurnCheck("user check")).toBe(true);
+			expect(runner.getTurnChecks()).toEqual([]);
 		});
 	});
 
