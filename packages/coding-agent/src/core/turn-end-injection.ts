@@ -1,10 +1,12 @@
 /**
  * Reviewer side-session runner.
  *
- * Runs a separate read-only LLM call seeded with the full main session history.
+ * Runs a separate agentic LLM session seeded with the full main session history.
  * Used by pi.runReviewer() to power per-turn checks registered via the
- * consider extension. If the reviewer determines there is something
- * actionable, it signals with HAS_TURN_END_QUESTION and returns the response.
+ * consider extension. The reviewer actively investigates the question — running
+ * builds, tests, or any other commands needed — before deciding whether to flag
+ * something actionable. It signals with HAS_TURN_END_QUESTION and returns the
+ * response if so.
  */
 
 import type { AssistantMessage } from "@earendil-works/pi-ai";
@@ -23,11 +25,12 @@ import { buildSessionContext, SessionManager } from "./session-manager.ts";
 const SENTINEL = "HAS_TURN_END_QUESTION";
 
 const REVIEWER_SYSTEM_PROMPT = [
-	"You are a read-only reviewer of a completed coding session.",
-	"You have access to the full conversation history and read-only tools (read, grep, find, ls).",
-	"Your sole purpose is to inspect the current conversation history and answer the provided questions, possibly searching the codebase if necessary.",
-	"Do not make any edits, writes, or other modifications.",
-	"Be direct and concise.",
+	"You are an autonomous verifier running alongside a coding session.",
+	"You will be given a single question to investigate. Do whatever work is necessary to answer it definitively.",
+	"You have access to the full conversation history and tools: read, grep, find, ls, bash.",
+	"Use bash to run builds, tests, linters, git commands, or anything else needed to answer the question definitively.",
+	"You may do anything except modify the codebase: no file writes, no edits, no git commits or pushes.",
+	"Be direct and concise. Report exactly what you found.",
 	`RESPONSE FORMAT: only respond if you identify something genuinely actionable. If you do, your response MUST begin with the token ${SENTINEL} on its own line, followed by your message. If there is nothing actionable, output nothing at all.`,
 ].join(" ");
 
@@ -63,10 +66,12 @@ function createReviewerResourceLoader(): ResourceLoader {
 }
 
 /**
- * Run a separate read-only LLM call with the given questions against the main
- * session's context. Returns the actionable content from the reviewer's
- * response (the text after the HAS_TURN_END_QUESTION sentinel), or undefined
- * if the reviewer found nothing actionable or the side call failed.
+ * Run a separate agentic LLM session with the given questions against the main
+ * session's context. The reviewer may run builds, tests, or any other commands
+ * to investigate, but may not modify the codebase. Returns the actionable
+ * content from the reviewer's response (the text after the
+ * HAS_TURN_END_QUESTION sentinel), or undefined if the reviewer found nothing
+ * actionable or the side call failed.
  */
 export async function runTurnEndInjection(questions: string[], mainSession: AgentSession): Promise<string | undefined> {
 	if (questions.length === 0) return undefined;
@@ -79,7 +84,7 @@ export async function runTurnEndInjection(questions: string[], mainSession: Agen
 		model,
 		modelRegistry: mainSession.modelRegistry,
 		thinkingLevel: "off",
-		tools: ["read", "grep", "find", "ls"],
+		tools: ["read", "grep", "find", "ls", "bash"],
 		resourceLoader: createReviewerResourceLoader(),
 		cwd: mainSession.cwd,
 	});
@@ -97,7 +102,7 @@ export async function runTurnEndInjection(questions: string[], mainSession: Agen
 		const prompt = [
 			...questions,
 			"",
-			`If any of the above warrant action, start your response with ${SENTINEL} on its own line. Otherwise output nothing.`,
+			`Do whatever investigation is necessary to answer the question above. If the result warrants action, start your response with ${SENTINEL} on its own line. Otherwise output nothing.`,
 		].join("\n");
 		await session.prompt(prompt, { source: "extension" });
 
