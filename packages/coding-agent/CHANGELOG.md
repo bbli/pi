@@ -5,7 +5,7 @@
 ### Added
 
 - Added `registerTurnCheck`, `removeTurnCheck`, `getTurnChecks`, and `runReviewer` to `ExtensionAPI` for async per-turn reviewer checks driven by extensions.
-- Added `consider` extension: `/consider` slash command and `manage_consider_checks` LLM tool for registering thinking checks (LLM-evaluated per-turn invariants).
+- Added `consider` extension: `/consider` slash command and `manage_considerations` LLM tool for registering thinking checks (LLM-evaluated per-turn invariants).
 - Added `manage_check` LLM tool to `check-guard` extension for programmatic registration of experimental checks (deterministic bash commands).
 
 ### Removed

@@ -90,12 +90,12 @@ export default function checkGuard(pi: ExtensionAPI) {
 			"Register or clear an experimental check command that runs automatically after each agent turn. " +
 			"Experimental checks are deterministic bash commands (e.g. `npm run lint`, `cargo test`) that " +
 			"run and feed their output back to the agent if they exit non-zero. " +
-			"For subjective or context-dependent invariants that require LLM evaluation, use manage_consider_checks instead.",
+			"For subjective or context-dependent invariants that require LLM evaluation, use manage_considerations instead.",
 		promptSnippet: "manage_check: register/clear a bash command run as a check after each agent turn",
 		promptGuidelines: [
 			"Use manage_check to register a deterministic bash command the agent should keep passing (e.g. `npm run check`).",
 			"Clear the check when it is no longer relevant.",
-			"For invariants that require reading context or subjective judgment, use manage_consider_checks instead.",
+			"For invariants that require reading context or subjective judgment, use manage_considerations instead.",
 		],
 		parameters: Type.Object({
 			command: Type.Optional(

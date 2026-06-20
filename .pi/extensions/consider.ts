@@ -57,7 +57,7 @@ export default function consider(pi: ExtensionAPI): void {
 	});
 
 	pi.registerTool({
-		name: "manage_consider_checks",
+		name: "manage_considerations",
 		label: "Manage Consider Checks",
 		description:
 			"Add, remove, or list per-turn thinking checks. " +
@@ -66,9 +66,9 @@ export default function consider(pi: ExtensionAPI): void {
 			"If a check is violated, the reviewer's feedback is steered into the conversation. " +
 			"For deterministic, command-line-runnable assertions, use manage_check instead. " +
 			"Register checks at the start of a long task and remove them when the task is complete.",
-		promptSnippet: "manage_consider_checks: add/remove/list per-turn thinking checks",
+		promptSnippet: "manage_considerations: add/remove/list per-turn thinking checks",
 		promptGuidelines: [
-			"Use manage_consider_checks to register subjective invariants the LLM should evaluate after each turn (e.g. 'did you git commit after completing this step?').",
+			"Use manage_considerations to register subjective invariants the LLM should evaluate after each turn (e.g. 'did you git commit after completing this step?').",
 			"Register checks at the start of a multi-step plan. Remove them when the plan is complete.",
 			"For deterministic checks that can be verified by running a command, use manage_check instead.",
 		],
@@ -79,7 +79,7 @@ export default function consider(pi: ExtensionAPI): void {
 			check: Type.Optional(Type.String({ description: "The check text (required for add and remove)" })),
 		}),
 		execute: async (_id, params) => {
-			console.error("[manage_consider_checks] called with", params);
+			console.error("[manage_considerations] called with", params);
 			if (params.action === "list") {
 				const checks = pi.getTurnChecks();
 				return {
