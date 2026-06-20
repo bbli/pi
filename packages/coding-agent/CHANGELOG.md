@@ -4,7 +4,14 @@
 
 ### Added
 
-- Added `/question` interactive command to manage turn-end review questions at runtime. `/question <text>` adds a question; `/question` (no args) opens a selector to add new questions or remove existing ones (including extension-registered questions).
+- Added `registerTurnCheck`, `removeTurnCheck`, `getTurnChecks`, and `runReviewer` to `ExtensionAPI` for async per-turn reviewer checks driven by extensions.
+- Added `consider` extension: `/consider` slash command and `manage_consider_checks` LLM tool for registering thinking checks (LLM-evaluated per-turn invariants).
+- Added `manage_check` LLM tool to `check-guard` extension for programmatic registration of experimental checks (deterministic bash commands).
+
+### Removed
+
+- Removed `/question` built-in slash command and the synchronous `_maybeRunTurnEndInjection` in-loop turn-end injection mechanism. Per-turn review is now extension-driven via `registerTurnCheck` and `runReviewer`.
+- Removed `InjectedUserMessage` type, `injectedUser` message role, `TurnEndQuestionEntry` type, `turn_end_injection` `AgentSessionEvent`, and `registerTurnEndQuestion` `ExtensionAPI` method.
 
 ### Fixed
 

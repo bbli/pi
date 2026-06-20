@@ -827,7 +827,7 @@ describe("ExtensionRunner", () => {
 	});
 
 	describe("turn checks", () => {
-		it("registers and deregisters checks from extension state", async () => {
+		it("registers checks from extension state", async () => {
 			const extCode = `
 				export default function(pi) {
 					pi.registerTurnCheck("ext check 1");
@@ -840,6 +840,22 @@ describe("ExtensionRunner", () => {
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
 			expect(runner.getTurnChecks()).toEqual(["ext check 1", "ext check 2"]);
+		});
+
+		it("unsubscriber from registerTurnCheck removes the check", async () => {
+			const extCode = `
+				export default function(pi) {
+					const unsub = pi.registerTurnCheck("to remove");
+					pi.registerTurnCheck("to keep");
+					unsub();
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "turn-checks.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			expect(runner.getTurnChecks()).toEqual(["to keep"]);
 		});
 
 		it("adds and removes user-registered checks", () => {
@@ -889,6 +905,22 @@ describe("ExtensionRunner", () => {
 
 			expect(runner.removeTurnCheck("user check")).toBe(true);
 			expect(runner.getTurnChecks()).toEqual([]);
+		});
+
+		it("removeTurnCheck returns false for unknown check", () => {
+			const runtime = createExtensionRuntime();
+			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+			runner.addUserTurnCheck("real check");
+			expect(runner.removeTurnCheck("phantom check")).toBe(false);
+			expect(runner.getTurnChecks()).toEqual(["real check"]);
+		});
+
+		it("addUserTurnCheck rejects duplicate user check", () => {
+			const runtime = createExtensionRuntime();
+			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+			expect(runner.addUserTurnCheck("my check")).toBe(true);
+			expect(runner.addUserTurnCheck("my check")).toBe(false);
+			expect(runner.getTurnChecks()).toEqual(["my check"]);
 		});
 	});
 

@@ -3,7 +3,7 @@
  *
  * Runs a separate read-only LLM call seeded with the full main session history.
  * Used by pi.runReviewer() to power per-turn checks registered via the
- * turn-checks extension. If the reviewer determines there is something
+ * consider extension. If the reviewer determines there is something
  * actionable, it signals with HAS_TURN_END_QUESTION and returns the response.
  */
 

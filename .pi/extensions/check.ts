@@ -1,9 +1,13 @@
 /**
  * Check Guard Extension
  *
- * Registers a bash command that runs after every agent run. If the command
+ * Registers a bash command that runs after every agent turn. If the command
  * exits non-zero, the last N lines of output are fed back to the agent as a
  * follow-up user message so it can iterate and fix the problem.
+ *
+ * These are "experimental checks" — deterministic, command-line-runnable
+ * assertions (e.g. `npm run check`, `cargo test`). For subjective or
+ * context-dependent invariants evaluated by the LLM, use consider.ts instead.
  *
  * Usage:
  *   /check npm run check   - register a check command
@@ -15,6 +19,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 const MAX_RETRIES = 3;
 // Lines of non-empty output from the failed command to feed back to the agent.
@@ -77,9 +82,47 @@ export default function checkGuard(pi: ExtensionAPI) {
 		);
 	});
 
+	pi.registerTool({
+		name: "manage_check",
+		label: "Manage Check",
+		description:
+			"Register or clear an experimental check command that runs automatically after each agent turn. " +
+			"Experimental checks are deterministic bash commands (e.g. `npm run lint`, `cargo test`) that " +
+			"run and feed their output back to the agent if they exit non-zero. " +
+			"For subjective or context-dependent invariants that require LLM evaluation, use manage_consider_checks instead.",
+		promptSnippet: "manage_check: register/clear a bash command run as a check after each agent turn",
+		promptGuidelines: [
+			"Use manage_check to register a deterministic bash command the agent should keep passing (e.g. `npm run check`).",
+			"Clear the check when it is no longer relevant.",
+			"For invariants that require reading context or subjective judgment, use manage_consider_checks instead.",
+		],
+		parameters: Type.Object({
+			command: Type.Optional(
+				Type.String({
+					description:
+						"The bash command to register as a check. Omit or pass an empty string to clear the current check.",
+				}),
+			),
+		}),
+		execute: async (_id, params) => {
+			console.error("[manage_check] called with", params);
+			const cmd = params.command?.trim() ?? "";
+			if (!cmd) {
+				checkCommand = null;
+				retryCount = 0;
+				pendingRetry = false;
+				return { content: [{ type: "text", text: "Check cleared" }], details: undefined };
+			}
+			checkCommand = cmd;
+			retryCount = 0;
+			pendingRetry = false;
+			return { content: [{ type: "text", text: `Check registered: \`${cmd}\`` }], details: undefined };
+		},
+	});
+
 	pi.registerCommand("check", {
 		description:
-			"Register a bash command to run after each agent run. Agent iterates if it fails. No args clears it.",
+			"Register a bash experimental check command to run after each agent run. Agent iterates if it fails. No args clears it.",
 		handler: async (args, ctx) => {
 			const cmd = args.trim();
 			if (!cmd) {
