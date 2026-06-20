@@ -2,7 +2,10 @@
   "theme": "high-contrast",
   "packages": [
     "npm:pi-smart-fetch",
-    "npm:pi-interactive-shell"
+    "npm:pi-interactive-shell",
+    "npm:pi-btw"
   ],
-  "lastChangelogVersion": "0.78.1"
+  "lastChangelogVersion": "0.78.1",
+  "defaultProvider": "everpure-foundry",
+  "defaultModel": "claude-sonnet-4-6"
 }

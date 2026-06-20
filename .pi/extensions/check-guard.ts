@@ -20,7 +20,7 @@ const MAX_RETRIES = 3;
 // Lines of non-empty output from the failed command to feed back to the agent.
 // Blank lines are excluded from the count, so actual content may span more raw lines.
 const TAIL_LINES = 20;
-const CHECK_TIMEOUT_MS = 120_000;
+const CHECK_TIMEOUT_MS = 30 * 60 * 1000;
 
 export default function checkGuard(pi: ExtensionAPI) {
 	let checkCommand: string | null = null;
