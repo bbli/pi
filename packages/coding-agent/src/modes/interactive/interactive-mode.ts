@@ -59,8 +59,9 @@ import {
 	getShareViewerUrl,
 	VERSION,
 } from "../../config.ts";
+import type { AgentOrchestrator } from "../../core/agent-orchestrator.ts";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
-import { type AgentSessionRuntime, SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
+import { SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
 import type {
 	AutocompleteProviderFactory,
 	EditorFactory,
@@ -262,7 +263,7 @@ export interface InteractiveModeOptions {
 }
 
 export class InteractiveMode {
-	private runtimeHost: AgentSessionRuntime;
+	private orchestrator: AgentOrchestrator;
 	private ui: TUI;
 	private chatContainer: Container;
 	private pendingMessagesContainer: Container;
@@ -371,8 +372,19 @@ export class InteractiveMode {
 	private options: InteractiveModeOptions;
 
 	// Convenience accessors
+	/** Root session — always the main session. Used for infrastructure access. */
+	private get rootSession(): AgentSession {
+		return this.orchestrator.rootSession;
+	}
+
+	/** Focused session — the one being rendered and receiving user input. */
+	private get focusedSession(): AgentSession {
+		return this.orchestrator.focusedSession;
+	}
+
+	/** @deprecated Use rootSession or focusedSession explicitly. */
 	private get session(): AgentSession {
-		return this.runtimeHost.session;
+		return this.orchestrator.rootSession;
 	}
 	private get agent() {
 		return this.session.agent;
@@ -384,13 +396,13 @@ export class InteractiveMode {
 		return this.session.settingsManager;
 	}
 
-	constructor(runtimeHost: AgentSessionRuntime, options: InteractiveModeOptions = {}) {
-		this.runtimeHost = runtimeHost;
+	constructor(orchestrator: AgentOrchestrator, options: InteractiveModeOptions = {}) {
+		this.orchestrator = orchestrator;
 		this.options = options;
-		this.runtimeHost.setBeforeSessionInvalidate(() => {
+		this.orchestrator.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
 		});
-		this.runtimeHost.setRebindSession(async () => {
+		this.orchestrator.setRebindSession(async () => {
 			await this.rebindCurrentSession();
 		});
 		this.version = VERSION;
@@ -1525,7 +1537,7 @@ export class InteractiveMode {
 					}
 					this.statusContainer.clear();
 					try {
-						const result = await this.runtimeHost.newSession(options);
+						const result = await this.orchestrator.newSession(options);
 						if (!result.cancelled) {
 							this.renderCurrentSessionState();
 							this.ui.requestRender();
@@ -1537,7 +1549,7 @@ export class InteractiveMode {
 				},
 				fork: async (entryId, options) => {
 					try {
-						const result = await this.runtimeHost.fork(entryId, options);
+						const result = await this.orchestrator.fork(entryId, options);
 						if (!result.cancelled) {
 							this.renderCurrentSessionState();
 							this.editor.setText(result.selectedText ?? "");
@@ -3301,7 +3313,7 @@ export class InteractiveMode {
 			// terminal. If the terminal is gone, the restore writes below emit EIO,
 			// which the stdout/stderr error handler turns into emergencyTerminalExit;
 			// the render loop is already idle, so this cannot hot-spin (see #4144).
-			await this.runtimeHost.dispose();
+			await this.orchestrator.dispose();
 			await this.ui.terminal.drainInput(1000);
 			this.stop();
 			process.exit(0);
@@ -3315,7 +3327,7 @@ export class InteractiveMode {
 		await this.ui.terminal.drainInput(1000);
 
 		this.stop();
-		await this.runtimeHost.dispose();
+		await this.orchestrator.dispose();
 
 		const resumeCommand = formatResumeCommand(this.sessionManager);
 		if (resumeCommand) {
@@ -4265,7 +4277,7 @@ export class InteractiveMode {
 				userMessages.map((m) => ({ id: m.entryId, text: m.text })),
 				async (entryId) => {
 					try {
-						const result = await this.runtimeHost.fork(entryId);
+						const result = await this.orchestrator.fork(entryId);
 						if (result.cancelled) {
 							done();
 							this.ui.requestRender();
@@ -4299,7 +4311,7 @@ export class InteractiveMode {
 		}
 
 		try {
-			const result = await this.runtimeHost.fork(leafId, { position: "at" });
+			const result = await this.orchestrator.fork(leafId, { position: "at" });
 			if (result.cancelled) {
 				this.ui.requestRender();
 				return;
@@ -4492,7 +4504,7 @@ export class InteractiveMode {
 		}
 		this.statusContainer.clear();
 		try {
-			const result = await this.runtimeHost.switchSession(sessionPath, {
+			const result = await this.orchestrator.switchSession(sessionPath, {
 				withSession: options?.withSession,
 			});
 			if (result.cancelled) {
@@ -4508,7 +4520,7 @@ export class InteractiveMode {
 					this.showStatus("Resume cancelled");
 					return { cancelled: true };
 				}
-				const result = await this.runtimeHost.switchSession(sessionPath, {
+				const result = await this.orchestrator.switchSession(sessionPath, {
 					cwdOverride: selectedCwd,
 					withSession: options?.withSession,
 				});
@@ -5077,7 +5089,7 @@ export class InteractiveMode {
 				this.loadingAnimation = undefined;
 			}
 			this.statusContainer.clear();
-			const result = await this.runtimeHost.importFromJsonl(inputPath);
+			const result = await this.orchestrator.importFromJsonl(inputPath);
 			if (result.cancelled) {
 				this.showStatus("Import cancelled");
 				return;
@@ -5091,7 +5103,7 @@ export class InteractiveMode {
 					this.showStatus("Import cancelled");
 					return;
 				}
-				const result = await this.runtimeHost.importFromJsonl(inputPath, selectedCwd);
+				const result = await this.orchestrator.importFromJsonl(inputPath, selectedCwd);
 				if (result.cancelled) {
 					this.showStatus("Import cancelled");
 					return;
@@ -5431,7 +5443,7 @@ export class InteractiveMode {
 		}
 		this.statusContainer.clear();
 		try {
-			const result = await this.runtimeHost.newSession();
+			const result = await this.orchestrator.newSession();
 			if (result.cancelled) {
 				return;
 			}
