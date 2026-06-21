@@ -315,6 +315,7 @@ export {
 	ExtensionSelectorComponent,
 	type FilterMode,
 	FooterComponent,
+	type FooterOrchestratorState,
 	keyHint,
 	keyText,
 	LoginDialogComponent,

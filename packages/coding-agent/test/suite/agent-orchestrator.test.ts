@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentOrchestrator } from "../../src/core/agent-orchestrator.ts";
-import type { AgentSession, AgentSessionEvent } from "../../src/core/agent-session.ts";
+import type { AgentSession } from "../../src/core/agent-session.ts";
 import type { AgentSessionRuntime } from "../../src/core/agent-session-runtime.ts";
 import type { SubagentRecord } from "../../src/core/subagent-registry.ts";
 
@@ -40,7 +40,7 @@ function makeMockRuntime(session: AgentSession): MockRuntime {
 		importFromJsonl: vi.fn().mockResolvedValue({ cancelled: false }),
 		dispose: vi.fn().mockResolvedValue(undefined),
 		get services() {
-			return {} as ReturnType<AgentSessionRuntime["services"]["constructor"]>;
+			return {} as AgentSessionRuntime["services"];
 		},
 		get cwd() {
 			return "/test";

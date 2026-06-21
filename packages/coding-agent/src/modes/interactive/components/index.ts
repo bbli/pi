@@ -13,7 +13,7 @@ export { DynamicBorder } from "./dynamic-border.ts";
 export { ExtensionEditorComponent } from "./extension-editor.ts";
 export { ExtensionInputComponent } from "./extension-input.ts";
 export { ExtensionSelectorComponent } from "./extension-selector.ts";
-export { FooterComponent } from "./footer.ts";
+export { FooterComponent, type FooterOrchestratorState } from "./footer.ts";
 export { keyHint, keyText, rawKeyHint } from "./keybinding-hints.ts";
 export { LoginDialogComponent } from "./login-dialog.ts";
 export { ModelSelectorComponent } from "./model-selector.ts";

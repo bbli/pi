@@ -27,6 +27,7 @@
 		"success": "green",
 		"error": "red",
 		"warning": "yellow",
+		"info": "blue",
 		"muted": "gray",
 		"dim": "dimGray",
 		"text": "text",

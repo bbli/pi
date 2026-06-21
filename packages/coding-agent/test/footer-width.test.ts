@@ -2,8 +2,20 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentSession } from "../src/core/agent-session.ts";
 import type { ReadonlyFooterDataProvider } from "../src/core/footer-data-provider.ts";
-import { FooterComponent, formatCwdForFooter } from "../src/modes/interactive/components/footer.ts";
+import {
+	FooterComponent,
+	type FooterOrchestratorState,
+	formatCwdForFooter,
+} from "../src/modes/interactive/components/footer.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
+
+function createMockOrchestrator(): FooterOrchestratorState {
+	return {
+		focusedRecord: undefined,
+		registry: { getAll: () => [] },
+		rootSession: { isStreaming: false },
+	};
+}
 
 type AssistantUsage = {
 	input: number;
@@ -92,7 +104,7 @@ describe("FooterComponent width handling", () => {
 	it("keeps all lines within width for wide session names", () => {
 		const width = 93;
 		const session = createSession({ sessionName: "한글".repeat(30) });
-		const footer = new FooterComponent(session, createFooterData(1));
+		const footer = new FooterComponent(session, createFooterData(1), createMockOrchestrator());
 
 		const lines = footer.render(width);
 		for (const line of lines) {
@@ -116,7 +128,7 @@ describe("FooterComponent width handling", () => {
 				cost: { total: 1.234 },
 			},
 		});
-		const footer = new FooterComponent(session, createFooterData(2));
+		const footer = new FooterComponent(session, createFooterData(2), createMockOrchestrator());
 
 		const lines = footer.render(width);
 		for (const line of lines) {

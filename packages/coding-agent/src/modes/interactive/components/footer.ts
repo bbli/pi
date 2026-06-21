@@ -2,7 +2,22 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { AgentSession } from "../../../core/agent-session.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
+import type { SubagentRecord } from "../../../core/subagent-registry.ts";
 import { theme } from "../theme/theme.ts";
+
+/** Minimal orchestrator surface that FooterComponent needs. Satisfied structurally by AgentOrchestrator. */
+export interface FooterOrchestratorState {
+	readonly focusedRecord: SubagentRecord | undefined;
+	readonly registry: { getAll(): readonly SubagentRecord[] };
+	readonly rootSession: { isStreaming: boolean };
+}
+
+/** Colored circle icon representing session status. */
+function sessionIcon(isStreaming: boolean, record?: SubagentRecord): string {
+	if (isStreaming) return theme.fg("info", "●");
+	if (record?.kind === "reviewer") return theme.fg("error", "●");
+	return theme.fg("warning", "●");
+}
 
 /**
  * Sanitize text for display in a single-line status.
@@ -49,10 +64,16 @@ export class FooterComponent implements Component {
 	private autoCompactEnabled = true;
 	private session: AgentSession;
 	private footerData: ReadonlyFooterDataProvider;
+	private orchestrator: FooterOrchestratorState;
 
-	constructor(session: AgentSession, footerData: ReadonlyFooterDataProvider) {
+	constructor(session: AgentSession, footerData: ReadonlyFooterDataProvider, orchestrator?: FooterOrchestratorState) {
 		this.session = session;
 		this.footerData = footerData;
+		this.orchestrator = orchestrator ?? {
+			focusedRecord: undefined,
+			registry: { getAll: () => [] },
+			rootSession: { isStreaming: false },
+		};
 	}
 
 	setSession(session: AgentSession): void {
@@ -80,6 +101,24 @@ export class FooterComponent implements Component {
 	}
 
 	render(width: number): string[] {
+		const lines: string[] = [];
+
+		// Agent strip — always shown
+		const focusedRecord = this.orchestrator.focusedRecord;
+		const subagents = this.orchestrator.registry.getAll();
+		const rootSession = this.orchestrator.rootSession;
+
+		const rootLabel = focusedRecord === undefined ? "[main]" : "main";
+		const rootEntry = `${sessionIcon(rootSession.isStreaming)} ${rootLabel}`;
+
+		const subEntries = subagents.map((r) => {
+			const label = focusedRecord?.id === r.id ? `[${r.label}]` : r.label;
+			return `${sessionIcon(r.session.isStreaming, r)} ${label}`;
+		});
+
+		const agentStrip = [rootEntry, ...subEntries].join("  ");
+		lines.push(truncateToWidth(agentStrip, width, theme.fg("dim", "...")));
+
 		const state = this.session.state;
 
 		// Calculate cumulative usage from ALL session entries (not just post-compaction messages)
@@ -215,7 +254,7 @@ export class FooterComponent implements Component {
 		const dimRemainder = theme.fg("dim", remainder);
 
 		const pwdLine = truncateToWidth(theme.fg("dim", pwd), width, theme.fg("dim", "..."));
-		const lines = [pwdLine, dimStatsLeft + dimRemainder];
+		lines.push(pwdLine, dimStatsLeft + dimRemainder);
 
 		// Add extension statuses on a single line, sorted by key alphabetically
 		const extensionStatuses = this.footerData.getExtensionStatuses();

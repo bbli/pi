@@ -18,7 +18,6 @@ export class AgentOrchestrator {
 	constructor(runtime: AgentSessionRuntime) {
 		this._runtime = runtime;
 		this.registry = new SubagentRegistry();
-		console.error("[AgentOrchestrator] initialized");
 	}
 
 	// =========================================================================

@@ -42,6 +42,7 @@
 				"success",
 				"error",
 				"warning",
+				"info",
 				"muted",
 				"dim",
 				"text",
@@ -115,6 +116,10 @@
 				"warning": {
 					"$ref": "#/$defs/colorValue",
 					"description": "Warning states"
+				},
+				"info": {
+					"$ref": "#/$defs/colorValue",
+					"description": "Informational/active states"
 				},
 				"muted": {
 					"$ref": "#/$defs/colorValue",

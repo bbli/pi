@@ -111,6 +111,7 @@ export type ThemeColor =
 	| "success"
 	| "error"
 	| "warning"
+	| "info"
 	| "muted"
 	| "dim"
 	| "text"
