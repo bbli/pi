@@ -1,5 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { AgentSession } from "./agent-session.ts";
 import type { AgentSessionRuntime } from "./agent-session-runtime.ts";
+import { createExtensionRuntime } from "./extensions/loader.ts";
+import type { ResourceLoader } from "./resource-loader.ts";
+import { createAgentSession } from "./sdk.ts";
+import { SessionManager } from "./session-manager.ts";
 import { type SubagentRecord, SubagentRegistry } from "./subagent-registry.ts";
 
 /**
@@ -100,8 +105,42 @@ export class AgentOrchestrator {
 	// Spawn (implemented in a later step)
 	// =========================================================================
 
-	async spawn(_prompt: string): Promise<SubagentRecord> {
-		throw new Error("spawn not yet implemented");
+	/**
+	 * Spawn a new user-interactive subagent with a minimal resource loader (no extensions).
+	 * Returns the registered record without firing a prompt — the caller is responsible
+	 * for calling switchFocus then sending the first message.
+	 */
+	async spawn(): Promise<SubagentRecord> {
+		const root = this.rootSession;
+		if (!root.model) throw new Error("Cannot spawn subagent: no model selected");
+
+		const extensionRuntime = createExtensionRuntime();
+		const resourceLoader: ResourceLoader = {
+			getExtensions: () => ({ extensions: [], errors: [], runtime: extensionRuntime }),
+			getSkills: () => ({ skills: [], diagnostics: [] }),
+			getPrompts: () => ({ prompts: [], diagnostics: [] }),
+			getThemes: () => ({ themes: [], diagnostics: [] }),
+			getAgentsFiles: () => ({ agentsFiles: [] }),
+			getSystemPrompt: () => undefined,
+			getAppendSystemPrompt: () => [],
+			extendResources: () => {},
+			reload: async () => {},
+		};
+
+		const { session } = await createAgentSession({
+			sessionManager: SessionManager.inMemory(),
+			model: root.model,
+			modelRegistry: root.modelRegistry,
+			thinkingLevel: root.thinkingLevel,
+			cwd: root.cwd,
+			resourceLoader,
+		});
+
+		const userCount = this.registry.getAll().filter((r) => r.kind === "user").length;
+		const label = `agent-${userCount + 1}`;
+		const id = randomUUID();
+		this.registry.register({ id, label, kind: "user", session });
+		return this.registry.get(id)!;
 	}
 
 	// =========================================================================

@@ -2,8 +2,7 @@
   "theme": "high-contrast",
   "packages": [
     "npm:pi-smart-fetch",
-    "npm:pi-interactive-shell",
-    "npm:pi-btw"
+    "npm:pi-interactive-shell"
   ],
   "lastChangelogVersion": "0.78.1",
   "defaultProvider": "everpure-foundry",

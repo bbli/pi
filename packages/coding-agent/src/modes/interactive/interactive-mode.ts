@@ -825,7 +825,7 @@ export class InteractiveMode {
 		while (true) {
 			const userInput = await this.getUserInput();
 			try {
-				await this.session.prompt(userInput);
+				await this.focusedSession.prompt(userInput);
 			} catch (error: unknown) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
 				this.showError(errorMessage);
@@ -4506,8 +4506,15 @@ export class InteractiveMode {
 
 	private async handleAgentCommand(arg: string): Promise<void> {
 		if (arg) {
-			// Spawn — implemented in a later step.
-			this.showWarning("/agent <prompt> spawn is not yet implemented");
+			let record: SubagentRecord;
+			try {
+				record = await this.orchestrator.spawn();
+			} catch (error: unknown) {
+				this.showError(error instanceof Error ? error.message : "Failed to spawn agent");
+				return;
+			}
+			this.switchFocus(record);
+			await this.focusedSession.prompt(arg);
 			return;
 		}
 
