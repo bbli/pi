@@ -55,6 +55,10 @@ class ConsiderationSelectorComponent extends Container {
 		this.addChild(this.selectList);
 		this.addChild(new DynamicBorder());
 	}
+
+	handleInput(data: string): void {
+		this.selectList.handleInput(data);
+	}
 }
 
 type ReviewState =
