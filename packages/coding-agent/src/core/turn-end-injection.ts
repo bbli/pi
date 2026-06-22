@@ -104,17 +104,8 @@ export async function runTurnEndInjection(
 		);
 		session.agent.state.messages = context.messages;
 
-		// Restate the format rule in the user message so the sentinel instruction
-		// appears at both ends of the prompt (system prompt + user turn).
-		const prompt = [
-			...questions,
-			"",
-			`Do whatever investigation is necessary to answer the question above. If the result warrants action, start your response with ${SENTINEL} on its own line. Otherwise output nothing.`,
-		].join("\n");
-		await session.prompt(prompt, { source: "extension" });
-
-		// Register the completed reviewer session so the TUI can display it.
-		// The registry takes ownership of the session lifetime; we must not dispose it.
+		// Register before prompting so the footer can show the session as running
+		// (agent_start fires during prompt — subscription must exist before then).
 		if (registry) {
 			registry.register({
 				id: crypto.randomUUID(),
@@ -124,6 +115,15 @@ export async function runTurnEndInjection(
 			});
 			registered = true;
 		}
+
+		// Restate the format rule in the user message so the sentinel instruction
+		// appears at both ends of the prompt (system prompt + user turn).
+		const prompt = [
+			...questions,
+			"",
+			`Do whatever investigation is necessary to answer the question above. If the result warrants action, start your response with ${SENTINEL} on its own line. Otherwise output nothing.`,
+		].join("\n");
+		await session.prompt(prompt, { source: "extension" });
 
 		// Single backward scan: validate stop reason and extract text together
 		// so both checks operate on the same message.

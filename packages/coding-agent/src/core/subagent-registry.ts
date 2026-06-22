@@ -22,6 +22,7 @@ export class SubagentRegistry {
 			}
 		});
 		this._records.set(record.id, { ...record, ttlTimer: undefined, unsubscribeStatus });
+		this.onStatusChange?.();
 	}
 
 	remove(id: string): void {
