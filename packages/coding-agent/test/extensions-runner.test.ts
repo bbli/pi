@@ -71,7 +71,7 @@ describe("ExtensionRunner", () => {
 		setModel: async () => false,
 		getThinkingLevel: () => "off",
 		setThinkingLevel: () => {},
-		runReviewer: async () => undefined,
+		runReviewer: async () => ({ text: undefined, onInjected: undefined }),
 		getConsiderations: () => [],
 		removeConsideration: () => false,
 	};

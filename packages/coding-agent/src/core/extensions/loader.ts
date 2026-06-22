@@ -38,6 +38,7 @@ import type {
 	MessageRenderer,
 	ProviderConfig,
 	RegisteredCommand,
+	ReviewerResult,
 	ToolDefinition,
 } from "./types.ts";
 
@@ -265,7 +266,7 @@ function createExtensionAPI(
 			return runtime.getConsiderations();
 		},
 
-		runReviewer(questions: string[]): Promise<string | undefined> {
+		runReviewer(questions: string[]): Promise<ReviewerResult> {
 			runtime.assertActive();
 			return runtime.runReviewer(questions);
 		},

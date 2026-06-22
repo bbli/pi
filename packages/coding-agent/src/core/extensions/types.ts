@@ -1087,6 +1087,14 @@ export interface ResolvedCommand extends RegisteredCommand {
 // biome-ignore lint/suspicious/noConfusingVoidType: void allows bare return statements
 export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContext) => Promise<R | void> | R | void;
 
+/** Result returned by runReviewer(). */
+export interface ReviewerResult {
+	/** The actionable text to inject, or undefined if the reviewer found nothing to flag. */
+	text: string | undefined;
+	/** Call this immediately after sending the injection message to start the 60s TTL. */
+	onInjected: (() => void) | undefined;
+}
+
 /** A consideration registered via registerConsideration(). */
 export interface Consideration {
 	/** The consideration text passed to the reviewer LLM. */
@@ -1206,9 +1214,10 @@ export interface ExtensionAPI {
 
 	/**
 	 * Run a read-only reviewer side-session with the given questions against the current session history.
-	 * Returns the actionable response text, or undefined if the reviewer found nothing to flag.
+	 * Returns the result containing the actionable text (if any) and an onInjected callback.
+	 * Call onInjected() immediately after sending the injection message to start the session TTL.
 	 */
-	runReviewer(questions: string[]): Promise<string | undefined>;
+	runReviewer(questions: string[]): Promise<ReviewerResult>;
 
 	// =========================================================================
 	// Actions
@@ -1533,7 +1542,7 @@ export interface ExtensionActions {
 	setModel: SetModelHandler;
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
-	runReviewer: (questions: string[]) => Promise<string | undefined>;
+	runReviewer: (questions: string[]) => Promise<ReviewerResult>;
 	getConsiderations: () => Consideration[];
 	removeConsideration: (text: string) => boolean;
 }

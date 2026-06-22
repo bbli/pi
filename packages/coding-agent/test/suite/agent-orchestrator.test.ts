@@ -67,7 +67,7 @@ function makeMockRuntime(session: AgentSession): MockRuntime {
 }
 
 function makeRecord(id: string, session: AgentSession, kind: SubagentRecord["kind"] = "reviewer"): SubagentRecord {
-	return { id, label: id, kind, session, ttlTimer: undefined, unsubscribeStatus: undefined };
+	return { id, label: id, kind, session, ttlTimer: undefined, unsubscribeStatus: undefined, onInjected: undefined };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

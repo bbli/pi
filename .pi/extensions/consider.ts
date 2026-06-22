@@ -57,7 +57,10 @@ class ConsiderationSelectorComponent extends Container {
 	}
 }
 
-type ReviewState = { status: "idle" } | { status: "running" } | { status: "done"; result: string };
+type ReviewState =
+	| { status: "idle" }
+	| { status: "running" }
+	| { status: "done"; result: string; onInjected: (() => void) | undefined };
 
 export default function consider(pi: ExtensionAPI): void {
 	let state: ReviewState = { status: "idle" };
@@ -65,6 +68,7 @@ export default function consider(pi: ExtensionAPI): void {
 	pi.on("turn_end", async (_event, ctx) => {
 		if (state.status === "done") {
 			pi.sendUserMessage(`Have you considered the following:\n\n${state.result}`, { deliverAs: "steer" });
+			state.onInjected?.();
 			state = { status: "idle" };
 			return;
 		}
@@ -77,8 +81,8 @@ export default function consider(pi: ExtensionAPI): void {
 		state = { status: "running" };
 		pi.runReviewer(considerations.map((c) => c.text))
 			.then((result) => {
-				if (result) {
-					state = { status: "done", result };
+				if (result.text) {
+					state = { status: "done", result: result.text, onInjected: result.onInjected };
 					if (ctx.hasUI) ctx.ui.notify("Consider reviewer: items flagged, steering on next turn", "warning");
 				} else {
 					state = { status: "idle" };

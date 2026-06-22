@@ -75,15 +75,21 @@ function createReviewerResourceLoader(): ResourceLoader {
  * HAS_TURN_END_QUESTION sentinel), or undefined if the reviewer found nothing
  * actionable or the side call failed.
  */
+export interface TurnEndInjectionResult {
+	text: string | undefined;
+	/** Call this after sending the injection message to start the 60s TTL from that point. */
+	onInjected: (() => void) | undefined;
+}
+
 export async function runTurnEndInjection(
 	questions: string[],
 	mainSession: AgentSession,
 	registry?: SubagentRegistry,
-): Promise<string | undefined> {
-	if (questions.length === 0) return undefined;
+): Promise<TurnEndInjectionResult> {
+	if (questions.length === 0) return { text: undefined, onInjected: undefined };
 
 	const model = mainSession.model;
-	if (!model) return undefined;
+	if (!model) return { text: undefined, onInjected: undefined };
 
 	const { session } = await createAgentSession({
 		sessionManager: SessionManager.inMemory(),
@@ -106,13 +112,11 @@ export async function runTurnEndInjection(
 
 		// Register before prompting so the footer can show the session as running
 		// (agent_start fires during prompt — subscription must exist before then).
+		let onInjected: (() => void) | undefined;
 		if (registry) {
-			registry.register({
-				id: crypto.randomUUID(),
-				label: "reviewer",
-				kind: "reviewer",
-				session,
-			});
+			const id = crypto.randomUUID();
+			registry.register({ id, label: "reviewer", kind: "reviewer", session });
+			onInjected = registry.get(id)?.onInjected;
 			registered = true;
 		}
 
@@ -132,7 +136,7 @@ export async function runTurnEndInjection(
 			if (m.role !== "assistant") continue;
 			const assistant = m as AssistantMessage;
 			if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
-				return undefined;
+				return { text: undefined, onInjected };
 			}
 			const raw = assistant.content
 				.filter((c) => c.type === "text")
@@ -140,10 +144,10 @@ export async function runTurnEndInjection(
 				.join("\n")
 				.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
 				.trim();
-			if (raw) return parseReviewerResponse(raw);
+			if (raw) return { text: parseReviewerResponse(raw), onInjected };
 			// Last assistant message had no text (tool-use only); keep scanning.
 		}
-		return undefined;
+		return { text: undefined, onInjected };
 	} finally {
 		try {
 			await session.abort();

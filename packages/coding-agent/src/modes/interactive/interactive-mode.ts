@@ -2633,6 +2633,11 @@ export class InteractiveMode {
 				await this.handleAgentCommand(arg);
 				return;
 			}
+			if (text === "/kill") {
+				this.editor.setText("");
+				this.handleKillCommand();
+				return;
+			}
 			if (text === "/resume") {
 				this.showSessionSelector();
 				this.editor.setText("");
@@ -4524,6 +4529,28 @@ export class InteractiveMode {
 			const record = records[idx - 1];
 			if (record) this.switchFocus(record);
 		}
+	}
+
+	private handleKillCommand(): void {
+		const focused = this.orchestrator.focusedRecord;
+		if (focused === undefined) {
+			this.showError("Cannot kill root session");
+			return;
+		}
+		// Unsubscribe before kill so no stale events arrive during teardown.
+		this.unsubscribe?.();
+		this.unsubscribe = undefined;
+		this.orchestrator.kill(focused.id);
+		// Sync TUI to whatever focus the orchestrator settled on after the kill.
+		const next = this.orchestrator.focusedRecord;
+		if (next === undefined) {
+			this.renderCurrentSessionState();
+		} else {
+			this.switchToMessages(next.session.state.messages);
+		}
+		this.subscribeToAgent();
+		this.footer.invalidate();
+		this.ui.requestRender();
 	}
 
 	private showSessionSelector(): void {

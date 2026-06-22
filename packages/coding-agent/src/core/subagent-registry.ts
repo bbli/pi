@@ -9,11 +9,15 @@ export interface SubagentRecord {
 	readonly session: AgentSession;
 	ttlTimer: ReturnType<typeof setTimeout> | undefined;
 	unsubscribeStatus: (() => void) | undefined;
+	/** Called by consider.ts after sendUserMessage — refreshes the TTL from injection time. */
+	onInjected: (() => void) | undefined;
 }
 
 export class SubagentRegistry {
 	private readonly _records = new Map<string, SubagentRecord>();
 	onStatusChange: (() => void) | undefined = undefined;
+	/** Fired after a new record is added. Orchestrator uses this to start TTLs. */
+	onRegister: ((record: SubagentRecord) => void) | undefined = undefined;
 
 	register(record: Pick<SubagentRecord, "id" | "label" | "kind" | "session">): void {
 		const unsubscribeStatus = record.session.subscribe((event) => {
@@ -21,7 +25,9 @@ export class SubagentRegistry {
 				this.onStatusChange?.();
 			}
 		});
-		this._records.set(record.id, { ...record, ttlTimer: undefined, unsubscribeStatus });
+		const stored: SubagentRecord = { ...record, ttlTimer: undefined, unsubscribeStatus, onInjected: undefined };
+		this._records.set(record.id, stored);
+		this.onRegister?.(stored);
 		this.onStatusChange?.();
 	}
 

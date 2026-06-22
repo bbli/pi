@@ -35,6 +35,7 @@ export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<BuiltinSlashCommand> = [
 	{ name: "new", description: "Start a new session" },
 	{ name: "compact", description: "Manually compact the session context" },
 	{ name: "agent", description: "Switch focus to a registered agent session, or spawn one: /agent [prompt]" },
+	{ name: "kill", description: "Kill the focused agent session (cannot kill root session)" },
 	{ name: "resume", description: "Resume a different session" },
 	{ name: "reload", description: "Reload keybindings, extensions, skills, prompts, and themes" },
 	{ name: "quit", description: `Quit ${APP_NAME}` },
