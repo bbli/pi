@@ -84,6 +84,7 @@ import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../cor
 import { type SessionContext, SessionManager, type SessionTreeNode } from "../../core/session-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
+import type { SubagentRecord } from "../../core/subagent-registry.ts";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.ts";
 import type { TruncationResult } from "../../core/tools/truncate.ts";
 import { getChangelogPath, getNewEntries, parseChangelog } from "../../utils/changelog.ts";
@@ -2626,6 +2627,12 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
+			if (text === "/agent" || text.startsWith("/agent ")) {
+				const arg = text.startsWith("/agent ") ? text.slice(7).trim() : "";
+				this.editor.setText("");
+				await this.handleAgentCommand(arg);
+				return;
+			}
 			if (text === "/resume") {
 				this.showSessionSelector();
 				this.editor.setText("");
@@ -2692,9 +2699,41 @@ export class InteractiveMode {
 	}
 
 	private subscribeToAgent(): void {
-		this.unsubscribe = this.session.subscribe(async (event) => {
+		this.unsubscribe = this.focusedSession.subscribe(async (event) => {
 			await this.handleEvent(event);
 		});
+	}
+
+	/**
+	 * Clear the chat pane and replay an arbitrary message list.
+	 * Used when switching focus to a subagent session.
+	 */
+	private switchToMessages(messages: AgentMessage[]): void {
+		this.chatContainer.clear();
+		this.pendingMessagesContainer.clear();
+		this.compactionQueuedMessages = [];
+		this.streamingComponent = undefined;
+		this.streamingMessage = undefined;
+		this.pendingTools.clear();
+		const context: SessionContext = { messages, thinkingLevel: "off", model: null };
+		this.renderSessionContext(context);
+	}
+
+	/**
+	 * Switch the rendered session. Pass undefined to return to the root session.
+	 */
+	private switchFocus(record: SubagentRecord | undefined): void {
+		this.unsubscribe?.();
+		this.unsubscribe = undefined;
+		this.orchestrator.focus(record);
+		if (record === undefined) {
+			this.renderCurrentSessionState();
+		} else {
+			this.switchToMessages(record.session.state.messages);
+		}
+		this.subscribeToAgent();
+		this.footer.invalidate();
+		this.ui.requestRender();
 	}
 
 	private async handleEvent(event: AgentSessionEvent): Promise<void> {
@@ -4458,6 +4497,33 @@ export class InteractiveMode {
 			);
 			return { component: selector, focus: selector };
 		});
+	}
+
+	private async handleAgentCommand(arg: string): Promise<void> {
+		if (arg) {
+			// Spawn — implemented in a later step.
+			this.showWarning("/agent <prompt> spawn is not yet implemented");
+			return;
+		}
+
+		const records = Array.from(this.orchestrator.registry.getAll());
+		const focusedId = this.orchestrator.focusedRecord?.id;
+
+		const options = [
+			`Main${focusedId === undefined ? " (current)" : ""}`,
+			...records.map((r) => `${r.label}${focusedId === r.id ? " (current)" : ""}`),
+		];
+
+		const selected = await this.showExtensionSelector("Switch agent session", options);
+		if (!selected) return;
+
+		const idx = options.indexOf(selected);
+		if (idx === 0) {
+			this.switchFocus(undefined);
+		} else if (idx > 0) {
+			const record = records[idx - 1];
+			if (record) this.switchFocus(record);
+		}
 	}
 
 	private showSessionSelector(): void {
