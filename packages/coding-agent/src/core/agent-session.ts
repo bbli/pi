@@ -88,6 +88,7 @@ import { CURRENT_SESSION_VERSION, getLatestCompactionEntry, type SessionHeader }
 import type { SettingsManager } from "./settings-manager.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
+import type { SubagentRegistry } from "./subagent-registry.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
@@ -264,6 +265,7 @@ export class AgentSession {
 	// Event subscription state
 	private _unsubscribeAgent?: () => void;
 	private _eventListeners: AgentSessionEventListener[] = [];
+	private _subagentRegistry?: SubagentRegistry;
 
 	/** Tracks pending steering messages for UI display. Removed when delivered. */
 	private _steeringMessages: string[] = [];
@@ -688,6 +690,14 @@ export class AgentSession {
 				this._eventListeners.splice(index, 1);
 			}
 		};
+	}
+
+	/**
+	 * Set the registry that runTurnEndInjection will publish reviewer sessions into.
+	 * Called by AgentOrchestrator after construction and after session replacement.
+	 */
+	setSubagentRegistry(registry: SubagentRegistry | undefined): void {
+		this._subagentRegistry = registry;
 	}
 
 	/**
@@ -2241,7 +2251,7 @@ export class AgentSession {
 				},
 				getThinkingLevel: () => this.thinkingLevel,
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
-				runReviewer: (questions) => runTurnEndInjection(questions, this),
+				runReviewer: (questions) => runTurnEndInjection(questions, this, this._subagentRegistry),
 				getConsiderations: () => this._extensionRunner.getConsiderations(),
 				removeConsideration: (text) => this._extensionRunner.removeConsideration(text),
 			},

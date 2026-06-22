@@ -18,6 +18,7 @@ export class AgentOrchestrator {
 	constructor(runtime: AgentSessionRuntime) {
 		this._runtime = runtime;
 		this.registry = new SubagentRegistry();
+		runtime.session.setSubagentRegistry(this.registry);
 	}
 
 	// =========================================================================
@@ -102,6 +103,8 @@ export class AgentOrchestrator {
 
 	setRebindSession(cb: () => Promise<void>): void {
 		this._runtime.setRebindSession(async () => {
+			// Wire the registry into the newly created root session.
+			this._runtime.session.setSubagentRegistry(this.registry);
 			await cb();
 		});
 	}

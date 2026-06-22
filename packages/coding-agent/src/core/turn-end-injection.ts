@@ -9,12 +9,14 @@
  * response if so.
  */
 
+import * as crypto from "node:crypto";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { AgentSession } from "./agent-session.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
+import type { SubagentRegistry } from "./subagent-registry.ts";
 
 /**
  * Sentinel token the reviewer must place on its own line at the start of its
@@ -73,7 +75,11 @@ function createReviewerResourceLoader(): ResourceLoader {
  * HAS_TURN_END_QUESTION sentinel), or undefined if the reviewer found nothing
  * actionable or the side call failed.
  */
-export async function runTurnEndInjection(questions: string[], mainSession: AgentSession): Promise<string | undefined> {
+export async function runTurnEndInjection(
+	questions: string[],
+	mainSession: AgentSession,
+	registry?: SubagentRegistry,
+): Promise<string | undefined> {
 	if (questions.length === 0) return undefined;
 
 	const model = mainSession.model;
@@ -89,6 +95,7 @@ export async function runTurnEndInjection(questions: string[], mainSession: Agen
 		cwd: mainSession.cwd,
 	});
 
+	let registered = false;
 	try {
 		// Seed the side session with the full main conversation history.
 		const context = buildSessionContext(
@@ -105,6 +112,18 @@ export async function runTurnEndInjection(questions: string[], mainSession: Agen
 			`Do whatever investigation is necessary to answer the question above. If the result warrants action, start your response with ${SENTINEL} on its own line. Otherwise output nothing.`,
 		].join("\n");
 		await session.prompt(prompt, { source: "extension" });
+
+		// Register the completed reviewer session so the TUI can display it.
+		// The registry takes ownership of the session lifetime; we must not dispose it.
+		if (registry) {
+			registry.register({
+				id: crypto.randomUUID(),
+				label: "reviewer",
+				kind: "reviewer",
+				session,
+			});
+			registered = true;
+		}
 
 		// Single backward scan: validate stop reason and extract text together
 		// so both checks operate on the same message.
@@ -131,6 +150,9 @@ export async function runTurnEndInjection(questions: string[], mainSession: Agen
 		} catch {
 			// ignore abort errors on side-session teardown
 		}
-		session.dispose();
+		// Only dispose if we did not hand ownership to the registry.
+		if (!registered) {
+			session.dispose();
+		}
 	}
 }
