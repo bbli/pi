@@ -2693,8 +2693,22 @@ export class InteractiveMode {
 				return;
 			}
 
-			// If streaming, use prompt() with steer behavior
-			// This handles extension commands (execute immediately), prompt template expansion, and queueing
+			// Root-session commands (extension commands, prompt templates, skill commands) must
+			// always execute on the root session — subagents have no extension runner or resources.
+			if (this.isRootCommand(text)) {
+				this.editor.addToHistory?.(text);
+				this.editor.setText("");
+				if (this.resources.isStreaming) {
+					await this.resources.prompt(text, { streamingBehavior: "steer" });
+				} else {
+					await this.resources.prompt(text);
+				}
+				this.updatePendingMessagesDisplay();
+				this.ui.requestRender();
+				return;
+			}
+
+			// If the focused session is streaming, steer the message into it.
 			if (this.conversation.isStreaming) {
 				this.editor.addToHistory?.(text);
 				this.editor.setText("");
@@ -3551,8 +3565,21 @@ export class InteractiveMode {
 			return;
 		}
 
-		// Alt+Enter queues a follow-up message (waits until agent finishes)
-		// This handles extension commands (execute immediately), prompt template expansion, and queueing
+		// Root-session commands always execute on the root session.
+		if (this.isRootCommand(text)) {
+			this.editor.addToHistory?.(text);
+			this.editor.setText("");
+			if (this.resources.isStreaming) {
+				await this.resources.prompt(text, { streamingBehavior: "followUp" });
+			} else {
+				await this.resources.prompt(text);
+			}
+			this.updatePendingMessagesDisplay();
+			this.ui.requestRender();
+			return;
+		}
+
+		// Alt+Enter queues a follow-up message to the focused session.
 		if (this.conversation.isStreaming) {
 			this.editor.addToHistory?.(text);
 			this.editor.setText("");
@@ -3863,12 +3890,32 @@ export class InteractiveMode {
 
 	private isExtensionCommand(text: string): boolean {
 		if (!text.startsWith("/")) return false;
-
 		const extensionRunner = this.resources.extensionRunner;
-
 		const spaceIndex = text.indexOf(" ");
 		const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
 		return !!extensionRunner.getCommand(commandName);
+	}
+
+	/** Returns true if this command must execute on the root session regardless of focus.
+	 *  Superset of isExtensionCommand — also includes prompt templates and skill commands
+	 *  whose resources live on the root session only.
+	 *  Do NOT use this in compaction paths — use isExtensionCommand there, which preserves
+	 *  the distinction between immediate-execution vs queued-LLM-prompt commands.
+	 */
+	private isRootCommand(text: string): boolean {
+		return this.isExtensionCommand(text) || this.isPromptTemplate(text) || this.isSkillCommand(text);
+	}
+
+	private isPromptTemplate(text: string): boolean {
+		if (!text.startsWith("/")) return false;
+		const name = text.slice(1).split(/\s/, 1)[0] ?? "";
+		return this.resources.promptTemplates.some((t) => t.name === name);
+	}
+
+	private isSkillCommand(text: string): boolean {
+		if (!text.startsWith("/")) return false;
+		const name = text.slice(1).split(/\s/, 1)[0] ?? "";
+		return this.skillCommands.has(name);
 	}
 
 	private async flushCompactionQueue(options?: { willRetry?: boolean }): Promise<void> {
