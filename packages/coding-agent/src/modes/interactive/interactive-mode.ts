@@ -383,7 +383,8 @@ export class InteractiveMode {
 		return this.orchestrator.focusedSession;
 	}
 
-	/** @deprecated Use rootSession or focusedSession explicitly. */
+	/** Root session — infrastructure access (extensions, models, settings, compaction, bash).
+	 *  Use focusedSession for anything targeting the active conversation. */
 	private get session(): AgentSession {
 		return this.orchestrator.rootSession;
 	}
@@ -1759,7 +1760,7 @@ export class InteractiveMode {
 			this.ui.requestRender();
 			return;
 		}
-		if (this.session.isStreaming && !this.loadingAnimation) {
+		if (this.focusedSession.isStreaming && !this.loadingAnimation) {
 			this.statusContainer.clear();
 			this.loadingAnimation = this.createWorkingLoader();
 			this.statusContainer.addChild(this.loadingAnimation);
@@ -2681,10 +2682,10 @@ export class InteractiveMode {
 
 			// If streaming, use prompt() with steer behavior
 			// This handles extension commands (execute immediately), prompt template expansion, and queueing
-			if (this.session.isStreaming) {
+			if (this.focusedSession.isStreaming) {
 				this.editor.addToHistory?.(text);
 				this.editor.setText("");
-				await this.session.prompt(text, { streamingBehavior: "steer" });
+				await this.focusedSession.prompt(text, { streamingBehavior: "steer" });
 				this.updatePendingMessagesDisplay();
 				this.ui.requestRender();
 				return;
@@ -2730,6 +2731,11 @@ export class InteractiveMode {
 	private switchFocus(record: SubagentRecord | undefined): void {
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
+		// Stop any loader left over from the previous session before resubscribing.
+		this.stopWorkingLoader();
+		if (this.settingsManager.getShowTerminalProgress()) {
+			this.ui.terminal.setProgress(false);
+		}
 		this.orchestrator.focus(record);
 		if (record === undefined) {
 			this.renderCurrentSessionState();
@@ -2855,7 +2861,7 @@ export class InteractiveMode {
 					this.streamingMessage = event.message;
 					let errorMessage: string | undefined;
 					if (this.streamingMessage.stopReason === "aborted") {
-						const retryAttempt = this.session.retryAttempt;
+						const retryAttempt = this.focusedSession.retryAttempt;
 						errorMessage =
 							retryAttempt > 0
 								? `Aborted after ${retryAttempt} retry attempt${retryAttempt > 1 ? "s" : ""}`
@@ -3252,7 +3258,7 @@ export class InteractiveMode {
 						if (message.stopReason === "aborted" || message.stopReason === "error") {
 							let errorMessage: string;
 							if (message.stopReason === "aborted") {
-								const retryAttempt = this.session.retryAttempt;
+								const retryAttempt = this.focusedSession.retryAttempt;
 								errorMessage =
 									retryAttempt > 0
 										? `Aborted after ${retryAttempt} retry attempt${retryAttempt > 1 ? "s" : ""}`
@@ -3534,10 +3540,10 @@ export class InteractiveMode {
 
 		// Alt+Enter queues a follow-up message (waits until agent finishes)
 		// This handles extension commands (execute immediately), prompt template expansion, and queueing
-		if (this.session.isStreaming) {
+		if (this.focusedSession.isStreaming) {
 			this.editor.addToHistory?.(text);
 			this.editor.setText("");
-			await this.session.prompt(text, { streamingBehavior: "followUp" });
+			await this.focusedSession.prompt(text, { streamingBehavior: "followUp" });
 			this.updatePendingMessagesDisplay();
 			this.ui.requestRender();
 		}
@@ -4547,6 +4553,11 @@ export class InteractiveMode {
 		// Unsubscribe before kill so no stale events arrive during teardown.
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
+		// Stop any loader from the session being killed.
+		this.stopWorkingLoader();
+		if (this.settingsManager.getShowTerminalProgress()) {
+			this.ui.terminal.setProgress(false);
+		}
 		this.orchestrator.kill(focused.id);
 		// Sync TUI to whatever focus the orchestrator settled on after the kill.
 		const next = this.orchestrator.focusedRecord;

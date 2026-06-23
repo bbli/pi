@@ -102,6 +102,9 @@ export async function runTurnEndInjection(
 	});
 
 	let registered = false;
+	let registeredId: string | undefined;
+	let onInjected: (() => void) | undefined;
+	let completed = false;
 	try {
 		// Seed the side session with the full main conversation history.
 		const context = buildSessionContext(
@@ -112,11 +115,10 @@ export async function runTurnEndInjection(
 
 		// Register before prompting so the footer can show the session as running
 		// (agent_start fires during prompt — subscription must exist before then).
-		let onInjected: (() => void) | undefined;
 		if (registry) {
-			const id = crypto.randomUUID();
-			registry.register({ id, label: "reviewer", kind: "reviewer", session });
-			onInjected = registry.get(id)?.onInjected;
+			registeredId = crypto.randomUUID();
+			registry.register({ id: registeredId, label: "reviewer", kind: "reviewer", session });
+			onInjected = registry.get(registeredId)?.onInjected;
 			registered = true;
 		}
 
@@ -136,6 +138,7 @@ export async function runTurnEndInjection(
 			if (m.role !== "assistant") continue;
 			const assistant = m as AssistantMessage;
 			if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
+				completed = true;
 				return { text: undefined, onInjected };
 			}
 			const raw = assistant.content
@@ -144,9 +147,13 @@ export async function runTurnEndInjection(
 				.join("\n")
 				.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
 				.trim();
-			if (raw) return { text: parseReviewerResponse(raw), onInjected };
+			if (raw) {
+				completed = true;
+				return { text: parseReviewerResponse(raw), onInjected };
+			}
 			// Last assistant message had no text (tool-use only); keep scanning.
 		}
+		completed = true;
 		return { text: undefined, onInjected };
 	} finally {
 		try {
@@ -154,9 +161,14 @@ export async function runTurnEndInjection(
 		} catch {
 			// ignore abort errors on side-session teardown
 		}
-		// Only dispose if we did not hand ownership to the registry.
 		if (!registered) {
+			// Not registered — we own the session lifetime.
 			session.dispose();
+		} else if (!completed && registry && registeredId) {
+			// Exception thrown after registration — remove from registry immediately.
+			// registry.remove() calls abort+dispose, which is safe to call again.
+			registry.remove(registeredId);
 		}
+		// registered && completed: registry manages lifetime via TTL.
 	}
 }
