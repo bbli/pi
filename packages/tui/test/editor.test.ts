@@ -3933,4 +3933,74 @@ describe("Editor component", () => {
 			assert.strictEqual(submitted, pastedText);
 		});
 	});
+
+	describe("getHistory / setHistory", () => {
+		it("getHistory returns empty array when no history exists", () => {
+			const editor = new Editor(createTestTUI(), defaultEditorTheme);
+			assert.deepStrictEqual([...editor.getHistory()], []);
+		});
+
+		it("getHistory returns a snapshot — mutating the result does not affect the editor", () => {
+			const editor = new Editor(createTestTUI(), defaultEditorTheme);
+			editor.addToHistory("a");
+			editor.addToHistory("b");
+
+			const snapshot = editor.getHistory() as string[];
+			snapshot.push("injected");
+
+			// Editor history must be unchanged
+			assert.deepStrictEqual([...editor.getHistory()], ["b", "a"]);
+		});
+
+		it("setHistory replaces the history entries", () => {
+			const editor = new Editor(createTestTUI(), defaultEditorTheme);
+			editor.addToHistory("old");
+
+			editor.setHistory(["newest", "older"]);
+
+			assert.deepStrictEqual([...editor.getHistory()], ["newest", "older"]);
+		});
+
+		it("setHistory resets historyIndex so Up from an empty editor gives the new first entry", () => {
+			const editor = new Editor(createTestTUI(), defaultEditorTheme);
+			editor.addToHistory("old-a");
+			editor.addToHistory("old-b");
+
+			// Navigate into history then back out so editor is empty
+			editor.handleInput("\x1b[A"); // Up → old-b
+			editor.handleInput("\x1b[B"); // Down → back to empty
+			assert.strictEqual(editor.getText(), "");
+
+			// Replace history entirely
+			editor.setHistory(["replaced"]);
+
+			// From an empty editor, Up should give the FIRST entry of the new history
+			editor.handleInput("\x1b[A");
+			assert.strictEqual(editor.getText(), "replaced");
+		});
+
+		it("getHistory / setHistory round-trip preserves entries", () => {
+			const editor1 = new Editor(createTestTUI(), defaultEditorTheme);
+			editor1.addToHistory("cmd1");
+			editor1.addToHistory("cmd2");
+			editor1.addToHistory("cmd3");
+
+			const editor2 = new Editor(createTestTUI(), defaultEditorTheme);
+			editor2.setHistory(editor1.getHistory());
+
+			assert.deepStrictEqual([...editor2.getHistory()], ["cmd3", "cmd2", "cmd1"]);
+		});
+
+		it("setHistory with empty array clears all history", () => {
+			const editor = new Editor(createTestTUI(), defaultEditorTheme);
+			editor.addToHistory("existing");
+
+			editor.setHistory([]);
+
+			assert.deepStrictEqual([...editor.getHistory()], []);
+			// Up arrow should do nothing on empty history
+			editor.handleInput("\x1b[A");
+			assert.strictEqual(editor.getText(), "");
+		});
+	});
 });
