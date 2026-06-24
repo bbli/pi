@@ -4791,8 +4791,8 @@ export class InteractiveMode {
 			this.showError("Cannot kill root session");
 			return;
 		}
-		this.saveEditorHistory();
-		// saveConversationState tears down compaction/retry UI; we delete its entry immediately after.
+		// saveConversationState tears down compaction/retry UI; its data entry is deleted immediately after.
+		// We do NOT call saveEditorHistory — the killed session's history is also discarded below.
 		this.saveConversationState();
 		// Unsubscribe before kill so no stale events arrive during teardown.
 		this.unsubscribe?.();
