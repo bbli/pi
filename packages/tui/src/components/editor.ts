@@ -356,6 +356,17 @@ export class Editor implements Component, Focusable {
 		}
 	}
 
+	/** Return a snapshot of the current history (most-recent first). */
+	getHistory(): readonly string[] {
+		return [...this.history];
+	}
+
+	/** Replace history with provided entries and reset navigation state. */
+	setHistory(items: readonly string[]): void {
+		this.history = [...items];
+		this.historyIndex = -1;
+	}
+
 	private isEditorEmpty(): boolean {
 		return this.state.lines.length === 1 && this.state.lines[0] === "";
 	}

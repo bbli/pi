@@ -319,6 +319,9 @@ export class InteractiveMode {
 	// Skill commands: command name -> skill file path
 	private skillCommands = new Map<string, string>();
 
+	// Per-session editor history: sessionId -> history entries (most-recent first)
+	private sessionHistories = new Map<string, string[]>();
+
 	// Agent subscription unsubscribe function
 	private unsubscribe?: () => void;
 	private signalCleanupHandlers: Array<() => void> = [];
@@ -2737,6 +2740,22 @@ export class InteractiveMode {
 		});
 	}
 
+	/** Save the editor's current history under the focused session's id. */
+	private saveEditorHistory(): void {
+		const key = this.orchestrator.focusedRecord?.id ?? "root";
+		const history = this.editor.getHistory?.();
+		if (history !== undefined) {
+			this.sessionHistories.set(key, [...history]);
+		}
+	}
+
+	/** Restore the editor's history for the (newly) focused session. */
+	private restoreEditorHistory(): void {
+		const key = this.orchestrator.focusedRecord?.id ?? "root";
+		const saved = this.sessionHistories.get(key) ?? [];
+		this.editor.setHistory?.(saved);
+	}
+
 	/**
 	 * Clear the chat pane and replay an arbitrary message list.
 	 * Used when switching focus to a subagent session.
@@ -2756,6 +2775,7 @@ export class InteractiveMode {
 	 * Switch the rendered session. Pass undefined to return to the root session.
 	 */
 	private switchFocus(record: SubagentRecord | undefined): void {
+		this.saveEditorHistory();
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
 		// Stop any loader left over from the previous session before resubscribing.
@@ -2769,6 +2789,7 @@ export class InteractiveMode {
 		} else {
 			this.switchToMessages(record.session.state.messages);
 		}
+		this.restoreEditorHistory();
 		this.subscribeToAgent();
 		this.footer.invalidate();
 		this.ui.requestRender();
@@ -4610,6 +4631,7 @@ export class InteractiveMode {
 			this.showError("Cannot kill root session");
 			return;
 		}
+		this.saveEditorHistory();
 		// Unsubscribe before kill so no stale events arrive during teardown.
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
@@ -4618,6 +4640,8 @@ export class InteractiveMode {
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
 		}
+		// Discard the killed session's history — it no longer exists.
+		this.sessionHistories.delete(focused.id);
 		this.orchestrator.kill(focused.id);
 		// Sync TUI to whatever focus the orchestrator settled on after the kill.
 		const next = this.orchestrator.focusedRecord;
@@ -4626,6 +4650,7 @@ export class InteractiveMode {
 		} else {
 			this.switchToMessages(next.session.state.messages);
 		}
+		this.restoreEditorHistory();
 		this.subscribeToAgent();
 		this.footer.invalidate();
 		this.ui.requestRender();
