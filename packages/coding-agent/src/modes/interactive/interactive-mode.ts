@@ -1602,7 +1602,7 @@ export class InteractiveMode {
 			},
 			shutdownHandler: () => {
 				this.shutdownRequested = true;
-				if (!this.resources.isStreaming) {
+				if (!this.conversation.isStreaming) {
 					void this.shutdown();
 				}
 			},
@@ -1690,7 +1690,7 @@ export class InteractiveMode {
 			sessionManager: this.sessionManager,
 			modelRegistry: this.resources.modelRegistry,
 			model: this.resources.model,
-			isIdle: () => !this.resources.isStreaming,
+			isIdle: () => !this.conversation.isStreaming,
 			signal: this.resources.agent.signal,
 			abort: () => {
 				this.restoreQueuedMessagesToEditor({ abort: true });
