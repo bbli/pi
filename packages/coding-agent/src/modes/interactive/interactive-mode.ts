@@ -2760,15 +2760,83 @@ export class InteractiveMode {
 	 * Clear the chat pane and replay an arbitrary message list.
 	 * Used when switching focus to a subagent session.
 	 */
-	private switchToMessages(messages: AgentMessage[]): void {
+	private switchToMessages(session: AgentSession): void {
 		this.chatContainer.clear();
 		this.pendingMessagesContainer.clear();
 		this.compactionQueuedMessages = [];
 		this.streamingComponent = undefined;
 		this.streamingMessage = undefined;
 		this.pendingTools.clear();
-		const context: SessionContext = { messages, thinkingLevel: "off", model: null };
-		this.renderSessionContext(context);
+
+		// The in-progress LLM message lives in state.streamingMessage (not state.messages).
+		// state.messages only contains completed messages (pushed on message_end).
+		const inProgress = session.state.streamingMessage as AssistantMessage | undefined;
+
+		if (session.isStreaming && inProgress?.role === "assistant") {
+			// Branch A: LLM actively generating a response.
+			// Replay all completed messages, then re-establish streamingComponent for the partial one.
+			this.renderSessionContext({ messages: session.state.messages, thinkingLevel: "off", model: null });
+
+			this.streamingComponent = new AssistantMessageComponent(
+				undefined,
+				this.hideThinkingBlock,
+				this.getMarkdownThemeWithSettings(),
+				this.hiddenThinkingLabel,
+			);
+			this.streamingMessage = inProgress;
+			this.chatContainer.addChild(this.streamingComponent);
+			this.streamingComponent.updateContent(this.streamingMessage);
+
+			// Set up ToolExecutionComponents for any tool calls in the partial message.
+			for (const content of this.streamingMessage.content) {
+				if (content.type === "toolCall" && !this.pendingTools.has(content.id)) {
+					const component = new ToolExecutionComponent(
+						content.name,
+						content.id,
+						content.arguments,
+						{
+							showImages: this.settingsManager.getShowImages(),
+							imageWidthCells: this.settingsManager.getImageWidthCells(),
+						},
+						this.getRegisteredToolDefinition(content.name),
+						this.ui,
+						this.sessionManager.getCwd(),
+					);
+					component.setExpanded(this.toolOutputExpanded);
+					this.chatContainer.addChild(component);
+					this.pendingTools.set(content.id, component);
+				}
+			}
+
+			// Start the working loader — session is actively generating.
+			if (this.workingVisible) {
+				this.loadingAnimation = this.createWorkingLoader();
+				this.statusContainer.addChild(this.loadingAnimation);
+			}
+			if (this.settingsManager.getShowTerminalProgress()) {
+				this.ui.terminal.setProgress(true);
+			}
+		} else if (session.isStreaming) {
+			// Branch B: tool execution in progress (streamingMessage is undefined between LLM turns).
+			// All messages are complete; mark the executing tools as running.
+			this.renderSessionContext({ messages: session.state.messages, thinkingLevel: "off", model: null });
+
+			// renderSessionContext already populated pendingTools — mark executing ones.
+			for (const toolCallId of session.state.pendingToolCalls) {
+				this.pendingTools.get(toolCallId)?.markExecutionStarted();
+			}
+
+			if (this.workingVisible) {
+				this.loadingAnimation = this.createWorkingLoader();
+				this.statusContainer.addChild(this.loadingAnimation);
+			}
+			if (this.settingsManager.getShowTerminalProgress()) {
+				this.ui.terminal.setProgress(true);
+			}
+		} else {
+			// Normal case: session is idle — full replay of completed messages.
+			this.renderSessionContext({ messages: session.state.messages, thinkingLevel: "off", model: null });
+		}
 	}
 
 	/**
@@ -2787,7 +2855,7 @@ export class InteractiveMode {
 		if (record === undefined) {
 			this.renderCurrentSessionState();
 		} else {
-			this.switchToMessages(record.session.state.messages);
+			this.switchToMessages(record.session);
 		}
 		this.restoreEditorHistory();
 		this.subscribeToAgent();
@@ -4648,7 +4716,7 @@ export class InteractiveMode {
 		if (next === undefined) {
 			this.renderCurrentSessionState();
 		} else {
-			this.switchToMessages(next.session.state.messages);
+			this.switchToMessages(next.session);
 		}
 		this.restoreEditorHistory();
 		this.subscribeToAgent();
