@@ -11,6 +11,14 @@ function makeMockSession(): AgentSession {
 		subscribe: vi.fn().mockReturnValue(() => {}),
 		abort: vi.fn().mockResolvedValue(undefined),
 		dispose: vi.fn(),
+		setSubagentRegistry: vi.fn(),
+		prompt: vi.fn().mockResolvedValue(undefined),
+		get isStreaming() {
+			return false;
+		},
+		get retryAttempt() {
+			return 0;
+		},
 	} as unknown as AgentSession;
 }
 
