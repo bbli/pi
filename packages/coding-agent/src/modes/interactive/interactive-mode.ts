@@ -322,6 +322,19 @@ export class InteractiveMode {
 	// Per-session editor history: sessionId -> history entries (most-recent first)
 	private sessionHistories = new Map<string, string[]>();
 
+	// Per-session conversation state: saved and restored on every focus switch.
+	// Key is SubagentRecord.id or "root". Holds the data-only conversation state
+	// so each session resumes with its own compaction queue, working-message, etc.
+	private conversationStates = new Map<
+		string,
+		{
+			compactionQueuedMessages: CompactionQueuedMessage[];
+			workingMessage: string | undefined;
+			workingVisible: boolean;
+			workingIndicatorOptions: LoaderIndicatorOptions | undefined;
+		}
+	>();
+
 	// Agent subscription unsubscribe function
 	private unsubscribe?: () => void;
 	private signalCleanupHandlers: Array<() => void> = [];
@@ -413,6 +426,12 @@ export class InteractiveMode {
 		this.options = options;
 		this.orchestrator.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
+			// Clean up per-subagent state. registry.getAll() is already empty at this point
+			// (registry.clearAll() runs before this callback), so we delete all non-root keys.
+			for (const key of this.sessionHistories.keys()) {
+				if (key !== "root") this.sessionHistories.delete(key);
+			}
+			this.conversationStates.clear();
 		});
 		this.orchestrator.setRebindSession(async () => {
 			await this.rebindCurrentSession();
@@ -2757,13 +2776,80 @@ export class InteractiveMode {
 	}
 
 	/**
+	 * Save all conversation-local state for the currently focused session, then
+	 * tear down any in-flight compaction/retry UI so statusContainer is clean.
+	 * Called before orchestrator.focus() changes the focused session.
+	 */
+	private saveConversationState(): void {
+		const key = this.orchestrator.focusedRecord?.id ?? "root";
+		this.conversationStates.set(key, {
+			compactionQueuedMessages: [...this.compactionQueuedMessages],
+			workingMessage: this.workingMessage,
+			workingVisible: this.workingVisible,
+			workingIndicatorOptions: this.workingIndicatorOptions,
+		});
+
+		// Tear down compaction UI for the departing session.
+		// The underlying compaction continues on the session; we just remove the visual.
+		if (this.autoCompactionEscapeHandler) {
+			this.defaultEditor.onEscape = this.autoCompactionEscapeHandler;
+			this.autoCompactionEscapeHandler = undefined;
+		}
+		if (this.autoCompactionLoader) {
+			this.autoCompactionLoader.stop();
+			this.autoCompactionLoader = undefined;
+		}
+
+		// Tear down retry UI.
+		if (this.retryEscapeHandler) {
+			this.defaultEditor.onEscape = this.retryEscapeHandler;
+			this.retryEscapeHandler = undefined;
+		}
+		if (this.retryCountdown) {
+			this.retryCountdown.dispose();
+			this.retryCountdown = undefined;
+		}
+		if (this.retryLoader) {
+			this.retryLoader.stop();
+			this.retryLoader = undefined;
+		}
+
+		// Reset dedup pointers — chatContainer is about to be cleared.
+		this.lastStatusSpacer = undefined;
+		this.lastStatusText = undefined;
+
+		// Reset to defaults; restoreConversationState sets the correct values for the
+		// incoming session.
+		this.compactionQueuedMessages = [];
+		this.workingMessage = undefined;
+		this.workingVisible = true;
+		this.workingIndicatorOptions = undefined;
+	}
+
+	/**
+	 * Restore conversation-local state for the newly focused session.
+	 * Called after orchestrator.focus() and after the chat has been rebuilt.
+	 */
+	private restoreConversationState(): void {
+		const key = this.orchestrator.focusedRecord?.id ?? "root";
+		const saved = this.conversationStates.get(key);
+		if (saved) {
+			this.compactionQueuedMessages = [...saved.compactionQueuedMessages];
+			this.workingMessage = saved.workingMessage;
+			this.workingVisible = saved.workingVisible;
+			this.workingIndicatorOptions = saved.workingIndicatorOptions;
+		}
+		// If no saved state the defaults set by saveConversationState are already correct.
+	}
+
+	/**
 	 * Clear the chat pane and replay an arbitrary message list.
 	 * Used when switching focus to a subagent session.
 	 */
 	private switchToMessages(session: AgentSession): void {
 		this.chatContainer.clear();
 		this.pendingMessagesContainer.clear();
-		this.compactionQueuedMessages = [];
+		// compactionQueuedMessages is managed by saveConversationState/restoreConversationState.
 		this.streamingComponent = undefined;
 		this.streamingMessage = undefined;
 		this.pendingTools.clear();
@@ -2844,9 +2930,10 @@ export class InteractiveMode {
 	 */
 	private switchFocus(record: SubagentRecord | undefined): void {
 		this.saveEditorHistory();
+		this.saveConversationState();
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
-		// Stop any loader left over from the previous session before resubscribing.
+		// Stop the working loader (compaction/retry loaders already stopped by saveConversationState).
 		this.stopWorkingLoader();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
@@ -2856,6 +2943,11 @@ export class InteractiveMode {
 			this.renderCurrentSessionState();
 		} else {
 			this.switchToMessages(record.session);
+		}
+		this.restoreConversationState();
+		if (record === undefined) {
+			// Root's pending steer/followUp queue needs an explicit refresh — no queue_update fires on return.
+			this.updatePendingMessagesDisplay();
 		}
 		this.restoreEditorHistory();
 		this.subscribeToAgent();
@@ -4700,16 +4792,19 @@ export class InteractiveMode {
 			return;
 		}
 		this.saveEditorHistory();
+		// saveConversationState tears down compaction/retry UI; we delete its entry immediately after.
+		this.saveConversationState();
 		// Unsubscribe before kill so no stale events arrive during teardown.
 		this.unsubscribe?.();
 		this.unsubscribe = undefined;
-		// Stop any loader from the session being killed.
+		// Stop any working loader from the session being killed.
 		this.stopWorkingLoader();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
 		}
-		// Discard the killed session's history — it no longer exists.
+		// Discard the killed session's state — it no longer exists.
 		this.sessionHistories.delete(focused.id);
+		this.conversationStates.delete(focused.id);
 		this.orchestrator.kill(focused.id);
 		// Sync TUI to whatever focus the orchestrator settled on after the kill.
 		const next = this.orchestrator.focusedRecord;
@@ -4717,6 +4812,10 @@ export class InteractiveMode {
 			this.renderCurrentSessionState();
 		} else {
 			this.switchToMessages(next.session);
+		}
+		this.restoreConversationState();
+		if (next === undefined) {
+			this.updatePendingMessagesDisplay();
 		}
 		this.restoreEditorHistory();
 		this.subscribeToAgent();

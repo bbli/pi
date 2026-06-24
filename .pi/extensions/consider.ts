@@ -71,7 +71,7 @@ export default function consider(pi: ExtensionAPI): void {
 
 	pi.on("turn_end", async (_event, ctx) => {
 		if (state.status === "done") {
-			pi.sendUserMessage(`Have you considered the following:\n\n${state.result}`, { deliverAs: "steer" });
+			pi.sendUserMessage(`Have you considered the following:\n\n${state.result}\n\nAfter you have addressed these considerations, you can continue doing what you were doing previously`, { deliverAs: "steer" });
 			state.onInjected?.();
 			state = { status: "idle" };
 			return;
