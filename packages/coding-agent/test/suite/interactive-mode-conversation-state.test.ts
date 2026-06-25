@@ -51,7 +51,7 @@ function makeFakeIM(focusedId?: string) {
 		compactionQueuedMessages: [] as Array<{ text: string; mode: string }>,
 		workingMessage: undefined as string | undefined,
 		workingVisible: true,
-		workingIndicatorOptions: undefined,
+		workingIndicatorOptions: undefined as { frames?: string[]; intervalMs?: number } | undefined,
 
 		// ── compaction UI state ────────────────────────────────────────────
 		autoCompactionLoader: compactionLoader as unknown,
