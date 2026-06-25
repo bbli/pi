@@ -1,13 +1,9 @@
 /**
  * Consider Extension
  *
- * Runs a read-only reviewer side-session asynchronously after each inner
- * agent turn. If the reviewer finds a violation, the result is steered into
- * the main session before the next LLM call.
- *
- * These are "considerations" — subjective or context-dependent invariants
- * that the LLM evaluates against the conversation history. For deterministic,
- * command-line-runnable assertions, use check.ts instead.
+ * Provides the /consider command and manage_considerations tool for
+ * registering and removing considerations. Considerations are evaluated
+ * synchronously by the OS agent's before_agent_start handler.
  *
  * Usage:
  *   /consider <text>  - register a consideration (upserts if text already exists)
@@ -61,45 +57,7 @@ class ConsiderationSelectorComponent extends Container {
 	}
 }
 
-type ReviewState =
-	| { status: "idle" }
-	| { status: "running" }
-	| { status: "done"; result: string; onInjected: (() => void) | undefined };
-
 export default function consider(pi: ExtensionAPI): void {
-	let state: ReviewState = { status: "idle" };
-
-	pi.on("turn_end", async (_event, ctx) => {
-		if (state.status === "done") {
-			pi.sendUserMessage(`Have you considered the following:\n\n${state.result}\n\nAfter you have addressed these considerations, you can continue doing what you were doing previously`, { deliverAs: "steer" });
-			state.onInjected?.();
-			state = { status: "idle" };
-			return;
-		}
-
-		if (state.status === "running") return;
-
-		const considerations = pi.getConsiderations();
-		if (considerations.length === 0) return;
-
-		state = { status: "running" };
-		pi.runReviewer(considerations.map((c) => c.text))
-			.then((result) => {
-				if (result.text) {
-					state = { status: "done", result: result.text, onInjected: result.onInjected };
-					if (ctx.hasUI) ctx.ui.notify("Consider reviewer: items flagged, steering on next turn", "warning");
-				} else {
-					state = { status: "idle" };
-					if (ctx.hasUI) ctx.ui.notify("Consider reviewer: nothing flagged", "info");
-				}
-			})
-			.catch((err) => {
-				state = { status: "idle" };
-				const detail = err instanceof Error ? ` — ${err.message}` : "";
-				if (ctx.hasUI) ctx.ui.notify(`Consider reviewer: side call failed${detail}`, "warning");
-			});
-	});
-
 	pi.registerTool({
 		name: "manage_considerations",
 		label: "Manage Considerations",

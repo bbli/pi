@@ -1,6 +1,6 @@
 import type { AgentSession } from "./agent-session.ts";
 
-export type SubagentKind = "reviewer" | "user";
+export type SubagentKind = "reviewer" | "user" | "branch";
 
 export interface SubagentRecord {
 	readonly id: string;

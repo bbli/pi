@@ -29,6 +29,7 @@ import type { ExecOptions } from "../exec.ts";
 import { execCommand } from "../exec.ts";
 import { createSyntheticSourceInfo } from "../source-info.ts";
 import type {
+	BranchSessionOptions,
 	Consideration,
 	Extension,
 	ExtensionAPI,
@@ -38,7 +39,6 @@ import type {
 	MessageRenderer,
 	ProviderConfig,
 	RegisteredCommand,
-	ReviewerResult,
 	ToolDefinition,
 } from "./types.ts";
 
@@ -150,7 +150,7 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		setModel: () => Promise.reject(new Error("Extension runtime not initialized")),
 		getThinkingLevel: notInitialized,
 		setThinkingLevel: notInitialized,
-		runReviewer: notInitialized,
+		runBranchSession: notInitialized,
 		getConsiderations: notInitialized,
 		removeConsideration: notInitialized,
 		flagValues: new Map(),
@@ -266,9 +266,9 @@ function createExtensionAPI(
 			return runtime.getConsiderations();
 		},
 
-		runReviewer(questions: string[]): Promise<ReviewerResult> {
+		runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined> {
 			runtime.assertActive();
-			return runtime.runReviewer(questions);
+			return runtime.runBranchSession(prompt, options);
 		},
 
 		// Flag access - checks extension registered it, reads from runtime

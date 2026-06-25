@@ -1087,12 +1087,21 @@ export interface ResolvedCommand extends RegisteredCommand {
 // biome-ignore lint/suspicious/noConfusingVoidType: void allows bare return statements
 export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContext) => Promise<R | void> | R | void;
 
-/** Result returned by runReviewer(). */
-export interface ReviewerResult {
-	/** The actionable text to inject, or undefined if the reviewer found nothing to flag. */
-	text: string | undefined;
-	/** Call this immediately after sending the injection message to start the 60s TTL. */
-	onInjected: (() => void) | undefined;
+/**
+ * Options for pi.runBranchSession().
+ */
+export interface BranchSessionOptions {
+	/** System prompt appended to the branch session. */
+	systemPrompt: string;
+	/**
+	 * Built-in tool names to enable (default: read-only set).
+	 * Pass an empty array for a tools-free session.
+	 */
+	tools?: string[];
+	/** Custom tool definitions injected directly into the branch session. */
+	customTools?: ToolDefinition[];
+	/** Human-readable label shown in the TUI footer while the session runs. */
+	label?: string;
 }
 
 /** A consideration registered via registerConsideration(). */
@@ -1213,11 +1222,11 @@ export interface ExtensionAPI {
 	getConsiderations(): readonly Consideration[];
 
 	/**
-	 * Run a read-only reviewer side-session with the given questions against the current session history.
-	 * Returns the result containing the actionable text (if any) and an onInjected callback.
-	 * Call onInjected() immediately after sending the injection message to start the session TTL.
+	 * Run a branch session seeded with the full current conversation history.
+	 * Returns the last assistant text produced, or undefined if nothing was output or the session errored.
+	 * Sentinel parsing is the caller's responsibility.
 	 */
-	runReviewer(questions: string[]): Promise<ReviewerResult>;
+	runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined>;
 
 	// =========================================================================
 	// Actions
@@ -1542,7 +1551,7 @@ export interface ExtensionActions {
 	setModel: SetModelHandler;
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
-	runReviewer: (questions: string[]) => Promise<ReviewerResult>;
+	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
 	getConsiderations: () => Consideration[];
 	removeConsideration: (text: string) => boolean;
 }

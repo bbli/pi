@@ -291,7 +291,7 @@ export class ExtensionRunner {
 		this.runtime.setModel = actions.setModel;
 		this.runtime.getThinkingLevel = actions.getThinkingLevel;
 		this.runtime.setThinkingLevel = actions.setThinkingLevel;
-		this.runtime.runReviewer = actions.runReviewer;
+		this.runtime.runBranchSession = actions.runBranchSession;
 		this.runtime.getConsiderations = actions.getConsiderations;
 		this.runtime.removeConsideration = actions.removeConsideration;
 

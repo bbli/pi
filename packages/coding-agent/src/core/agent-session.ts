@@ -39,6 +39,7 @@ import { resolvePath } from "../utils/paths.ts";
 import { sleep } from "../utils/sleep.ts";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.ts";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.ts";
+import { runBranchSession } from "./branch-session.ts";
 import {
 	type CompactionResult,
 	calculateContextTokens,
@@ -93,7 +94,6 @@ import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-promp
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
-import { runTurnEndInjection } from "./turn-end-injection.ts";
 
 // ============================================================================
 // Skill Block Parsing
@@ -2251,7 +2251,7 @@ export class AgentSession {
 				},
 				getThinkingLevel: () => this.thinkingLevel,
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
-				runReviewer: (questions) => runTurnEndInjection(questions, this, this._subagentRegistry),
+				runBranchSession: (prompt, options) => runBranchSession(prompt, options, this, this._subagentRegistry),
 				getConsiderations: () => this._extensionRunner.getConsiderations(),
 				removeConsideration: (text) => this._extensionRunner.removeConsideration(text),
 			},
