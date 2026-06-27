@@ -13,9 +13,8 @@ export interface FooterOrchestratorState {
 }
 
 /** Colored circle icon representing session status. */
-function sessionIcon(isStreaming: boolean, record?: SubagentRecord): string {
+function sessionIcon(isStreaming: boolean, _record?: SubagentRecord): string {
 	if (isStreaming) return theme.fg("info", "●");
-	if (record?.kind === "reviewer") return theme.fg("error", "●");
 	return theme.fg("warning", "●");
 }
 

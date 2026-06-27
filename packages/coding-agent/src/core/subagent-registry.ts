@@ -1,6 +1,6 @@
 import type { AgentSession } from "./agent-session.ts";
 
-export type SubagentKind = "reviewer" | "user" | "branch";
+export type SubagentKind = "user" | "branch";
 
 export interface SubagentRecord {
 	readonly id: string;
@@ -9,8 +9,6 @@ export interface SubagentRecord {
 	readonly session: AgentSession;
 	ttlTimer: ReturnType<typeof setTimeout> | undefined;
 	unsubscribeStatus: (() => void) | undefined;
-	/** Called by consider.ts after sendUserMessage — refreshes the TTL from injection time. */
-	onInjected: (() => void) | undefined;
 }
 
 export class SubagentRegistry {
@@ -25,7 +23,7 @@ export class SubagentRegistry {
 				this.onStatusChange?.();
 			}
 		});
-		const stored: SubagentRecord = { ...record, ttlTimer: undefined, unsubscribeStatus, onInjected: undefined };
+		const stored: SubagentRecord = { ...record, ttlTimer: undefined, unsubscribeStatus };
 		this._records.set(record.id, stored);
 		this.onRegister?.(stored);
 		this.onStatusChange?.();

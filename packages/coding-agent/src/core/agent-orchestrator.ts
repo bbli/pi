@@ -25,30 +25,7 @@ export class AgentOrchestrator implements ConversationSession {
 		this._runtime = runtime;
 		this.registry = new SubagentRegistry();
 		runtime.session.setSubagentRegistry(this.registry);
-		this.registry.onRegister = (record) => {
-			if (record.kind !== "reviewer") return;
-
-			const expiry = () => {
-				if (this._focused?.id === record.id) {
-					this._focused = undefined;
-				}
-				this.registry.remove(record.id);
-			};
-
-			// onInjected: called by consider.ts right after sendUserMessage.
-			// Refreshes the TTL so the 60s runs from when the injection lands.
-			record.onInjected = () => {
-				this.registry.refreshTTL(record.id, 60_000, expiry);
-			};
-
-			// Baseline TTL: starts when the reviewer finishes running.
-			// Handles the case where the reviewer found nothing (no injection sent).
-			const unsubscribe = record.session.subscribe((event) => {
-				if (event.type !== "agent_end") return;
-				unsubscribe();
-				this.registry.startTTL(record.id, 60_000, expiry);
-			});
-		};
+		// Branch sessions are removed immediately on completion — no TTL needed.
 	}
 
 	// =========================================================================
@@ -79,14 +56,6 @@ export class AgentOrchestrator implements ConversationSession {
 	/** Switch focus to a subagent record, or pass undefined to return to root. */
 	focus(record: SubagentRecord | undefined): void {
 		this._focused = record;
-		if (record?.kind === "reviewer") {
-			this.registry.refreshTTL(record.id, 60_000, () => {
-				if (this._focused?.id === record.id) {
-					this._focused = undefined;
-				}
-				this.registry.remove(record.id);
-			});
-		}
 	}
 
 	// =========================================================================

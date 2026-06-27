@@ -1094,7 +1094,8 @@ export interface BranchSessionOptions {
 	/** System prompt appended to the branch session. */
 	systemPrompt: string;
 	/**
-	 * Built-in tool names to enable (default: read-only set).
+	 * Built-in tool names to enable.
+	 * Defaults to ["read", "grep", "find", "ls", "bash"] — note bash can perform writes.
 	 * Pass an empty array for a tools-free session.
 	 */
 	tools?: string[];

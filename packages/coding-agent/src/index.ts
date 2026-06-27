@@ -63,6 +63,7 @@ export type {
 	BeforeAgentStartEventResult,
 	BeforeProviderRequestEvent,
 	BeforeProviderRequestEventResult,
+	BranchSessionOptions,
 	BuildSystemPromptOptions,
 	CompactOptions,
 	Consideration,

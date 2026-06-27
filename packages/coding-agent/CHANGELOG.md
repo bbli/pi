@@ -4,15 +4,20 @@
 
 ### Added
 
-- Added `registerConsideration`, `removeConsideration`, `getConsiderations`, and `runReviewer` to `ExtensionAPI` for async per-turn reviewer checks driven by extensions. Considerations are stored as `Consideration` objects (`{ text, removalCondition? }`) and support upsert-by-text semantics.
+- Added `registerConsideration`, `removeConsideration`, and `getConsiderations` to `ExtensionAPI` for managing per-run considerations. Considerations are stored as `Consideration` objects (`{ text, removalCondition? }`) and support upsert-by-text semantics.
+- Added `runBranchSession(prompt, options)` to `ExtensionAPI`. Spawns a separate in-memory agent session seeded with the full main session history. Returns the last assistant text produced or `undefined`. Options include `systemPrompt`, `tools`, `customTools`, and `label`.
+- Added `BranchSessionOptions` type to the public package exports.
+- Added `prependUserMessage` field to `BeforeAgentStartEventResult`, allowing `before_agent_start` handlers to inject a user message before the main user message for the current turn.
 - Added `Consideration` type to the public package exports.
 - Added `consider` extension: `/consider <text>` to add a consideration, `/consider` (no args) to interactively select and remove one. The `manage_considerations` LLM tool supports `action=add/remove/list` with an optional `removalCondition` field.
 - Added `manage_check` LLM tool to `check-guard` extension for programmatic registration of experimental checks (deterministic bash commands).
 
 ### Removed
 
-- Removed `/question` built-in slash command and the synchronous `_maybeRunTurnEndInjection` in-loop turn-end injection mechanism. Per-turn review is now extension-driven via `registerTurnCheck` and `runReviewer`.
+- Removed `/question` built-in slash command and the synchronous `_maybeRunTurnEndInjection` in-loop turn-end injection mechanism. Per-run review is now extension-driven via `runBranchSession` in `before_agent_start` handlers.
 - Removed `InjectedUserMessage` type, `injectedUser` message role, `TurnEndQuestionEntry` type, `turn_end_injection` `AgentSessionEvent`, and `registerTurnEndQuestion` `ExtensionAPI` method.
+- Removed `runReviewer` and `ReviewerResult` from `ExtensionAPI` — replaced by the more general `runBranchSession`.
+- Removed `turn-end-injection.ts` internal module — superseded by `branch-session.ts`.
 
 ### Fixed
 

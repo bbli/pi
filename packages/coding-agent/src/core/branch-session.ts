@@ -53,6 +53,8 @@ export async function runBranchSession(
 	mainSession: AgentSession,
 	registry?: SubagentRegistry,
 ): Promise<string | undefined> {
+	if (!prompt.trim()) return undefined;
+
 	const model = mainSession.model;
 	if (!model) return undefined;
 
@@ -67,6 +69,8 @@ export async function runBranchSession(
 		cwd: mainSession.cwd,
 	});
 
+	const label = options.label ?? "branch";
+	const start = Date.now();
 	let registeredId: string | undefined;
 	try {
 		const context = buildSessionContext(
@@ -79,11 +83,15 @@ export async function runBranchSession(
 			registeredId = crypto.randomUUID();
 			registry.register({
 				id: registeredId,
-				label: options.label ?? "branch",
+				label,
 				kind: "branch",
 				session,
 			});
 		}
+
+		console.error(
+			`[branch-session] start label=${label} model=${model.id} context_messages=${context.messages.length}`,
+		);
 
 		await session.prompt(prompt, { source: "extension" });
 
@@ -92,26 +100,38 @@ export async function runBranchSession(
 			const m = session.state.messages[i];
 			if (m.role !== "assistant") continue;
 			const assistant = m as AssistantMessage;
-			if (assistant.stopReason === "error" || assistant.stopReason === "aborted") return undefined;
+			if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
+				console.error(
+					`[branch-session] ended with stopReason=${assistant.stopReason} label=${label} elapsed=${Date.now() - start}ms`,
+				);
+				return undefined;
+			}
 			const raw = assistant.content
 				.filter((c) => c.type === "text")
 				.map((c) => (c as Extract<typeof c, { type: "text" }>).text)
 				.join("\n")
 				.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
 				.trim();
-			if (raw) return raw;
+			if (raw) {
+				console.error(
+					`[branch-session] result found label=${label} elapsed=${Date.now() - start}ms: "${raw.slice(0, 80)}${raw.length > 80 ? "..." : ""}"`,
+				);
+				return raw;
+			}
 			// Tool-use only turn — keep scanning.
 		}
+		console.error(`[branch-session] no text output found label=${label} elapsed=${Date.now() - start}ms`);
 		return undefined;
 	} finally {
-		try {
-			await session.abort();
-		} catch {
-			// ignore abort errors on teardown
-		}
 		if (registry && registeredId) {
+			// registry.remove() handles abort + dispose
 			registry.remove(registeredId);
 		} else {
+			try {
+				await session.abort();
+			} catch {
+				// ignore abort errors on teardown
+			}
 			session.dispose();
 		}
 	}

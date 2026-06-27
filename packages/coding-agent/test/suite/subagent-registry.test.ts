@@ -57,7 +57,7 @@ describe("SubagentRegistry", () => {
 
 	it("stores a registered record accessible via getAll and get", () => {
 		const { session } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		expect(registry.getAll()).toHaveLength(1);
 		expect(registry.get("r1")?.id).toBe("r1");
 		expect(registry.get("r1")?.label).toBe("reviewer");
@@ -66,7 +66,7 @@ describe("SubagentRegistry", () => {
 	it("stores multiple records", () => {
 		const { session: s1 } = makeMockSession();
 		const { session: s2 } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer-1", kind: "reviewer", session: s1 });
+		registry.register({ id: "r1", label: "reviewer-1", kind: "branch", session: s1 });
 		registry.register({ id: "u1", label: "agent-1", kind: "user", session: s2 });
 		expect(registry.getAll()).toHaveLength(2);
 	});
@@ -75,7 +75,7 @@ describe("SubagentRegistry", () => {
 
 	it("fires onStatusChange when a registered session emits agent_start", () => {
 		const { session, emit } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		const cb = vi.fn();
 		registry.onStatusChange = cb;
 
@@ -85,7 +85,7 @@ describe("SubagentRegistry", () => {
 
 	it("fires onStatusChange when a registered session emits agent_end", () => {
 		const { session, emit } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		const cb = vi.fn();
 		registry.onStatusChange = cb;
 
@@ -95,7 +95,7 @@ describe("SubagentRegistry", () => {
 
 	it("does not fire onStatusChange for other event types", () => {
 		const { session, emit } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		const cb = vi.fn();
 		registry.onStatusChange = cb;
 
@@ -107,7 +107,7 @@ describe("SubagentRegistry", () => {
 
 	it("remove calls abort and dispose on the session", () => {
 		const { session, abort, dispose } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		registry.remove("r1");
 		expect(abort).toHaveBeenCalled();
 		expect(dispose).toHaveBeenCalled();
@@ -115,7 +115,7 @@ describe("SubagentRegistry", () => {
 
 	it("remove deletes the record from the registry", () => {
 		const { session } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		registry.remove("r1");
 		expect(registry.getAll()).toHaveLength(0);
 		expect(registry.get("r1")).toBeUndefined();
@@ -123,7 +123,7 @@ describe("SubagentRegistry", () => {
 
 	it("remove fires onStatusChange", () => {
 		const { session } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		const cb = vi.fn();
 		registry.onStatusChange = cb;
 		registry.remove("r1");
@@ -136,7 +136,7 @@ describe("SubagentRegistry", () => {
 
 	it("remove unsubscribes the status listener so no further callbacks fire", () => {
 		const { session, emit } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		const cb = vi.fn();
 		registry.onStatusChange = cb;
 		registry.remove("r1");
@@ -149,7 +149,7 @@ describe("SubagentRegistry", () => {
 
 	it("startTTL fires the callback after the specified delay", () => {
 		const { session } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		const onExpire = vi.fn();
 		registry.startTTL("r1", 60_000, onExpire);
 
@@ -168,7 +168,7 @@ describe("SubagentRegistry", () => {
 
 	it("refreshTTL cancels the old timer so its callback never fires", () => {
 		const { session } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 
 		const oldExpire = vi.fn();
 		registry.startTTL("r1", 60_000, oldExpire);
@@ -191,8 +191,8 @@ describe("SubagentRegistry", () => {
 	it("clearAll removes all records and disposes each session", () => {
 		const m1 = makeMockSession();
 		const m2 = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer-1", kind: "reviewer", session: m1.session });
-		registry.register({ id: "r2", label: "reviewer-2", kind: "reviewer", session: m2.session });
+		registry.register({ id: "r1", label: "reviewer-1", kind: "branch", session: m1.session });
+		registry.register({ id: "r2", label: "reviewer-2", kind: "branch", session: m2.session });
 		registry.clearAll();
 		expect(registry.getAll()).toHaveLength(0);
 		expect(m1.dispose).toHaveBeenCalled();
@@ -201,7 +201,7 @@ describe("SubagentRegistry", () => {
 
 	it("clearAll cancels pending TTL timers", () => {
 		const { session } = makeMockSession();
-		registry.register({ id: "r1", label: "reviewer", kind: "reviewer", session });
+		registry.register({ id: "r1", label: "reviewer", kind: "branch", session });
 		const onExpire = vi.fn();
 		registry.startTTL("r1", 60_000, onExpire);
 		registry.clearAll();

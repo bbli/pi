@@ -74,8 +74,8 @@ function makeMockRuntime(session: AgentSession): MockRuntime {
 	};
 }
 
-function makeRecord(id: string, session: AgentSession, kind: SubagentRecord["kind"] = "reviewer"): SubagentRecord {
-	return { id, label: id, kind, session, ttlTimer: undefined, unsubscribeStatus: undefined, onInjected: undefined };
+function makeRecord(id: string, session: AgentSession, kind: SubagentRecord["kind"] = "branch"): SubagentRecord {
+	return { id, label: id, kind, session, ttlTimer: undefined, unsubscribeStatus: undefined };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -132,31 +132,7 @@ describe("AgentOrchestrator", () => {
 		expect(orchestrator.focusedRecord).toBeUndefined();
 	});
 
-	it("focusing a reviewer record starts a 60s TTL", () => {
-		const sub = makeMockSession();
-		const record = makeRecord("r1", sub, "reviewer");
-		orchestrator.registry.register(record);
-		orchestrator.focus(orchestrator.registry.get("r1"));
-
-		// Still present just before expiry
-		vi.advanceTimersByTime(59_999);
-		expect(orchestrator.registry.get("r1")).toBeDefined();
-
-		// Removed after TTL
-		vi.advanceTimersByTime(1);
-		expect(orchestrator.registry.get("r1")).toBeUndefined();
-	});
-
-	it("focusing a reviewer resets focus to root when TTL fires", () => {
-		const sub = makeMockSession();
-		orchestrator.registry.register(makeRecord("r1", sub, "reviewer"));
-		orchestrator.focus(orchestrator.registry.get("r1"));
-
-		vi.advanceTimersByTime(60_000);
-		expect(orchestrator.focusedSession).toBe(rootSession);
-	});
-
-	it("focusing a user-kind record does not start a TTL", () => {
+	it("focusing a branch-kind record does not start a TTL", () => {
 		const sub = makeMockSession();
 		orchestrator.registry.register(makeRecord("u1", sub, "user"));
 		orchestrator.focus(orchestrator.registry.get("u1"));
