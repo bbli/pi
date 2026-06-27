@@ -271,6 +271,12 @@ export class AgentSession {
 	private _steeringMessages: string[] = [];
 	/** Tracks pending follow-up messages for UI display. Removed when delivered. */
 	private _followUpMessages: string[] = [];
+	/**
+	 * Messages explicitly pre-persisted to the session before _runAgentPrompt so they
+	 * appear in the TUI immediately. Tracked by reference to avoid double-persistence
+	 * when the agent-core fires message_end for the same objects.
+	 */
+	private readonly _prePersistedMessages = new WeakSet<object>();
 	/** Messages queued to be included with the next user prompt as context ("asides"). */
 	private _pendingNextTurnMessages: CustomMessage[] = [];
 
@@ -521,8 +527,11 @@ export class AgentSession {
 				event.message.role === "assistant" ||
 				event.message.role === "toolResult"
 			) {
-				// Regular LLM message - persist as SessionMessageEntry
-				this.sessionManager.appendMessage(event.message);
+				// Regular LLM message - persist as SessionMessageEntry.
+				// Skip messages already pre-persisted before the agent run started.
+				if (!this._prePersistedMessages.has(event.message)) {
+					this.sessionManager.appendMessage(event.message);
+				}
 			}
 			// Other message types (bashExecution, compactionSummary, branchSummary) are persisted elsewhere
 
@@ -1092,19 +1101,44 @@ export class AgentSession {
 				}
 			}
 
-			// Build messages array (custom message if any, then user message)
+			// Emit before_agent_start extension event before assembling messages so
+			// handlers can request a prependUserMessage to appear before the user's message.
+			const result = await this._extensionRunner.emitBeforeAgentStart(
+				expandedText,
+				currentImages,
+				this._baseSystemPrompt,
+				this._baseSystemPromptOptions,
+			);
+
+			// Build messages array and pre-persist to session so the TUI reflects
+			// both messages immediately, before the LLM starts responding.
 			messages = [];
 
-			// Add user message
+			// Injected user message from before_agent_start handlers (first handler wins)
+			if (result?.prependUserMessage) {
+				const prependMsg = {
+					role: "user" as const,
+					content: [{ type: "text" as const, text: result.prependUserMessage }],
+					timestamp: Date.now(),
+				};
+				this.sessionManager.appendMessage(prependMsg);
+				this._prePersistedMessages.add(prependMsg);
+				messages.push(prependMsg);
+			}
+
+			// The actual user message
 			const userContent: (TextContent | ImageContent)[] = [{ type: "text", text: expandedText }];
 			if (currentImages) {
 				userContent.push(...currentImages);
 			}
-			messages.push({
-				role: "user",
+			const userMsg = {
+				role: "user" as const,
 				content: userContent,
 				timestamp: Date.now(),
-			});
+			};
+			this.sessionManager.appendMessage(userMsg);
+			this._prePersistedMessages.add(userMsg);
+			messages.push(userMsg);
 
 			// Inject any pending "nextTurn" messages as context alongside the user message
 			for (const msg of this._pendingNextTurnMessages) {
@@ -1112,13 +1146,6 @@ export class AgentSession {
 			}
 			this._pendingNextTurnMessages = [];
 
-			// Emit before_agent_start extension event
-			const result = await this._extensionRunner.emitBeforeAgentStart(
-				expandedText,
-				currentImages,
-				this._baseSystemPrompt,
-				this._baseSystemPromptOptions,
-			);
 			// Add all custom messages from extensions
 			if (result?.messages) {
 				for (const msg of result.messages) {

@@ -1019,6 +1019,11 @@ export interface BeforeAgentStartEventResult {
 	message?: Pick<CustomMessage, "customType" | "content" | "display" | "details">;
 	/** Replace the system prompt for this turn. If multiple extensions return this, they are chained. */
 	systemPrompt?: string;
+	/**
+	 * A user message to prepend before the main user message for this turn.
+	 * Only the first extension to set this wins.
+	 */
+	prependUserMessage?: string;
 }
 
 export interface SessionBeforeSwitchResult {

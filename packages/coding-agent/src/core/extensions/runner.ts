@@ -108,6 +108,8 @@ const buildBuiltinKeybindings = (resolvedKeybindings: KeybindingsConfig): BuiltI
 interface BeforeAgentStartCombinedResult {
 	messages?: NonNullable<BeforeAgentStartEventResult["message"]>[];
 	systemPrompt?: string;
+	/** First handler to set this wins. */
+	prependUserMessage?: string;
 }
 
 /**
@@ -1014,6 +1016,7 @@ export class ExtensionRunner {
 		};
 		const messages: NonNullable<BeforeAgentStartEventResult["message"]>[] = [];
 		let systemPromptModified = false;
+		let prependUserMessage: string | undefined;
 
 		for (const ext of this.extensions) {
 			const handlers = ext.handlers.get("before_agent_start");
@@ -1039,6 +1042,9 @@ export class ExtensionRunner {
 							currentSystemPrompt = result.systemPrompt;
 							systemPromptModified = true;
 						}
+						if (result.prependUserMessage !== undefined && prependUserMessage === undefined) {
+							prependUserMessage = result.prependUserMessage;
+						}
 					}
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
@@ -1053,10 +1059,11 @@ export class ExtensionRunner {
 			}
 		}
 
-		if (messages.length > 0 || systemPromptModified) {
+		if (messages.length > 0 || systemPromptModified || prependUserMessage !== undefined) {
 			return {
 				messages: messages.length > 0 ? messages : undefined,
 				systemPrompt: systemPromptModified ? currentSystemPrompt : undefined,
+				prependUserMessage,
 			};
 		}
 
