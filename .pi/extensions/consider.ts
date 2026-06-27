@@ -1,11 +1,9 @@
 /**
  * Consider Extension
  *
- * Provides the /consider command and manage_considerations tool for
- * registering and removing considerations. Before each agent run,
- * registered considerations are evaluated synchronously via a branch
- * session and any finding is prepended as a user message before the
- * agent processes the user's prompt.
+ * UI and tool surface for registering and removing considerations.
+ * Evaluation is handled by os-agent.ts, which runs a single branch
+ * session before each prompt that covers all registered considerations.
  *
  * Usage:
  *   /consider <text>  - register a consideration (upserts if text already exists)
@@ -59,44 +57,7 @@ class ConsiderationSelectorComponent extends Container {
 	}
 }
 
-const CONSIDERATION_SYSTEM_PROMPT = [
-	"You are a reviewer evaluating a coding session against a set of considerations.",
-	"Examine the conversation history and determine if any consideration is violated or requires attention.",
-	"You have access to read, grep, find, ls, and bash to investigate the codebase if needed.",
-	"If you find something genuinely actionable, respond with a concise description of the finding.",
-	"If nothing is actionable, output nothing at all.",
-].join(" ");
-
 export default function consider(pi: ExtensionAPI): void {
-	pi.on("before_agent_start", async (event, ctx) => {
-		const considerations = pi.getConsiderations();
-		if (considerations.length === 0) return;
-
-		const prompt = [
-			"The user's latest message is:",
-			`"${event.prompt}"`,
-			"",
-			"Evaluate the following considerations against the current conversation:",
-			...considerations.map((c, i) => `${i + 1}. ${c.text}`),
-			"",
-			"If any consideration is violated or requires attention, describe the finding concisely.",
-			"Otherwise output nothing.",
-		].join("\n");
-
-		const result = await pi.runBranchSession(prompt, {
-			systemPrompt: CONSIDERATION_SYSTEM_PROMPT,
-			tools: ["read", "grep", "find", "ls", "bash"],
-			label: "consider",
-		});
-
-		if (!result) return;
-
-		if (ctx.hasUI) ctx.ui.notify("Consider: finding flagged", "warning");
-		return {
-			prependUserMessage: `Before responding, address the following:\n\n${result}`,
-		};
-	});
-
 	pi.registerTool({
 		name: "manage_considerations",
 		label: "Manage Considerations",

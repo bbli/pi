@@ -1,21 +1,20 @@
 /**
  * OS Agent Extension
  *
- * Core orchestration framework. Hooks into before_agent_start to run a
- * synchronous classification session before every user prompt, deciding
- * whether to inject a workflow prompt. Also hooks agent_end for
- * completion classification.
+ * Runs a single synchronous branch session before every user prompt.
+ * That session evaluates ALL registered considerations — including the
+ * built-in CODE_WORKFLOW_CONSIDERATION — and optionally calls injectMessage
+ * to prepend a workflow prompt.
  *
- * Workflow-specific behavior is expressed directly in the branch session
- * prompts below. No considerations are registered here — user-registered
- * considerations are handled by consider.ts.
+ * consider.ts owns the UI for registering/removing user considerations.
+ * os-agent.ts owns the evaluation and injection logic.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 // ---------------------------------------------------------------------------
-// Hardcoded workflow prompts (in-memory for now)
+// Workflow prompts
 // ---------------------------------------------------------------------------
 
 const CODE_WORKFLOW_PROMPT = `\
@@ -30,20 +29,33 @@ codebase before you can implement correctly. Call askQuestions() with these gaps
 6. Stay on the happy path — do not attempt to fix unrelated issues you encounter.`;
 
 // ---------------------------------------------------------------------------
-// System prompt for the classification branch session
+// Built-in consideration
 // ---------------------------------------------------------------------------
 
-const CLASSIFICATION_SYSTEM_PROMPT = `\
-You are a pre-run classifier for a coding assistant. You run before the assistant \
-processes a user message. Your sole job: decide whether to inject a preparatory \
-prompt before the user's message.
+const CODE_WORKFLOW_CONSIDERATION = `\
+If the user's latest message clearly indicates they want to implement a new feature \
+(e.g. "implement X", "add feature Y", "build Z", "create a ..."), call injectMessage \
+with the following prompt exactly:\n\n${CODE_WORKFLOW_PROMPT}`;
 
-You have one tool: injectMessage. Call it with the exact prompt text to inject. \
-The assistant will see your injected message first, then the user's original message.
+// ---------------------------------------------------------------------------
+// Branch session system prompt
+// ---------------------------------------------------------------------------
+
+const SYSTEM_PROMPT = `\
+You are a pre-run assistant. Before a coding agent processes a user message you have \
+two responsibilities:
+
+1. INJECT: If a consideration instructs you to call injectMessage, do so when its \
+condition is met. The agent will see the injected message before the user's message.
+2. EVALUATE: For all other considerations, check whether they are violated. If any \
+are, describe the finding concisely as your text response.
+
+Available tool: injectMessage — call it at most once with the exact prompt to inject.
+Use read, grep, find, ls, bash only if you need to inspect the codebase to answer a \
+consideration.
 
 Rules:
-- Call injectMessage only when you are confident injection is warranted.
-- Output nothing at all when no action is needed.
+- Output text only if there is a genuine finding. Output nothing if all is well.
 - Do not explain your reasoning. Do not greet the user.`;
 
 // ---------------------------------------------------------------------------
@@ -51,33 +63,45 @@ Rules:
 // ---------------------------------------------------------------------------
 
 export default function osAgent(pi: ExtensionAPI): void {
-	// -------------------------------------------------------------------------
-	// before_agent_start: intent classification
-	// Runs synchronously before the agent starts, blocking until complete.
-	// -------------------------------------------------------------------------
+	// Register the built-in implementation workflow consideration.
+	// It lives alongside user considerations so the single branch session
+	// can evaluate everything in one pass.
+	pi.registerConsideration({
+		text: CODE_WORKFLOW_CONSIDERATION,
+		removalCondition: "never — built-in OS agent consideration",
+	});
+
 	pi.on("before_agent_start", async (event, ctx) => {
+		const considerations = pi.getConsiderations();
+		const start = Date.now();
+
+		console.error(
+			`[os-agent] before_agent_start: prompt="${event.prompt.slice(0, 80)}" considerations=${considerations.length}`,
+		);
+
 		let injectedPrompt: string | undefined;
 
-		const classificationPrompt = [
+		const prompt = [
 			`The user's latest message is:`,
 			`"${event.prompt}"`,
 			``,
-			`If this message clearly indicates the user wants to implement a new feature \
-(e.g. "implement X", "add feature Y", "build Z", "create a ..."), call injectMessage \
-with the Code Workflow Prompt below. Otherwise output nothing.`,
+			`Considerations to evaluate:`,
+			...considerations.map((c, i) => `${i + 1}. ${c.text}`),
 			``,
-			`Code Workflow Prompt:`,
-			CODE_WORKFLOW_PROMPT,
+			`For any consideration that instructs you to call injectMessage: do so if its \
+condition is met. For all other considerations: report findings as text if violated. \
+If nothing requires action, output nothing.`,
 		].join("\n");
 
-		await pi.runBranchSession(classificationPrompt, {
-			systemPrompt: CLASSIFICATION_SYSTEM_PROMPT,
-			tools: [],
+		const result = await pi.runBranchSession(prompt, {
+			systemPrompt: SYSTEM_PROMPT,
+			tools: ["read", "grep", "find", "ls", "bash"],
 			customTools: [
 				{
 					name: "injectMessage",
 					label: "Inject Message",
-					description: "Inject a message that will be prepended before the user's message for this turn.",
+					description:
+						"Inject a message that will be prepended before the user's message for this turn.",
 					parameters: Type.Object({
 						prompt: Type.String({ description: "The exact message content to inject." }),
 					}),
@@ -87,12 +111,29 @@ with the Code Workflow Prompt below. Otherwise output nothing.`,
 					},
 				},
 			],
-			label: "os-agent:classify",
+			label: "os-agent",
 		});
 
-		if (!injectedPrompt) return;
+		console.error(
+			`[os-agent] before_agent_start done: elapsed=${Date.now() - start}ms inject=${!!injectedPrompt} finding=${!!result}`,
+		);
 
-		if (ctx.hasUI) ctx.ui.notify("[os-agent] injecting workflow prompt", "info");
-		return { prependUserMessage: injectedPrompt };
+		// Combine injection + finding into a single prepended message.
+		let prependContent: string | undefined;
+		if (injectedPrompt && result) {
+			prependContent = `${injectedPrompt}\n\n---\n\nBefore responding, also address:\n\n${result}`;
+		} else if (injectedPrompt) {
+			prependContent = injectedPrompt;
+		} else if (result) {
+			prependContent = `Before responding, address the following:\n\n${result}`;
+		}
+
+		if (!prependContent) return;
+
+		if (ctx.hasUI) {
+			const msg = injectedPrompt ? "[os-agent] injecting workflow prompt" : "[os-agent] consideration flagged";
+			ctx.ui.notify(msg, injectedPrompt ? "info" : "warning");
+		}
+		return { prependUserMessage: prependContent };
 	});
 }
