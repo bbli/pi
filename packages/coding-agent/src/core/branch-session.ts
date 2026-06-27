@@ -102,7 +102,7 @@ export async function runBranchSession(
 			const assistant = m as AssistantMessage;
 			if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
 				console.error(
-					`[branch-session] ended with stopReason=${assistant.stopReason} label=${label} elapsed=${Date.now() - start}ms`,
+					`[branch-session] stopReason=${assistant.stopReason} label=${label} elapsed=${Date.now() - start}ms`,
 				);
 				return undefined;
 			}
@@ -114,13 +114,13 @@ export async function runBranchSession(
 				.trim();
 			if (raw) {
 				console.error(
-					`[branch-session] result found label=${label} elapsed=${Date.now() - start}ms: "${raw.slice(0, 80)}${raw.length > 80 ? "..." : ""}"`,
+					`[branch-session] result label=${label} elapsed=${Date.now() - start}ms: "${raw.slice(0, 80)}${raw.length > 80 ? "..." : ""}"`,
 				);
 				return raw;
 			}
 			// Tool-use only turn — keep scanning.
 		}
-		console.error(`[branch-session] no text output found label=${label} elapsed=${Date.now() - start}ms`);
+		console.error(`[branch-session] no text output label=${label} elapsed=${Date.now() - start}ms`);
 		return undefined;
 	} finally {
 		if (registry && registeredId) {
