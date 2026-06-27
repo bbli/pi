@@ -1118,6 +1118,43 @@ export interface Consideration {
 	removalCondition?: string;
 }
 
+/** A guideline registered via registerGuideline(). Evaluated at turn_start. */
+export interface GuidelineDefinition {
+	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
+	id: string;
+	/**
+	 * Condition fed to the advisory branch LLM. The LLM calls fire(id) if the condition is met.
+	 * Should be a concise, specific question about the current conversation state.
+	 */
+	triggerPrompt: string;
+	/**
+	 * Content injected into the main session when the trigger fires, via steer.
+	 * Should include idempotency language, e.g.:
+	 * "[ADVISORY: FOO — if already following these instructions, skip]"
+	 */
+	injectPrompt: string;
+	/** Human-readable label shown in the TUI footer while the branch session runs. */
+	label?: string;
+}
+
+/** A continuation registered via registerContinuation(). Evaluated synchronously at agent_end. */
+export interface ContinuationDefinition {
+	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
+	id: string;
+	/**
+	 * Condition fed to the advisory branch LLM at agent_end. The LLM calls fire(id) if met.
+	 * Should reference observable facts in the recent conversation (e.g. tool call results).
+	 */
+	triggerPrompt: string;
+	/**
+	 * Injected as a batched followUp user message to restart the agent loop.
+	 * Should include idempotency language.
+	 */
+	injectPrompt: string;
+	/** Human-readable label shown in the TUI footer while the branch session runs. */
+	label?: string;
+}
+
 /**
  * ExtensionAPI passed to extension factory functions.
  */
@@ -1226,6 +1263,38 @@ export interface ExtensionAPI {
 
 	/** Return all currently registered considerations (extension-registered and user-registered). */
 	getConsiderations(): readonly Consideration[];
+
+	// =========================================================================
+	// Advisory System
+	// =========================================================================
+
+	/**
+	 * Register a guideline. At turn_start a single advisory branch session evaluates all
+	 * registered guidelines' triggerPrompts and steers injectPrompt into the main session
+	 * for each that fires. Runs asynchronously — does not block the LLM call.
+	 * Returns an unsubscriber.
+	 */
+	registerGuideline(def: GuidelineDefinition): () => void;
+
+	/**
+	 * Register a continuation. At agent_end a single advisory branch session evaluates all
+	 * registered continuations' triggerPrompts and batches triggered injectPrompts into one
+	 * followUp message, restarting the agent loop. Runs synchronously (awaited).
+	 * Returns an unsubscriber.
+	 */
+	registerContinuation(def: ContinuationDefinition): () => void;
+
+	/** Enable or disable the entire advisory system at runtime. */
+	setAdvisoryEnabled(enabled: boolean): void;
+
+	/** Whether the advisory system is currently enabled. */
+	getAdvisoryEnabled(): boolean;
+
+	/** Return all registered guidelines across all loaded extensions. */
+	getGuidelines(): readonly GuidelineDefinition[];
+
+	/** Return all registered continuations across all loaded extensions. */
+	getContinuations(): readonly ContinuationDefinition[];
 
 	/**
 	 * Run a branch session seeded with the full current conversation history.
@@ -1560,6 +1629,8 @@ export interface ExtensionActions {
 	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
 	getConsiderations: () => Consideration[];
 	removeConsideration: (text: string) => boolean;
+	getGuidelines: () => readonly GuidelineDefinition[];
+	getContinuations: () => readonly ContinuationDefinition[];
 }
 
 /**
@@ -1609,7 +1680,12 @@ export interface ExtensionCommandContextActions {
  * Full runtime = state + actions.
  * Created by loader with throwing action stubs, completed by runner.initialize().
  */
-export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {}
+export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {
+	/** Enable or disable the advisory system. Self-wired by ExtensionRunner.bindCore(). */
+	setAdvisoryEnabled: (enabled: boolean) => void;
+	/** Whether the advisory system is currently enabled. Self-wired by ExtensionRunner.bindCore(). */
+	getAdvisoryEnabled: () => boolean;
+}
 
 /** Loaded extension with all registered items. */
 export interface Extension {
@@ -1624,6 +1700,10 @@ export interface Extension {
 	shortcuts: Map<KeyId, ExtensionShortcut>;
 	/** Considerations registered via registerConsideration(). */
 	considerations: Consideration[];
+	/** Guidelines registered via registerGuideline(). Keyed by id. */
+	guidelines: Map<string, GuidelineDefinition>;
+	/** Continuations registered via registerContinuation(). Keyed by id. */
+	continuations: Map<string, ContinuationDefinition>;
 }
 
 /** Result of loading extensions. */

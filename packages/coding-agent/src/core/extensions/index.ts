@@ -47,6 +47,7 @@ export type {
 	// Event Results
 	ContextEventResult,
 	ContextUsage,
+	ContinuationDefinition,
 	CustomToolCallEvent,
 	CustomToolResultEvent,
 	EditorFactory,
@@ -83,6 +84,7 @@ export type {
 	GetThinkingLevelHandler,
 	GrepToolCallEvent,
 	GrepToolResultEvent,
+	GuidelineDefinition,
 	// Events - Input
 	InputEvent,
 	InputEventResult,

@@ -74,6 +74,8 @@ describe("ExtensionRunner", () => {
 		runBranchSession: async () => undefined,
 		getConsiderations: () => [],
 		removeConsideration: () => false,
+		getGuidelines: () => [],
+		getContinuations: () => [],
 	};
 
 	const extensionContextActions: ExtensionContextActions = {

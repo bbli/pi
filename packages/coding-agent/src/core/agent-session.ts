@@ -2281,6 +2281,8 @@ export class AgentSession {
 				runBranchSession: (prompt, options) => runBranchSession(prompt, options, this, this._subagentRegistry),
 				getConsiderations: () => this._extensionRunner.getConsiderations(),
 				removeConsideration: (text) => this._extensionRunner.removeConsideration(text),
+				getGuidelines: () => this._extensionRunner.getAllGuidelines(),
+				getContinuations: () => this._extensionRunner.getAllContinuations(),
 			},
 			{
 				getModel: () => this.model,

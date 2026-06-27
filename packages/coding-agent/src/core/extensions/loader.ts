@@ -31,10 +31,12 @@ import { createSyntheticSourceInfo } from "../source-info.ts";
 import type {
 	BranchSessionOptions,
 	Consideration,
+	ContinuationDefinition,
 	Extension,
 	ExtensionAPI,
 	ExtensionFactory,
 	ExtensionRuntime,
+	GuidelineDefinition,
 	LoadExtensionsResult,
 	MessageRenderer,
 	ProviderConfig,
@@ -153,6 +155,10 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		runBranchSession: notInitialized,
 		getConsiderations: notInitialized,
 		removeConsideration: notInitialized,
+		getGuidelines: notInitialized,
+		getContinuations: notInitialized,
+		setAdvisoryEnabled: notInitialized,
+		getAdvisoryEnabled: notInitialized,
 		flagValues: new Map(),
 		pendingProviderRegistrations: [],
 		assertActive,
@@ -238,6 +244,42 @@ function createExtensionAPI(
 		registerMessageRenderer<T>(customType: string, renderer: MessageRenderer<T>): void {
 			runtime.assertActive();
 			extension.messageRenderers.set(customType, renderer as MessageRenderer);
+		},
+
+		registerGuideline(def: GuidelineDefinition): () => void {
+			runtime.assertActive();
+			extension.guidelines.set(def.id, def);
+			return () => {
+				extension.guidelines.delete(def.id);
+			};
+		},
+
+		registerContinuation(def: ContinuationDefinition): () => void {
+			runtime.assertActive();
+			extension.continuations.set(def.id, def);
+			return () => {
+				extension.continuations.delete(def.id);
+			};
+		},
+
+		setAdvisoryEnabled(enabled: boolean): void {
+			runtime.assertActive();
+			runtime.setAdvisoryEnabled(enabled);
+		},
+
+		getAdvisoryEnabled(): boolean {
+			runtime.assertActive();
+			return runtime.getAdvisoryEnabled();
+		},
+
+		getGuidelines(): readonly GuidelineDefinition[] {
+			runtime.assertActive();
+			return runtime.getGuidelines();
+		},
+
+		getContinuations(): readonly ContinuationDefinition[] {
+			runtime.assertActive();
+			return runtime.getContinuations();
 		},
 
 		registerConsideration(consideration: Consideration): () => void {
@@ -405,6 +447,8 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 		flags: new Map(),
 		shortcuts: new Map(),
 		considerations: [],
+		guidelines: new Map(),
+		continuations: new Map(),
 	};
 }
 

@@ -20,6 +20,7 @@ import type {
 	ContextEvent,
 	ContextEventResult,
 	ContextUsage,
+	ContinuationDefinition,
 	Extension,
 	ExtensionActions,
 	ExtensionCommandContext,
@@ -33,6 +34,7 @@ import type {
 	ExtensionRuntime,
 	ExtensionShortcut,
 	ExtensionUIContext,
+	GuidelineDefinition,
 	InputEvent,
 	InputEventResult,
 	InputSource,
@@ -254,6 +256,8 @@ export class ExtensionRunner {
 	private commandDiagnostics: ResourceDiagnostic[] = [];
 	private staleMessage: string | undefined;
 	private _userConsiderations: Consideration[] = [];
+	/** Whether the advisory system is enabled. Toggled via setAdvisoryEnabled(). */
+	private _advisoryEnabled = true;
 
 	constructor(
 		extensions: Extension[],
@@ -296,6 +300,13 @@ export class ExtensionRunner {
 		this.runtime.runBranchSession = actions.runBranchSession;
 		this.runtime.getConsiderations = actions.getConsiderations;
 		this.runtime.removeConsideration = actions.removeConsideration;
+		this.runtime.getGuidelines = actions.getGuidelines;
+		this.runtime.getContinuations = actions.getContinuations;
+		// Self-wired: advisory state lives on the runner, not on agent-session.
+		this.runtime.setAdvisoryEnabled = (enabled: boolean) => {
+			this._advisoryEnabled = enabled;
+		};
+		this.runtime.getAdvisoryEnabled = () => this._advisoryEnabled;
 
 		// Context actions (required)
 		this.getModel = contextActions.getModel;
@@ -380,6 +391,26 @@ export class ExtensionRunner {
 
 	getExtensionPaths(): string[] {
 		return this.extensions.map((e) => e.path);
+	}
+
+	/** Collect all guidelines registered across all loaded extensions. */
+	getAllGuidelines(): GuidelineDefinition[] {
+		return this.extensions.flatMap((e) => [...e.guidelines.values()]);
+	}
+
+	/** Collect all continuations registered across all loaded extensions. */
+	getAllContinuations(): ContinuationDefinition[] {
+		return this.extensions.flatMap((e) => [...e.continuations.values()]);
+	}
+
+	/** Enable or disable the advisory system at runtime. */
+	setAdvisoryEnabled(enabled: boolean): void {
+		this._advisoryEnabled = enabled;
+	}
+
+	/** Whether the advisory system is currently enabled. */
+	getAdvisoryEnabled(): boolean {
+		return this._advisoryEnabled;
 	}
 
 	/** Collect all considerations registered across all extensions and by the user. */
