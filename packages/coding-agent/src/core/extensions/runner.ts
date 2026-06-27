@@ -5,6 +5,7 @@
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { KeyId } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import { type Theme, theme } from "../../modes/interactive/theme/theme.ts";
 import type { ResourceDiagnostic } from "../diagnostics.ts";
 import type { KeybindingsConfig } from "../keybindings.ts";
@@ -57,9 +58,11 @@ import type {
 	ToolCallEventResult,
 	ToolResultEvent,
 	ToolResultEventResult,
+	TurnStartEvent,
 	UserBashEvent,
 	UserBashEventResult,
 } from "./types.ts";
+import { defineTool } from "./types.ts";
 
 // Extension shortcuts compete with canonical keybinding ids from keybindings.json.
 // Only editor-global shortcuts are reserved here. Picker-specific bindings are not.
@@ -227,6 +230,27 @@ const noOpUIContext: ExtensionUIContext = {
 	setToolsExpanded: () => {},
 };
 
+// ---------------------------------------------------------------------------
+// Advisory system — module-level constants and helpers
+// ---------------------------------------------------------------------------
+
+const ADVISORY_EVAL_SYSTEM_PROMPT = `\
+You are a condition evaluator with access to the full conversation history.
+For each numbered condition below, call fire(id) only when you are confident the \
+condition is currently true based on the conversation.
+You may use read, grep, find, ls, bash to inspect the codebase if needed.
+Do not call fire() when uncertain. Do not explain your reasoning. Output nothing.`;
+
+function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ id: string; triggerPrompt: string }>): string {
+	return [
+		"Evaluate these conditions based on the current conversation:",
+		"",
+		...entries.map((e, i) => `${i + 1}. [id: ${e.id}] ${e.triggerPrompt}`),
+		"",
+		"Call fire(id) for each condition that is currently true. Do not call fire() if uncertain.",
+	].join("\n");
+}
+
 export class ExtensionRunner {
 	private extensions: Extension[];
 	private runtime: ExtensionRuntime;
@@ -258,6 +282,11 @@ export class ExtensionRunner {
 	private _userConsiderations: Consideration[] = [];
 	/** Whether the advisory system is enabled. Toggled via setAdvisoryEnabled(). */
 	private _advisoryEnabled = true;
+	/**
+	 * True while a guideline branch session is in-flight at turn_start.
+	 * Guards against re-entrant advisory runs when turns fire rapidly.
+	 */
+	private _advisoryRunning = false;
 
 	constructor(
 		extensions: Extension[],
@@ -411,6 +440,77 @@ export class ExtensionRunner {
 	/** Whether the advisory system is currently enabled. */
 	getAdvisoryEnabled(): boolean {
 		return this._advisoryEnabled;
+	}
+
+	/**
+	 * Emit turn_start to extension handlers and, on each turn when advisory is
+	 * enabled and not already running, fire guideline evaluation asynchronously.
+	 */
+	async emitTurnStart(event: TurnStartEvent): Promise<void> {
+		if (this._advisoryEnabled && !this._advisoryRunning) {
+			const guidelines = this.getAllGuidelines();
+			if (guidelines.length > 0) {
+				void this._runGuidelinesAsync(guidelines);
+			}
+		}
+		await this.emit(event);
+	}
+
+	/**
+	 * Evaluate all guidelines in one branch session using a fire(id) tool.
+	 * Batches triggered inject prompts into a single steer. Detached from emitTurnStart.
+	 */
+	private async _runGuidelinesAsync(guidelines: GuidelineDefinition[]): Promise<void> {
+		this._advisoryRunning = true;
+		try {
+			const triggered = new Set<string>();
+			const validIds = new Set(guidelines.map((g) => g.id));
+
+			const fireTool = defineTool({
+				name: "fire",
+				label: "Fire Advisory",
+				description:
+					"Call this for each listed condition that is currently met. " +
+					"Pass the exact id from the numbered list. Do not call if uncertain.",
+				parameters: Type.Object({
+					id: Type.String({ description: "The condition id to fire." }),
+				}),
+				execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+					if (validIds.has(params.id)) {
+						triggered.add(params.id);
+						console.error(`[advisory] guideline fired: ${params.id}`);
+					} else {
+						console.error(`[advisory] guideline unknown id ignored: ${params.id}`);
+					}
+					return { content: [{ type: "text" as const, text: "recorded" }], details: undefined };
+				},
+			});
+
+			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(guidelines), {
+				systemPrompt: ADVISORY_EVAL_SYSTEM_PROMPT,
+				tools: ["read", "grep", "find", "ls", "bash"],
+				customTools: [fireTool],
+				label: "advisory:guidelines",
+			});
+
+			// Re-check enabled — user may have toggled off while branch session ran.
+			if (!this._advisoryEnabled || triggered.size === 0) return;
+
+			const parts = [...triggered]
+				.map((id) => guidelines.find((g) => g.id === id)?.injectPrompt)
+				.filter((p): p is string => p !== undefined);
+
+			if (parts.length === 0) return;
+
+			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
+			this.runtime.sendUserMessage(`Wait, before you proceed, consider the following:\n\n${body}`, {
+				deliverAs: "steer",
+			});
+		} catch (err) {
+			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
+		} finally {
+			this._advisoryRunning = false;
+		}
 	}
 
 	/** Collect all considerations registered across all extensions and by the user. */

@@ -623,7 +623,7 @@ export class AgentSession {
 				turnIndex: this._turnIndex,
 				timestamp: Date.now(),
 			};
-			await this._extensionRunner.emit(extensionEvent);
+			await this._extensionRunner.emitTurnStart(extensionEvent);
 		} else if (event.type === "turn_end") {
 			const extensionEvent: TurnEndEvent = {
 				type: "turn_end",
