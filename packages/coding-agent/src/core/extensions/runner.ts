@@ -18,7 +18,6 @@ import type {
 	BeforeAgentStartEventResult,
 	BeforeProviderRequestEvent,
 	CompactOptions,
-	Consideration,
 	ContextEvent,
 	ContextEventResult,
 	ContextUsage,
@@ -340,7 +339,6 @@ export class ExtensionRunner {
 	private shortcutDiagnostics: ResourceDiagnostic[] = [];
 	private commandDiagnostics: ResourceDiagnostic[] = [];
 	private staleMessage: string | undefined;
-	private _userConsiderations: Consideration[] = [];
 	/** Whether the advisory system is enabled. Toggled via setAdvisoryEnabled(). */
 	private _advisoryEnabled = true;
 	/**
@@ -388,8 +386,6 @@ export class ExtensionRunner {
 		this.runtime.getThinkingLevel = actions.getThinkingLevel;
 		this.runtime.setThinkingLevel = actions.setThinkingLevel;
 		this.runtime.runBranchSession = actions.runBranchSession;
-		this.runtime.getConsiderations = actions.getConsiderations;
-		this.runtime.removeConsideration = actions.removeConsideration;
 		this.runtime.getGuidelines = actions.getGuidelines;
 		this.runtime.getContinuations = actions.getContinuations;
 		this.runtime.injectUserMessage = actions.injectUserMessage;
@@ -567,57 +563,6 @@ export class ExtensionRunner {
 		} catch (err) {
 			console.error(`[advisory] continuations error: ${err instanceof Error ? err.message : String(err)}`);
 		}
-	}
-
-	/** Collect all considerations registered across all extensions and by the user. */
-	getConsiderations(): Consideration[] {
-		return [...this.extensions.flatMap((e) => e.considerations), ...this._userConsiderations];
-	}
-
-	/**
-	 * Add or update a user-registered consideration. Upserts by text.
-	 * Returns false only when the text is already registered by an extension (cannot overwrite).
-	 */
-	addUserConsideration(consideration: Consideration | string): boolean {
-		const entry: Consideration = typeof consideration === "string" ? { text: consideration } : consideration;
-		const existsInExtension = this.extensions.flatMap((e) => e.considerations).some((c) => c.text === entry.text);
-		if (existsInExtension) return false;
-		const existingIdx = this._userConsiderations.findIndex((c) => c.text === entry.text);
-		if (existingIdx !== -1) {
-			this._userConsiderations[existingIdx] = entry;
-		} else {
-			this._userConsiderations.push(entry);
-		}
-		return true;
-	}
-
-	/** Remove a user-registered consideration by text. Returns false if not found. */
-	removeUserConsideration(text: string): boolean {
-		const index = this._userConsiderations.findIndex((c) => c.text === text);
-		if (index === -1) return false;
-		this._userConsiderations.splice(index, 1);
-		return true;
-	}
-
-	/**
-	 * Remove a consideration by text, searching user considerations then extension considerations.
-	 * Returns false if not found in any pool.
-	 */
-	removeConsideration(text: string): boolean {
-		if (this.removeUserConsideration(text)) return true;
-		for (const ext of this.extensions) {
-			const index = ext.considerations.findIndex((c) => c.text === text);
-			if (index !== -1) {
-				ext.considerations.splice(index, 1);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	/** Return a read-only view of user-registered considerations. */
-	getUserConsiderations(): readonly Consideration[] {
-		return this._userConsiderations;
 	}
 
 	/** Return the registered tree filter predicate, or undefined if none is set. */

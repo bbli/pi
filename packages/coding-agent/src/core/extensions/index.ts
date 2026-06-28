@@ -41,7 +41,6 @@ export type {
 	BuildSystemPromptOptions,
 	// Context
 	CompactOptions,
-	Consideration,
 	// Events - Agent
 	ContextEvent,
 	// Event Results

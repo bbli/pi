@@ -1117,14 +1117,6 @@ export interface BranchSessionOptions {
 	keepAlive?: boolean;
 }
 
-/** A consideration registered via registerConsideration(). */
-export interface Consideration {
-	/** The consideration text passed to the reviewer LLM. */
-	text: string;
-	/** Optional condition describing when this consideration should be removed. */
-	removalCondition?: string;
-}
-
 /** A guideline registered via registerGuideline(). Evaluated at turn_start. */
 export interface GuidelineDefinition {
 	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
@@ -1253,23 +1245,6 @@ export interface ExtensionAPI {
 
 	/** Register a custom renderer for CustomMessageEntry. */
 	registerMessageRenderer<T = unknown>(customType: string, renderer: MessageRenderer<T>): void;
-
-	/**
-	 * Register a consideration to be evaluated in a separate read-only LLM call after each inner agent turn.
-	 *
-	 * The reviewer runs asynchronously alongside the agent loop. If it finds something actionable,
-	 * the result is steered into the main session at the next turn_end.
-	 *
-	 * If a consideration with the same text is already registered, it is replaced (upsert).
-	 * Returns an unsubscriber that removes this consideration.
-	 */
-	registerConsideration(consideration: Consideration): () => void;
-
-	/** Remove a consideration by text. Returns true if it was found and removed. */
-	removeConsideration(text: string): boolean;
-
-	/** Return all currently registered considerations (extension-registered and user-registered). */
-	getConsiderations(): readonly Consideration[];
 
 	// =========================================================================
 	// Advisory System
@@ -1634,8 +1609,6 @@ export interface ExtensionActions {
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
 	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
-	getConsiderations: () => Consideration[];
-	removeConsideration: (text: string) => boolean;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**
@@ -1713,8 +1686,6 @@ export interface Extension {
 	commands: Map<string, RegisteredCommand>;
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
-	/** Considerations registered via registerConsideration(). */
-	considerations: Consideration[];
 	/** Guidelines registered via registerGuideline(). Keyed by id. */
 	guidelines: Map<string, GuidelineDefinition>;
 	/** Continuations registered via registerContinuation(). Keyed by id. */

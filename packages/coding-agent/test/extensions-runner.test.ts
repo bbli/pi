@@ -72,8 +72,6 @@ describe("ExtensionRunner", () => {
 		getThinkingLevel: () => "off",
 		setThinkingLevel: () => {},
 		runBranchSession: async () => undefined,
-		getConsiderations: () => [],
-		removeConsideration: () => false,
 		getGuidelines: () => [],
 		getContinuations: () => [],
 		injectUserMessage: () => {},
@@ -829,142 +827,88 @@ describe("ExtensionRunner", () => {
 		});
 	});
 
-	describe("considerations", () => {
-		it("registers considerations from extension state", async () => {
+	describe("guidelines and continuations", () => {
+		it("registers guidelines from extension state", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerConsideration({ text: "ext consideration 1" });
-					pi.registerConsideration({ text: "ext consideration 2" });
+					pi.registerGuideline({ id: "g1", triggerPrompt: "trigger 1", injectPrompt: "inject 1" });
+					pi.registerGuideline({ id: "g2", triggerPrompt: "trigger 2", injectPrompt: "inject 2" });
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.getConsiderations()).toEqual([{ text: "ext consideration 1" }, { text: "ext consideration 2" }]);
+			expect(runner.getAllGuidelines()).toEqual([
+				{ id: "g1", triggerPrompt: "trigger 1", injectPrompt: "inject 1" },
+				{ id: "g2", triggerPrompt: "trigger 2", injectPrompt: "inject 2" },
+			]);
 		});
 
-		it("unsubscriber from registerConsideration removes the consideration", async () => {
+		it("unsubscriber from registerGuideline removes it", async () => {
 			const extCode = `
 				export default function(pi) {
-					const unsub = pi.registerConsideration({ text: "to remove" });
-					pi.registerConsideration({ text: "to keep" });
+					const unsub = pi.registerGuideline({ id: "to-remove", triggerPrompt: "t", injectPrompt: "i" });
+					pi.registerGuideline({ id: "to-keep", triggerPrompt: "t", injectPrompt: "i" });
 					unsub();
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.getConsiderations()).toEqual([{ text: "to keep" }]);
+			expect(runner.getAllGuidelines().map((g) => g.id)).toEqual(["to-keep"]);
 		});
 
-		it("registerConsideration upserts when text already exists", async () => {
+		it("registerGuideline upserts by id", async () => {
 			const extCode = `
 				export default function(pi) {
-					pi.registerConsideration({ text: "my check" });
-					pi.registerConsideration({ text: "my check", removalCondition: "when done" });
+					pi.registerGuideline({ id: "g1", triggerPrompt: "original", injectPrompt: "i" });
+					pi.registerGuideline({ id: "g1", triggerPrompt: "updated", injectPrompt: "i" });
 				}
 			`;
-			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
+			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.getConsiderations()).toEqual([{ text: "my check", removalCondition: "when done" }]);
+			expect(runner.getAllGuidelines()).toHaveLength(1);
+			expect(runner.getAllGuidelines()[0]?.triggerPrompt).toBe("updated");
 		});
 
-		it("adds, upserts, and removes user-registered considerations", () => {
-			const runtime = createExtensionRuntime();
-			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+		it("registers continuations from extension state", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "trigger 1", injectPrompt: "inject 1" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
 
-			expect(runner.addUserConsideration("user consideration 1")).toBe(true);
-			expect(runner.addUserConsideration("user consideration 2")).toBe(true);
-			expect(runner.getConsiderations()).toEqual([
-				{ text: "user consideration 1" },
-				{ text: "user consideration 2" },
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			expect(runner.getAllContinuations()).toEqual([
+				{ id: "c1", triggerPrompt: "trigger 1", injectPrompt: "inject 1" },
 			]);
-
-			// upsert updates removalCondition
-			expect(runner.addUserConsideration({ text: "user consideration 1", removalCondition: "when done" })).toBe(
-				true,
-			);
-			expect(runner.getConsiderations()).toEqual([
-				{ text: "user consideration 1", removalCondition: "when done" },
-				{ text: "user consideration 2" },
-			]);
-
-			expect(runner.removeUserConsideration("user consideration 1")).toBe(true);
-			expect(runner.getConsiderations()).toEqual([{ text: "user consideration 2" }]);
-			expect(runner.getUserConsiderations()).toEqual([{ text: "user consideration 2" }]);
 		});
 
-		it("rejects a user consideration whose text is already registered by an extension", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerConsideration({ text: "shared consideration" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
+		it("getAllGuidelines collects from multiple extensions", async () => {
+			const ext1 = `export default function(pi) { pi.registerGuideline({ id: "a", triggerPrompt: "t", injectPrompt: "i" }); }`;
+			const ext2 = `export default function(pi) { pi.registerGuideline({ id: "b", triggerPrompt: "t", injectPrompt: "i" }); }`;
+			fs.writeFileSync(path.join(extensionsDir, "ext1.ts"), ext1);
+			fs.writeFileSync(path.join(extensionsDir, "ext2.ts"), ext2);
 
 			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
 			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
 
-			expect(runner.addUserConsideration("shared consideration")).toBe(false);
-			expect(runner.getConsiderations()).toEqual([{ text: "shared consideration" }]);
-		});
-
-		it("removeConsideration removes from extension considerations", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerConsideration({ text: "ext consideration" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
-
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-			runner.addUserConsideration("user consideration");
-
-			expect(runner.getConsiderations()).toEqual([{ text: "ext consideration" }, { text: "user consideration" }]);
-
-			expect(runner.removeConsideration("ext consideration")).toBe(true);
-			expect(runner.getConsiderations()).toEqual([{ text: "user consideration" }]);
-
-			expect(runner.removeConsideration("user consideration")).toBe(true);
-			expect(runner.getConsiderations()).toEqual([]);
-		});
-
-		it("removeConsideration returns false for unknown consideration", () => {
-			const runtime = createExtensionRuntime();
-			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-			runner.addUserConsideration("real consideration");
-			expect(runner.removeConsideration("phantom consideration")).toBe(false);
-			expect(runner.getConsiderations()).toEqual([{ text: "real consideration" }]);
-		});
-
-		it("addUserConsideration upserts duplicate user consideration", () => {
-			const runtime = createExtensionRuntime();
-			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-			expect(runner.addUserConsideration("my consideration")).toBe(true);
-			expect(runner.addUserConsideration({ text: "my consideration", removalCondition: "later" })).toBe(true);
-			expect(runner.getConsiderations()).toEqual([{ text: "my consideration", removalCondition: "later" }]);
-		});
-
-		it("registerConsideration preserves removalCondition through roundtrip", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerConsideration({ text: "check", removalCondition: "when done" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "considerations.ts"), extCode);
-
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-
-			expect(runner.getConsiderations()).toEqual([{ text: "check", removalCondition: "when done" }]);
+			expect(
+				runner
+					.getAllGuidelines()
+					.map((g) => g.id)
+					.sort(),
+			).toEqual(["a", "b"]);
 		});
 	});
 

@@ -82,7 +82,6 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
-			considerations: [],
 			guidelines: new Map(),
 			continuations: new Map(),
 		};
@@ -259,7 +258,6 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
-			considerations: [],
 			guidelines: new Map(),
 			continuations: new Map(),
 		};
@@ -311,7 +309,6 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
-			considerations: [],
 			guidelines: new Map(),
 			continuations: new Map(),
 		};
@@ -345,7 +342,6 @@ describe.skipIf(!API_KEY)("Compaction extensions", () => {
 			commands: new Map(),
 			flags: new Map(),
 			shortcuts: new Map(),
-			considerations: [],
 			guidelines: new Map(),
 			continuations: new Map(),
 		};

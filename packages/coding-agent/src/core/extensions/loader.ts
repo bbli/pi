@@ -30,7 +30,6 @@ import { execCommand } from "../exec.ts";
 import { createSyntheticSourceInfo } from "../source-info.ts";
 import type {
 	BranchSessionOptions,
-	Consideration,
 	ContinuationDefinition,
 	Extension,
 	ExtensionAPI,
@@ -153,8 +152,6 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		getThinkingLevel: notInitialized,
 		setThinkingLevel: notInitialized,
 		runBranchSession: notInitialized,
-		getConsiderations: notInitialized,
-		removeConsideration: notInitialized,
 		getGuidelines: notInitialized,
 		getContinuations: notInitialized,
 		setAdvisoryEnabled: notInitialized,
@@ -281,32 +278,6 @@ function createExtensionAPI(
 		getContinuations(): readonly ContinuationDefinition[] {
 			runtime.assertActive();
 			return runtime.getContinuations();
-		},
-
-		registerConsideration(consideration: Consideration): () => void {
-			runtime.assertActive();
-			const existing = extension.considerations.findIndex((c) => c.text === consideration.text);
-			if (existing !== -1) {
-				extension.considerations[existing] = consideration;
-			} else {
-				extension.considerations.push(consideration);
-			}
-			return () => {
-				const index = extension.considerations.findIndex((c) => c.text === consideration.text);
-				if (index !== -1) {
-					extension.considerations.splice(index, 1);
-				}
-			};
-		},
-
-		removeConsideration(text: string): boolean {
-			runtime.assertActive();
-			return runtime.removeConsideration(text);
-		},
-
-		getConsiderations(): readonly Consideration[] {
-			runtime.assertActive();
-			return runtime.getConsiderations();
 		},
 
 		runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined> {
@@ -447,7 +418,6 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 		commands: new Map(),
 		flags: new Map(),
 		shortcuts: new Map(),
-		considerations: [],
 		guidelines: new Map(),
 		continuations: new Map(),
 	};
