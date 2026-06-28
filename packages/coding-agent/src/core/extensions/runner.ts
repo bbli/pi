@@ -267,8 +267,10 @@ function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ triggerPrompt: string;
 		[
 			`--- Condition ${i + 1} ---`,
 			`Trigger: ${e.triggerPrompt}`,
-			`Inject prompt (pass this exact text to the injectUserMessage tool if triggered):`,
+			`Inject prompt — pass everything between the triple-quotes to injectUserMessage if triggered:`,
+			'"""',
 			e.injectPrompt,
+			'"""',
 		].join("\n"),
 	);
 	return [
@@ -279,8 +281,10 @@ function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ triggerPrompt: string;
 		"",
 		...sections,
 		"",
-		"Final step: for each condition above that is clearly true, call the injectUserMessage tool " +
-			"with the inject prompt shown. injectUserMessage is a tool — do not run it as a bash command. " +
+		"=== Action ===",
+		"For each condition above that is clearly true, call the injectUserMessage tool with the " +
+			"text between the triple-quotes for that condition. " +
+			"injectUserMessage is a tool — do not run it as a bash command. " +
 			"If no condition is met, do nothing.",
 	].join("\n");
 }

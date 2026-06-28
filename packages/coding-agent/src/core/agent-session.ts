@@ -2288,21 +2288,14 @@ export class AgentSession {
 				getContinuations: () => this._extensionRunner.getAllContinuations(),
 				injectUserMessage: (text, deliverAs) => {
 					if (this.isStreaming) {
-						// Pre-persist and fire session events immediately so the TUI
-						// renders the inject message now, without waiting for the agent
-						// loop to process the steer/followUp queue.
+						// Queue directly to agent-core. The agent loop fires
+						// message_start/message_end once when processing, which handles
+						// both TUI rendering and session persistence — no double-render.
 						const msg = {
 							role: "user" as const,
 							content: [{ type: "text" as const, text }],
 							timestamp: Date.now(),
 						};
-						this.sessionManager.appendMessage(msg);
-						this._prePersistedMessages.add(msg);
-						this._emit({ type: "message_start", message: msg });
-						this._emit({ type: "message_end", message: msg });
-						// Queue to agent-core so the LLM also sees the message.
-						// When the loop processes it, message_start/message_end fire
-						// again but _prePersistedMessages prevents double-persistence.
 						if (deliverAs === "steer") {
 							this.agent.steer(msg);
 						} else {
@@ -2310,7 +2303,7 @@ export class AgentSession {
 						}
 					} else {
 						// Idle: sendUserMessage starts a new agent run and handles
-						// pre-persist + event firing via runAgentLoop internally.
+						// event firing and persistence via runAgentLoop internally.
 						this.sendUserMessage(text, { deliverAs }).catch((err) => {
 							runner.emitError({
 								extensionPath: "<advisory>",
