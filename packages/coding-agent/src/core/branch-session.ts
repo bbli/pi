@@ -52,12 +52,17 @@ async function createBranchAgentSession(
 	options: BranchSessionOptions,
 	mainSession: AgentSession,
 ): Promise<AgentSession> {
+	const builtinTools = options.tools ?? ["read", "grep", "find", "ls", "bash"];
+	// sdk.ts uses the `tools` array as an allow-list (allowedToolNames) that every tool
+	// must pass through isAllowedTool() to reach agent.state.tools. Custom tools are not
+	// in that list by default, so they get filtered before the agent loop can call them.
+	const customToolNames = (options.customTools ?? []).map((t) => t.name);
 	const { session } = await createAgentSession({
 		sessionManager: SessionManager.inMemory(),
 		model: mainSession.model!,
 		modelRegistry: mainSession.modelRegistry,
 		thinkingLevel: "off",
-		tools: options.tools ?? ["read", "grep", "find", "ls", "bash"],
+		tools: [...builtinTools, ...customToolNames],
 		customTools: options.customTools,
 		resourceLoader: createBranchResourceLoader(options.systemPrompt),
 		cwd: mainSession.cwd,
