@@ -98,9 +98,7 @@ function processBranchResponse(branchSession: AgentSession, label: string, start
 			.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
 			.trim();
 		if (raw) {
-			console.error(
-				`[branch-session] result label=${label} elapsed=${Date.now() - start}ms: "${raw.slice(0, 80)}${raw.length > 80 ? "..." : ""}"`,
-			);
+			console.error(`[branch-session] result label=${label} elapsed=${Date.now() - start}ms:\n${raw}`);
 			return raw;
 		}
 		// Tool-use only turn — keep scanning backwards.
