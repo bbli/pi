@@ -13,21 +13,24 @@
  * The advisory system can be toggled at runtime via /advisor [on|off].
  * Pass --no-advisor on the CLI to start with it disabled.
  *
- * Idempotency is baked into each inject prompt via an [ADVISORY: ID] sentinel.
- * The evaluating LLM is instructed to skip if the sentinel is already present
- * in the conversation history.
+ * Each inject prompt begins with an [ADVISORY: ID] sentinel that:
+ * - Identifies the message as coming from a background monitor
+ * - Gives the main agent explicit discretion to follow or ignore it
+ * - Provides an idempotency skip condition for the main agent
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 // ---------------------------------------------------------------------------
 // Inject prompts
-// Each begins with an [ADVISORY: ID] sentinel for LLM-side idempotency.
+// Each begins with an [ADVISORY: ID] sentinel that identifies the source,
+// grants the main agent discretion, and carries an idempotency skip condition.
 // ---------------------------------------------------------------------------
 
 const CODE_WORKFLOW_PROMPT = `\
-[ADVISORY: CODE_WORKFLOW — if you have already received and are following these \
-instructions in this conversation, skip this message entirely]
+[ADVISORY: CODE_WORKFLOW — injected by a background monitor. Decide for yourself \
+whether this is relevant to your current task; you are not required to follow it. \
+Skip if you have already received and are acting on these instructions.]
 
 You are about to implement a feature. Before writing any code:
 
@@ -39,8 +42,9 @@ codebase. Research them using available tools.
 5. Stay on the happy path — do not attempt to fix unrelated issues you encounter.`;
 
 const DEBUG_WORKFLOW_PROMPT = `\
-[ADVISORY: DEBUG_WORKFLOW — if you have already received and are following these \
-instructions in this conversation, skip this message entirely]
+[ADVISORY: DEBUG_WORKFLOW — injected by a background monitor. Decide for yourself \
+whether this is relevant to your current task; you are not required to follow it. \
+Skip if you have already received and are acting on these instructions.]
 
 You are about to debug an issue. Before making any changes:
 
@@ -51,8 +55,9 @@ You are about to debug an issue. Before making any changes:
 5. Confirm the failure no longer occurs, then run npm run check.`;
 
 const REVIEW_PROMPT = `\
-[ADVISORY: CODE_REVIEW — if a review checklist has already been presented and \
-completed in this conversation, skip this message entirely]
+[ADVISORY: CODE_REVIEW — injected by a background monitor. Decide for yourself \
+whether this checklist is relevant to the commit just made; you are not required to follow it. \
+Skip if a review for this commit has already been completed.]
 
 A commit was just made. Before considering this task done:
 
