@@ -503,10 +503,12 @@ export class ExtensionRunner {
 
 			if (parts.length === 0) return;
 
+			const ids = [...triggered].join(", ");
 			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
-			this.runtime.sendUserMessage(`Wait, before you proceed, consider the following:\n\n${body}`, {
-				deliverAs: "steer",
-			});
+			const injectMsg = `Wait, before you proceed, consider the following:\n\n${body}`;
+			console.error(`[advisory] guidelines injecting ids=[${ids}] chars=${injectMsg.length}`);
+			this.uiContext.notify(`[advisory] injecting: ${ids}`, "info");
+			this.runtime.sendUserMessage(injectMsg, { deliverAs: "steer" });
 		} catch (err) {
 			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
 		} finally {
@@ -573,10 +575,12 @@ export class ExtensionRunner {
 
 			if (parts.length === 0) return;
 
+			const ids = [...triggered].join(", ");
 			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
-			this.runtime.sendUserMessage(`Wait, before you continue, consider the following:\n\n${body}`, {
-				deliverAs: "followUp",
-			});
+			const injectMsg = `Wait, before you continue, consider the following:\n\n${body}`;
+			console.error(`[advisory] continuations injecting ids=[${ids}] chars=${injectMsg.length}`);
+			this.uiContext.notify(`[advisory] injecting: ${ids}`, "info");
+			this.runtime.sendUserMessage(injectMsg, { deliverAs: "followUp" });
 		} catch (err) {
 			console.error(`[advisory] continuations error: ${err instanceof Error ? err.message : String(err)}`);
 		}
