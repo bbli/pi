@@ -71,11 +71,13 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "code-workflow",
 		triggerPrompt:
-			"Two conditions must BOTH be true to trigger: " +
-			"(1) The user's latest message is clearly a request to implement a new feature, " +
-			'build something new, or add functionality (e.g. "implement X", "add Y", "build Z"). ' +
-			"(2) The string [ADVISORY: CODE_WORKFLOW] does NOT already appear anywhere in the conversation history. " +
-			"If [ADVISORY: CODE_WORKFLOW] is already present, do NOT trigger.",
+			"Is the user starting a new feature implementation task that hasn't already received " +
+			"coding workflow guidance in the recent conversation? " +
+			"The user's latest message should be requesting new feature work " +
+			'(e.g. "implement X", "add Y", "build Z"). ' +
+			"Use your judgment: if this looks like a fresh implementation request that hasn't " +
+			"been covered by a recent [ADVISORY: CODE_WORKFLOW] message, trigger. " +
+			"If the conversation already has workflow guidance covering this task, do not trigger.",
 		injectPrompt: CODE_WORKFLOW_PROMPT,
 		label: "advisory:code-workflow",
 	});
@@ -83,10 +85,11 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "debug-workflow",
 		triggerPrompt:
-			"Two conditions must BOTH be true to trigger: " +
-			"(1) The user's latest message is a request to debug, investigate, or fix a specific bug or error. " +
-			"(2) The string [ADVISORY: DEBUG_WORKFLOW] does NOT already appear anywhere in the conversation history. " +
-			"If [ADVISORY: DEBUG_WORKFLOW] is already present, do NOT trigger.",
+			"Is the user starting a new debugging or bug-fix task that hasn't already received " +
+			"debugging workflow guidance in the recent conversation? " +
+			"Use your judgment: if this looks like a fresh debugging request that hasn't " +
+			"been covered by a recent [ADVISORY: DEBUG_WORKFLOW] message, trigger. " +
+			"If the conversation already has debug guidance covering this task, do not trigger.",
 		injectPrompt: DEBUG_WORKFLOW_PROMPT,
 		label: "advisory:debug-workflow",
 	});
@@ -96,10 +99,12 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerContinuation({
 		id: "review-after-commit",
 		triggerPrompt:
-			"Two conditions must BOTH be true to trigger: " +
-			"(1) A git commit was made during this agent run — look for a successful git commit in the recent tool call results. " +
-			"(2) The string [ADVISORY: CODE_REVIEW] does NOT already appear anywhere in the conversation history. " +
-			"If [ADVISORY: CODE_REVIEW] is already present, do NOT trigger.",
+			"Was a git commit made during this agent run that has not yet been followed by a code review? " +
+			"Find the most recent successful git commit in the tool call results. " +
+			"Then check whether a [ADVISORY: CODE_REVIEW] review checklist has appeared in the " +
+			"conversation AFTER that specific commit. " +
+			"Use your judgment: if the commit is recent and no review has followed it yet, trigger. " +
+			"If a review has already been conducted for this specific commit, do not trigger.",
 		injectPrompt: REVIEW_PROMPT,
 		label: "advisory:review",
 	});
