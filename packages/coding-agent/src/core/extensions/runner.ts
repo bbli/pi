@@ -237,10 +237,18 @@ const noOpUIContext: ExtensionUIContext = {
 
 const ADVISORY_EVAL_SYSTEM_PROMPT = `\
 You are a condition evaluator with access to the full conversation history.
-For each numbered condition below, call injectUserMessage with the provided inject prompt \
-if and only if you are confident the condition is currently true.
-You may use read, grep, find, ls, bash to inspect the codebase if needed.
-Do not call injectUserMessage when uncertain. Do not explain your reasoning. Output nothing.`;
+You have one tool available: injectUserMessage. This is a tool — not a bash command. \
+Do not run it with bash. Call it as a tool call.
+
+Your task:
+1. Read the conversation history.
+2. Evaluate each numbered condition listed in the prompt.
+3. Final step: for each condition that is clearly true, call the injectUserMessage tool \
+with the exact inject prompt shown. If no condition is met, output nothing and do not \
+call the tool.
+
+You may use read, grep, find, ls, bash to inspect the codebase before deciding. \
+Do not call injectUserMessage when uncertain. Do not explain your reasoning.`;
 
 /**
  * Builds the evaluation prompt listing trigger conditions alongside their inject prompts.
@@ -251,15 +259,18 @@ function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ triggerPrompt: string;
 		[
 			`--- Condition ${i + 1} ---`,
 			`Trigger: ${e.triggerPrompt}`,
-			`Inject prompt if triggered:\n${e.injectPrompt}`,
+			`Inject prompt (pass this exact text to the injectUserMessage tool if triggered):`,
+			e.injectPrompt,
 		].join("\n"),
 	);
 	return [
 		"Evaluate these conditions based on the current conversation.",
-		"For each condition that is true, call injectUserMessage with the exact inject prompt shown.",
-		"Do not call injectUserMessage if the condition is not clearly met.",
 		"",
 		...sections,
+		"",
+		"Final step: for each condition above that is clearly true, call the injectUserMessage " +
+			"tool with the inject prompt shown. injectUserMessage is a tool — do not run it as a " +
+			"bash command. If no condition is met, do nothing.",
 	].join("\n");
 }
 
@@ -272,8 +283,9 @@ function makeInjectTool(onInject: (prompt: string) => void) {
 		name: "injectUserMessage",
 		label: "Inject Advisory",
 		description:
+			"Tool: inject a user message into the main session. " +
 			"Call this with the exact inject prompt text when a listed condition is met. " +
-			"Do not call if the condition is not clearly met.",
+			"This is a tool call, not a bash command. Do not call if the condition is not clearly met.",
 		parameters: Type.Object({
 			prompt: Type.String({ description: "The exact inject prompt text to deliver." }),
 		}),
