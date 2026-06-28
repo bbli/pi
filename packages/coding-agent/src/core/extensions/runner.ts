@@ -13,6 +13,7 @@ import type { ModelRegistry } from "../model-registry.ts";
 import type { SessionManager } from "../session-manager.ts";
 import type { BuildSystemPromptOptions } from "../system-prompt.ts";
 import type {
+	AgentEndEvent,
 	BeforeAgentStartEvent,
 	BeforeAgentStartEventResult,
 	BeforeProviderRequestEvent,
@@ -510,6 +511,74 @@ export class ExtensionRunner {
 			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
 		} finally {
 			this._advisoryRunning = false;
+		}
+	}
+
+	/**
+	 * Emit agent_end to extension handlers, running all continuation checks
+	 * synchronously first. Triggered continuations are batched into one followUp.
+	 */
+	async emitAgentEnd(event: AgentEndEvent): Promise<void> {
+		if (this._advisoryEnabled) {
+			const continuations = this.getAllContinuations();
+			if (continuations.length > 0) {
+				await this._runContinuationsSync(continuations);
+			}
+		}
+		await this.emit(event);
+	}
+
+	/**
+	 * Evaluate all continuations in one branch session using a fire(id) tool.
+	 * Batches all triggered inject prompts into a single followUp message.
+	 * Awaited synchronously — blocks agent_end completion until done.
+	 */
+	private async _runContinuationsSync(continuations: ContinuationDefinition[]): Promise<void> {
+		try {
+			const triggered = new Set<string>();
+			const validIds = new Set(continuations.map((c) => c.id));
+
+			const fireTool = defineTool({
+				name: "fire",
+				label: "Fire Continuation",
+				description:
+					"Call this for each listed condition that is currently met. " +
+					"Pass the exact id from the numbered list. Do not call if uncertain.",
+				parameters: Type.Object({
+					id: Type.String({ description: "The condition id to fire." }),
+				}),
+				execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+					if (validIds.has(params.id)) {
+						triggered.add(params.id);
+						console.error(`[advisory] continuation fired: ${params.id}`);
+					} else {
+						console.error(`[advisory] continuation unknown id ignored: ${params.id}`);
+					}
+					return { content: [{ type: "text" as const, text: "recorded" }], details: undefined };
+				},
+			});
+
+			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(continuations), {
+				systemPrompt: ADVISORY_EVAL_SYSTEM_PROMPT,
+				tools: ["read", "grep", "find", "ls", "bash"],
+				customTools: [fireTool],
+				label: "advisory:continuations",
+			});
+
+			if (triggered.size === 0) return;
+
+			const parts = [...triggered]
+				.map((id) => continuations.find((c) => c.id === id)?.injectPrompt)
+				.filter((p): p is string => p !== undefined);
+
+			if (parts.length === 0) return;
+
+			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
+			this.runtime.sendUserMessage(`Wait, before you continue, consider the following:\n\n${body}`, {
+				deliverAs: "followUp",
+			});
+		} catch (err) {
+			console.error(`[advisory] continuations error: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
 
