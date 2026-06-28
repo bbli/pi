@@ -2278,7 +2278,10 @@ export class AgentSession {
 				},
 				getThinkingLevel: () => this.thinkingLevel,
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
-				runBranchSession: (prompt, options) => runBranchSession(prompt, options, this, this._subagentRegistry),
+				runBranchSession: (prompt, options) => {
+					const keepAlive = options.keepAlive ?? runner.getFlagValues().get("keep-branch-sessions") === true;
+					return runBranchSession(prompt, { ...options, keepAlive }, this, this._subagentRegistry);
+				},
 				getConsiderations: () => this._extensionRunner.getConsiderations(),
 				removeConsideration: (text) => this._extensionRunner.removeConsideration(text),
 				getGuidelines: () => this._extensionRunner.getAllGuidelines(),

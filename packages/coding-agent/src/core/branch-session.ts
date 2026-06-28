@@ -108,18 +108,34 @@ function processBranchResponse(branchSession: AgentSession, label: string, start
 }
 
 /**
- * Step 5 — Abort the branch session to stop any in-flight operations.
- * Sessions are intentionally not disposed so they remain inspectable.
+ * Step 5 — Abort and optionally dispose the branch session.
+ * When keepAlive is true (e.g. --keep-branch-sessions flag), only abort is
+ * called so the session remains inspectable after the run.
  */
 async function cleanupBranchSession(
 	branchSession: AgentSession,
-	_registry: SubagentRegistry | undefined,
-	_registeredId: string | undefined,
+	registry: SubagentRegistry | undefined,
+	registeredId: string | undefined,
+	keepAlive: boolean,
 ): Promise<void> {
-	try {
-		await branchSession.abort();
-	} catch {
-		// ignore abort errors on teardown
+	if (keepAlive) {
+		try {
+			await branchSession.abort();
+		} catch {
+			// ignore abort errors on teardown
+		}
+		return;
+	}
+	if (registry && registeredId) {
+		// registry.remove() handles abort + dispose
+		registry.remove(registeredId);
+	} else {
+		try {
+			await branchSession.abort();
+		} catch {
+			// ignore abort errors on teardown
+		}
+		branchSession.dispose();
 	}
 }
 
@@ -170,6 +186,6 @@ export async function runBranchSession(
 		return processBranchResponse(branchSession, label, start);
 	} finally {
 		// Step 5: cleanup
-		await cleanupBranchSession(branchSession, registry, registeredId);
+		await cleanupBranchSession(branchSession, registry, registeredId, options.keepAlive ?? false);
 	}
 }

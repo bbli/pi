@@ -113,10 +113,16 @@ export default function osAgent(pi: ExtensionAPI): void {
 		}
 	});
 
-	// --- CLI flag ---
+	// --- CLI flags ---
 
 	pi.registerFlag("no-advisor", {
 		description: "Disable the advisory system on startup",
+		type: "boolean",
+		default: false,
+	});
+
+	pi.registerFlag("keep-branch-sessions", {
+		description: "Keep branch sessions alive after completion (skip dispose) for debugging",
 		type: "boolean",
 		default: false,
 	});

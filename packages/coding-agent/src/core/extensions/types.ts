@@ -1108,6 +1108,13 @@ export interface BranchSessionOptions {
 	customTools?: ToolDefinition[];
 	/** Human-readable label shown in the TUI footer while the session runs. */
 	label?: string;
+	/**
+	 * If true, the session is aborted but not disposed after completion.
+	 * Useful for post-run inspection during debugging.
+	 * Controlled at the process level via the --keep-branch-sessions CLI flag;
+	 * callers can also set it explicitly.
+	 */
+	keepAlive?: boolean;
 }
 
 /** A consideration registered via registerConsideration(). */
