@@ -25,6 +25,10 @@ import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
 import type { SubagentRegistry } from "./subagent-registry.ts";
 
+// ---------------------------------------------------------------------------
+// Step helpers
+// ---------------------------------------------------------------------------
+
 function createBranchResourceLoader(systemPrompt: string): ResourceLoader {
 	const extensionsResult = { extensions: [], errors: [], runtime: createExtensionRuntime() };
 	return {
@@ -41,11 +45,102 @@ function createBranchResourceLoader(systemPrompt: string): ResourceLoader {
 }
 
 /**
+ * Step 1 — Create an in-memory agent session configured for branch use.
+ * Caller must have already verified mainSession.model is non-null.
+ */
+async function createBranchAgentSession(
+	options: BranchSessionOptions,
+	mainSession: AgentSession,
+): Promise<AgentSession> {
+	const { session } = await createAgentSession({
+		sessionManager: SessionManager.inMemory(),
+		model: mainSession.model!,
+		modelRegistry: mainSession.modelRegistry,
+		thinkingLevel: "off",
+		tools: options.tools ?? ["read", "grep", "find", "ls", "bash"],
+		customTools: options.customTools,
+		resourceLoader: createBranchResourceLoader(options.systemPrompt),
+		cwd: mainSession.cwd,
+	});
+	return session;
+}
+
+/**
+ * Step 2 — Seed the branch session with the main session's conversation history.
+ * Returns the number of messages seeded (for logging).
+ */
+function seedBranchContext(branchSession: AgentSession, mainSession: AgentSession): number {
+	const context = buildSessionContext(mainSession.sessionManager.getEntries(), mainSession.sessionManager.getLeafId());
+	branchSession.agent.state.messages = context.messages;
+	return context.messages.length;
+}
+
+/**
+ * Step 4 — Scan the branch session's messages backwards for the last assistant
+ * text response. Returns the trimmed text, or undefined if the session errored,
+ * was aborted, or produced no text output (tool-use only turns are skipped).
+ */
+function processBranchResponse(branchSession: AgentSession, label: string, start: number): string | undefined {
+	for (let i = branchSession.state.messages.length - 1; i >= 0; i--) {
+		const m = branchSession.state.messages[i];
+		if (m.role !== "assistant") continue;
+		const assistant = m as AssistantMessage;
+		if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
+			console.error(
+				`[branch-session] stopReason=${assistant.stopReason} label=${label} elapsed=${Date.now() - start}ms`,
+			);
+			return undefined;
+		}
+		const raw = assistant.content
+			.filter((c) => c.type === "text")
+			.map((c) => (c as Extract<typeof c, { type: "text" }>).text)
+			.join("\n")
+			.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+			.trim();
+		if (raw) {
+			console.error(
+				`[branch-session] result label=${label} elapsed=${Date.now() - start}ms: "${raw.slice(0, 80)}${raw.length > 80 ? "..." : ""}"`,
+			);
+			return raw;
+		}
+		// Tool-use only turn — keep scanning backwards.
+	}
+	console.error(`[branch-session] no text output label=${label} elapsed=${Date.now() - start}ms`);
+	return undefined;
+}
+
+/**
+ * Step 5 — Abort and dispose the branch session, or remove it from the
+ * registry (which handles abort + dispose internally).
+ */
+async function cleanupBranchSession(
+	branchSession: AgentSession,
+	registry: SubagentRegistry | undefined,
+	registeredId: string | undefined,
+): Promise<void> {
+	if (registry && registeredId) {
+		// registry.remove() handles abort + dispose
+		registry.remove(registeredId);
+	} else {
+		try {
+			await branchSession.abort();
+		} catch {
+			// ignore abort errors on teardown
+		}
+		branchSession.dispose();
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Public entry point
+// ---------------------------------------------------------------------------
+
+/**
  * Run a separate agentic session seeded with the full main session history.
  *
  * Returns the last assistant text produced, or undefined if the session
  * produced no text output or errored/aborted. Sentinel parsing (e.g. looking
- * for INJECT_PROMPT or TASK_COMPLETE markers) is left to the caller.
+ * for YES/NO markers or structured output) is left to the caller.
  */
 export async function runBranchSession(
 	prompt: string,
@@ -54,85 +149,35 @@ export async function runBranchSession(
 	registry?: SubagentRegistry,
 ): Promise<string | undefined> {
 	if (!prompt.trim()) return undefined;
-
-	const model = mainSession.model;
-	if (!model) return undefined;
-
-	const { session } = await createAgentSession({
-		sessionManager: SessionManager.inMemory(),
-		model,
-		modelRegistry: mainSession.modelRegistry,
-		thinkingLevel: "off",
-		tools: options.tools ?? ["read", "grep", "find", "ls", "bash"],
-		customTools: options.customTools,
-		resourceLoader: createBranchResourceLoader(options.systemPrompt),
-		cwd: mainSession.cwd,
-	});
+	if (!mainSession.model) return undefined;
 
 	const label = options.label ?? "branch";
 	const start = Date.now();
+
+	// Step 1: create session
+	const branchSession = await createBranchAgentSession(options, mainSession);
+
 	let registeredId: string | undefined;
 	try {
-		const context = buildSessionContext(
-			mainSession.sessionManager.getEntries(),
-			mainSession.sessionManager.getLeafId(),
-		);
-		session.agent.state.messages = context.messages;
+		// Step 2: seed context
+		const messageCount = seedBranchContext(branchSession, mainSession);
 
 		if (registry) {
 			registeredId = crypto.randomUUID();
-			registry.register({
-				id: registeredId,
-				label,
-				kind: "branch",
-				session,
-			});
+			registry.register({ id: registeredId, label, kind: "branch", session: branchSession });
 		}
 
 		console.error(
-			`[branch-session] start label=${label} model=${model.id} context_messages=${context.messages.length}`,
+			`[branch-session] start label=${label} model=${mainSession.model.id} context_messages=${messageCount}`,
 		);
 
-		await session.prompt(prompt, { source: "extension" });
+		// Step 3: run the prompt
+		await branchSession.prompt(prompt, { source: "extension" });
 
-		// Scan backwards for the last assistant message with text content.
-		for (let i = session.state.messages.length - 1; i >= 0; i--) {
-			const m = session.state.messages[i];
-			if (m.role !== "assistant") continue;
-			const assistant = m as AssistantMessage;
-			if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
-				console.error(
-					`[branch-session] stopReason=${assistant.stopReason} label=${label} elapsed=${Date.now() - start}ms`,
-				);
-				return undefined;
-			}
-			const raw = assistant.content
-				.filter((c) => c.type === "text")
-				.map((c) => (c as Extract<typeof c, { type: "text" }>).text)
-				.join("\n")
-				.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
-				.trim();
-			if (raw) {
-				console.error(
-					`[branch-session] result label=${label} elapsed=${Date.now() - start}ms: "${raw.slice(0, 80)}${raw.length > 80 ? "..." : ""}"`,
-				);
-				return raw;
-			}
-			// Tool-use only turn — keep scanning.
-		}
-		console.error(`[branch-session] no text output label=${label} elapsed=${Date.now() - start}ms`);
-		return undefined;
+		// Step 4: process response
+		return processBranchResponse(branchSession, label, start);
 	} finally {
-		if (registry && registeredId) {
-			// registry.remove() handles abort + dispose
-			registry.remove(registeredId);
-		} else {
-			try {
-				await session.abort();
-			} catch {
-				// ignore abort errors on teardown
-			}
-			session.dispose();
-		}
+		// Step 5: cleanup
+		await cleanupBranchSession(branchSession, registry, registeredId);
 	}
 }
