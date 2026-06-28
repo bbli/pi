@@ -71,8 +71,11 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "code-workflow",
 		triggerPrompt:
-			"Is the user's latest message clearly a request to implement a new feature, " +
-			'build something new, or add functionality? (e.g. "implement X", "add Y", "build Z", "create a ...")',
+			"Two conditions must BOTH be true to trigger: " +
+			"(1) The user's latest message is clearly a request to implement a new feature, " +
+			'build something new, or add functionality (e.g. "implement X", "add Y", "build Z"). ' +
+			"(2) The string [ADVISORY: CODE_WORKFLOW] does NOT already appear anywhere in the conversation history. " +
+			"If [ADVISORY: CODE_WORKFLOW] is already present, do NOT trigger.",
 		injectPrompt: CODE_WORKFLOW_PROMPT,
 		label: "advisory:code-workflow",
 	});
@@ -80,7 +83,10 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "debug-workflow",
 		triggerPrompt:
-			"Is the user's latest message a request to debug, investigate, or fix a specific bug or error?",
+			"Two conditions must BOTH be true to trigger: " +
+			"(1) The user's latest message is a request to debug, investigate, or fix a specific bug or error. " +
+			"(2) The string [ADVISORY: DEBUG_WORKFLOW] does NOT already appear anywhere in the conversation history. " +
+			"If [ADVISORY: DEBUG_WORKFLOW] is already present, do NOT trigger.",
 		injectPrompt: DEBUG_WORKFLOW_PROMPT,
 		label: "advisory:debug-workflow",
 	});
@@ -90,8 +96,10 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerContinuation({
 		id: "review-after-commit",
 		triggerPrompt:
-			"Has a git commit been made during this agent run? " +
-			'Look for a successful "git commit" command in the recent tool call results.',
+			"Two conditions must BOTH be true to trigger: " +
+			"(1) A git commit was made during this agent run — look for a successful git commit in the recent tool call results. " +
+			"(2) The string [ADVISORY: CODE_REVIEW] does NOT already appear anywhere in the conversation history. " +
+			"If [ADVISORY: CODE_REVIEW] is already present, do NOT trigger.",
 		injectPrompt: REVIEW_PROMPT,
 		label: "advisory:review",
 	});
