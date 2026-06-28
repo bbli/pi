@@ -237,19 +237,52 @@ const noOpUIContext: ExtensionUIContext = {
 
 const ADVISORY_EVAL_SYSTEM_PROMPT = `\
 You are a condition evaluator with access to the full conversation history.
-For each numbered condition below, call fire(id) only when you are confident the \
-condition is currently true based on the conversation.
+For each numbered condition below, call injectUserMessage with the provided inject prompt \
+if and only if you are confident the condition is currently true.
 You may use read, grep, find, ls, bash to inspect the codebase if needed.
-Do not call fire() when uncertain. Do not explain your reasoning. Output nothing.`;
+Do not call injectUserMessage when uncertain. Do not explain your reasoning. Output nothing.`;
 
-function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ id: string; triggerPrompt: string }>): string {
+/**
+ * Builds the evaluation prompt listing trigger conditions alongside their inject prompts.
+ * The LLM calls injectUserMessage(prompt) directly for each matched condition.
+ */
+function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ triggerPrompt: string; injectPrompt: string }>): string {
+	const sections = entries.map((e, i) =>
+		[
+			`--- Condition ${i + 1} ---`,
+			`Trigger: ${e.triggerPrompt}`,
+			`Inject prompt if triggered:\n${e.injectPrompt}`,
+		].join("\n"),
+	);
 	return [
-		"Evaluate these conditions based on the current conversation:",
+		"Evaluate these conditions based on the current conversation.",
+		"For each condition that is true, call injectUserMessage with the exact inject prompt shown.",
+		"Do not call injectUserMessage if the condition is not clearly met.",
 		"",
-		...entries.map((e, i) => `${i + 1}. [id: ${e.id}] ${e.triggerPrompt}`),
-		"",
-		"Call fire(id) for each condition that is currently true. Do not call fire() if uncertain.",
+		...sections,
 	].join("\n");
+}
+
+/**
+ * Creates the shared injectUserMessage tool used by both guidelines and continuations.
+ * Calls onInject(prompt) immediately when the LLM invokes it during the branch session.
+ */
+function makeInjectTool(onInject: (prompt: string) => void) {
+	return defineTool({
+		name: "injectUserMessage",
+		label: "Inject Advisory",
+		description:
+			"Call this with the exact inject prompt text when a listed condition is met. " +
+			"Do not call if the condition is not clearly met.",
+		parameters: Type.Object({
+			prompt: Type.String({ description: "The exact inject prompt text to deliver." }),
+		}),
+		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+			console.error(`[advisory] injectUserMessage called chars=${params.prompt.length}`);
+			onInject(params.prompt);
+			return { content: [{ type: "text" as const, text: "injected" }], details: undefined };
+		},
+	});
 }
 
 export class ExtensionRunner {
@@ -459,56 +492,18 @@ export class ExtensionRunner {
 	}
 
 	/**
-	 * Evaluate all guidelines in one branch session using a fire(id) tool.
-	 * Batches triggered inject prompts into a single steer. Detached from emitTurnStart.
+	 * Evaluate all guidelines in one branch session. The LLM calls injectUserMessage
+	 * directly for each condition it deems met. Detached from emitTurnStart.
 	 */
 	private async _runGuidelinesAsync(guidelines: GuidelineDefinition[]): Promise<void> {
 		this._advisoryRunning = true;
 		try {
-			const triggered = new Set<string>();
-			const validIds = new Set(guidelines.map((g) => g.id));
-
-			const fireTool = defineTool({
-				name: "fire",
-				label: "Fire Advisory",
-				description:
-					"Call this for each listed condition that is currently met. " +
-					"Pass the exact id from the numbered list. Do not call if uncertain.",
-				parameters: Type.Object({
-					id: Type.String({ description: "The condition id to fire." }),
-				}),
-				execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
-					if (validIds.has(params.id)) {
-						triggered.add(params.id);
-						console.error(`[advisory] guideline fired: ${params.id}`);
-					} else {
-						console.error(`[advisory] guideline unknown id ignored: ${params.id}`);
-					}
-					return { content: [{ type: "text" as const, text: "recorded" }], details: undefined };
-				},
-			});
-
 			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(guidelines), {
 				systemPrompt: ADVISORY_EVAL_SYSTEM_PROMPT,
 				tools: ["read", "grep", "find", "ls", "bash"],
-				customTools: [fireTool],
+				customTools: [makeInjectTool((prompt) => this.runtime.injectUserMessage(prompt, "steer"))],
 				label: "advisory:guidelines",
 			});
-
-			// Re-check enabled — user may have toggled off while branch session ran.
-			if (!this._advisoryEnabled || triggered.size === 0) return;
-
-			const parts = [...triggered]
-				.map((id) => guidelines.find((g) => g.id === id)?.injectPrompt)
-				.filter((p): p is string => p !== undefined);
-
-			if (parts.length === 0) return;
-
-			const ids = [...triggered].join(", ");
-			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
-			const injectMsg = `Wait, before you proceed, consider the following:\n\n${body}`;
-			console.error(`[advisory] guidelines injecting ids=[${ids}] chars=${injectMsg.length}`);
-			this.runtime.injectUserMessage(injectMsg, "steer");
 		} catch (err) {
 			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
 		} finally {
@@ -531,55 +526,17 @@ export class ExtensionRunner {
 	}
 
 	/**
-	 * Evaluate all continuations in one branch session using a fire(id) tool.
-	 * Batches all triggered inject prompts into a single followUp message.
-	 * Awaited synchronously — blocks agent_end completion until done.
+	 * Evaluate all continuations in one branch session. The LLM calls injectUserMessage
+	 * directly for each condition it deems met. Awaited synchronously — blocks agent_end.
 	 */
 	private async _runContinuationsSync(continuations: ContinuationDefinition[]): Promise<void> {
 		try {
-			const triggered = new Set<string>();
-			const validIds = new Set(continuations.map((c) => c.id));
-
-			const fireTool = defineTool({
-				name: "fire",
-				label: "Fire Continuation",
-				description:
-					"Call this for each listed condition that is currently met. " +
-					"Pass the exact id from the numbered list. Do not call if uncertain.",
-				parameters: Type.Object({
-					id: Type.String({ description: "The condition id to fire." }),
-				}),
-				execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
-					if (validIds.has(params.id)) {
-						triggered.add(params.id);
-						console.error(`[advisory] continuation fired: ${params.id}`);
-					} else {
-						console.error(`[advisory] continuation unknown id ignored: ${params.id}`);
-					}
-					return { content: [{ type: "text" as const, text: "recorded" }], details: undefined };
-				},
-			});
-
 			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(continuations), {
 				systemPrompt: ADVISORY_EVAL_SYSTEM_PROMPT,
 				tools: ["read", "grep", "find", "ls", "bash"],
-				customTools: [fireTool],
+				customTools: [makeInjectTool((prompt) => this.runtime.injectUserMessage(prompt, "followUp"))],
 				label: "advisory:continuations",
 			});
-
-			if (triggered.size === 0) return;
-
-			const parts = [...triggered]
-				.map((id) => continuations.find((c) => c.id === id)?.injectPrompt)
-				.filter((p): p is string => p !== undefined);
-
-			if (parts.length === 0) return;
-
-			const ids = [...triggered].join(", ");
-			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
-			const injectMsg = `Wait, before you continue, consider the following:\n\n${body}`;
-			console.error(`[advisory] continuations injecting ids=[${ids}] chars=${injectMsg.length}`);
-			this.runtime.injectUserMessage(injectMsg, "followUp");
 		} catch (err) {
 			console.error(`[advisory] continuations error: ${err instanceof Error ? err.message : String(err)}`);
 		}
