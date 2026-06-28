@@ -108,24 +108,18 @@ function processBranchResponse(branchSession: AgentSession, label: string, start
 }
 
 /**
- * Step 5 — Abort and dispose the branch session, or remove it from the
- * registry (which handles abort + dispose internally).
+ * Step 5 — Abort the branch session to stop any in-flight operations.
+ * Sessions are intentionally not disposed so they remain inspectable.
  */
 async function cleanupBranchSession(
 	branchSession: AgentSession,
-	registry: SubagentRegistry | undefined,
-	registeredId: string | undefined,
+	_registry: SubagentRegistry | undefined,
+	_registeredId: string | undefined,
 ): Promise<void> {
-	if (registry && registeredId) {
-		// registry.remove() handles abort + dispose
-		registry.remove(registeredId);
-	} else {
-		try {
-			await branchSession.abort();
-		} catch {
-			// ignore abort errors on teardown
-		}
-		branchSession.dispose();
+	try {
+		await branchSession.abort();
+	} catch {
+		// ignore abort errors on teardown
 	}
 }
 
