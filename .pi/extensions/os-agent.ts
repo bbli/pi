@@ -20,6 +20,8 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
+import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
 
 // ---------------------------------------------------------------------------
 // Inject prompts
@@ -70,6 +72,69 @@ A commit was just made. Before considering this task done:
 // Extension entry point
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// /advisor TUI component
+// ---------------------------------------------------------------------------
+
+class AdvisoryStatusComponent extends Container {
+	private settingsList: SettingsList;
+
+	constructor(pi: ExtensionAPI, onClose: () => void) {
+		super();
+
+		const guidelines = pi.getGuidelines();
+		const continuations = pi.getContinuations();
+
+		const items: SettingItem[] = [
+			{
+				id: "system",
+				label: "Advisory System",
+				currentValue: pi.getAdvisoryEnabled() ? "enabled" : "disabled",
+				values: ["enabled", "disabled"],
+				description:
+					"Toggle the advisory system on or off. When disabled, no guidelines " +
+					"or continuations are evaluated.",
+			},
+			...guidelines.map((g) => ({
+				id: `guideline:${g.id}`,
+				label: g.id,
+				currentValue: "guideline",
+				description: `Trigger: ${g.triggerPrompt}`,
+			})),
+			...continuations.map((c) => ({
+				id: `continuation:${c.id}`,
+				label: c.id,
+				currentValue: "continuation",
+				description: `Trigger: ${c.triggerPrompt}`,
+			})),
+		];
+
+		this.settingsList = new SettingsList(
+			items,
+			Math.min(items.length + 2, 12),
+			getSettingsListTheme(),
+			(id, newValue) => {
+				if (id === "system") {
+					pi.setAdvisoryEnabled(newValue === "enabled");
+				}
+			},
+			onClose,
+		);
+
+		this.addChild(new DynamicBorder());
+		this.addChild(this.settingsList);
+		this.addChild(new DynamicBorder());
+	}
+
+	handleInput(data: string): void {
+		this.settingsList.handleInput(data);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Extension entry point
+// ---------------------------------------------------------------------------
+
 export default function osAgent(pi: ExtensionAPI): void {
 	// --- Guidelines (turn_start, async) ---
 
@@ -112,6 +177,28 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"If a review has already been conducted for this specific commit, do not trigger.",
 		injectPrompt: REVIEW_PROMPT,
 		label: "advisory:review",
+	});
+
+	// --- /advisor command ---
+
+	pi.registerCommand("advisor", {
+		description:
+			"Show advisory system status and registered guidelines/continuations. " +
+			"Toggle: /advisor on | /advisor off",
+		handler: async (args, ctx) => {
+			const arg = args.trim().toLowerCase();
+			if (arg === "on") {
+				pi.setAdvisoryEnabled(true);
+				ctx.ui.notify("[advisory] enabled", "info");
+				return;
+			}
+			if (arg === "off") {
+				pi.setAdvisoryEnabled(false);
+				ctx.ui.notify("[advisory] disabled", "warning");
+				return;
+			}
+			await ctx.ui.custom<void>((_tui, _theme, _kb, done) => new AdvisoryStatusComponent(pi, done));
+		},
 	});
 
 	// --- Startup logging (fires after bindCore, so advisory API is live) ---
