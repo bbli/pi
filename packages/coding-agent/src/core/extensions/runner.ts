@@ -332,6 +332,7 @@ export class ExtensionRunner {
 		this.runtime.removeConsideration = actions.removeConsideration;
 		this.runtime.getGuidelines = actions.getGuidelines;
 		this.runtime.getContinuations = actions.getContinuations;
+		this.runtime.injectUserMessage = actions.injectUserMessage;
 		// Self-wired: advisory state lives on the runner, not on agent-session.
 		this.runtime.setAdvisoryEnabled = (enabled: boolean) => {
 			this._advisoryEnabled = enabled;
@@ -507,8 +508,7 @@ export class ExtensionRunner {
 			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
 			const injectMsg = `Wait, before you proceed, consider the following:\n\n${body}`;
 			console.error(`[advisory] guidelines injecting ids=[${ids}] chars=${injectMsg.length}`);
-			this.uiContext.notify(`[advisory] injecting: ${ids}`, "info");
-			this.runtime.sendUserMessage(injectMsg, { deliverAs: "steer" });
+			this.runtime.injectUserMessage(injectMsg, "steer");
 		} catch (err) {
 			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
 		} finally {
@@ -579,8 +579,7 @@ export class ExtensionRunner {
 			const body = parts.length === 1 ? parts[0] : parts.join("\n\n---\n\n");
 			const injectMsg = `Wait, before you continue, consider the following:\n\n${body}`;
 			console.error(`[advisory] continuations injecting ids=[${ids}] chars=${injectMsg.length}`);
-			this.uiContext.notify(`[advisory] injecting: ${ids}`, "info");
-			this.runtime.sendUserMessage(injectMsg, { deliverAs: "followUp" });
+			this.runtime.injectUserMessage(injectMsg, "followUp");
 		} catch (err) {
 			console.error(`[advisory] continuations error: ${err instanceof Error ? err.message : String(err)}`);
 		}

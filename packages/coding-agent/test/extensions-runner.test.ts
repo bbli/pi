@@ -76,6 +76,7 @@ describe("ExtensionRunner", () => {
 		removeConsideration: () => false,
 		getGuidelines: () => [],
 		getContinuations: () => [],
+		injectUserMessage: () => {},
 	};
 
 	const extensionContextActions: ExtensionContextActions = {

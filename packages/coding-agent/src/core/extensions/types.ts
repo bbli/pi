@@ -1631,6 +1631,14 @@ export interface ExtensionActions {
 	removeConsideration: (text: string) => boolean;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
+	/**
+	 * Inject a user message into the session immediately.
+	 * When streaming: pre-persists, fires message_start/message_end so the TUI renders
+	 * at once, then queues to the agent-core via steer() or followUp().
+	 * When idle: falls back to sendUserMessage which starts a new agent run.
+	 * Internal use only — not exposed on ExtensionAPI.
+	 */
+	injectUserMessage: (text: string, deliverAs: "steer" | "followUp") => void;
 }
 
 /**

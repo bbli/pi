@@ -159,6 +159,7 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		getContinuations: notInitialized,
 		setAdvisoryEnabled: notInitialized,
 		getAdvisoryEnabled: notInitialized,
+		injectUserMessage: notInitialized,
 		flagValues: new Map(),
 		pendingProviderRegistrations: [],
 		assertActive,

@@ -2283,6 +2283,40 @@ export class AgentSession {
 				removeConsideration: (text) => this._extensionRunner.removeConsideration(text),
 				getGuidelines: () => this._extensionRunner.getAllGuidelines(),
 				getContinuations: () => this._extensionRunner.getAllContinuations(),
+				injectUserMessage: (text, deliverAs) => {
+					if (this.isStreaming) {
+						// Pre-persist and fire session events immediately so the TUI
+						// renders the inject message now, without waiting for the agent
+						// loop to process the steer/followUp queue.
+						const msg = {
+							role: "user" as const,
+							content: [{ type: "text" as const, text }],
+							timestamp: Date.now(),
+						};
+						this.sessionManager.appendMessage(msg);
+						this._prePersistedMessages.add(msg);
+						this._emit({ type: "message_start", message: msg });
+						this._emit({ type: "message_end", message: msg });
+						// Queue to agent-core so the LLM also sees the message.
+						// When the loop processes it, message_start/message_end fire
+						// again but _prePersistedMessages prevents double-persistence.
+						if (deliverAs === "steer") {
+							this.agent.steer(msg);
+						} else {
+							this.agent.followUp(msg);
+						}
+					} else {
+						// Idle: sendUserMessage starts a new agent run and handles
+						// pre-persist + event firing via runAgentLoop internally.
+						this.sendUserMessage(text, { deliverAs }).catch((err) => {
+							runner.emitError({
+								extensionPath: "<advisory>",
+								event: "inject_user_message",
+								error: err instanceof Error ? err.message : String(err),
+							});
+						});
+					}
+				},
 			},
 			{
 				getModel: () => this.model,
