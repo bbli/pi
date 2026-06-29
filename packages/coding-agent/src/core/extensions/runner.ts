@@ -3,7 +3,7 @@
  */
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import { getModel, type ImageContent, type Model } from "@earendil-works/pi-ai";
+import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { KeyId } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type Theme, theme } from "../../modes/interactive/theme/theme.ts";
@@ -532,7 +532,6 @@ export class ExtensionRunner {
 				customTools: [
 					makeInjectGuidelineTool(guidelines, (prompt) => this.runtime.injectUserMessage(prompt, "steer")),
 				],
-				model: getModel("anthropic", "claude-haiku-4-5"),
 				label: "advisory:guidelines",
 			});
 		} catch (err) {
@@ -568,7 +567,6 @@ export class ExtensionRunner {
 				customTools: [
 					makeInjectGuidelineTool(continuations, (prompt) => this.runtime.injectUserMessage(prompt, "followUp")),
 				],
-				model: getModel("anthropic", "claude-haiku-4-5"),
 				label: "advisory:continuations",
 			});
 		} catch (err) {
