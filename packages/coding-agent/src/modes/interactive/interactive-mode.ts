@@ -2846,7 +2846,7 @@ export class InteractiveMode {
 	 * Clear the chat pane and replay an arbitrary message list.
 	 * Used when switching focus to a subagent session.
 	 */
-	private switchToMessages(session: AgentSession): void {
+	private renderLiveSessionState(session: AgentSession): void {
 		this.chatContainer.clear();
 		this.pendingMessagesContainer.clear();
 		// compactionQueuedMessages is managed by saveConversationState/restoreConversationState.
@@ -2939,11 +2939,7 @@ export class InteractiveMode {
 			this.ui.terminal.setProgress(false);
 		}
 		this.orchestrator.focus(record);
-		if (record === undefined) {
-			this.renderCurrentSessionState();
-		} else {
-			this.switchToMessages(record.session);
-		}
+		this.renderLiveSessionState(record?.session ?? this.orchestrator.rootSession);
 		this.restoreConversationState();
 		if (record === undefined) {
 			// Root's pending steer/followUp queue needs an explicit refresh — no queue_update fires on return.
@@ -4808,11 +4804,7 @@ export class InteractiveMode {
 		this.orchestrator.kill(focused.id);
 		// Sync TUI to whatever focus the orchestrator settled on after the kill.
 		const next = this.orchestrator.focusedRecord;
-		if (next === undefined) {
-			this.renderCurrentSessionState();
-		} else {
-			this.switchToMessages(next.session);
-		}
+		this.renderLiveSessionState(next?.session ?? this.orchestrator.rootSession);
 		this.restoreConversationState();
 		if (next === undefined) {
 			this.updatePendingMessagesDisplay();

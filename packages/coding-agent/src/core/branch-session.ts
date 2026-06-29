@@ -137,7 +137,7 @@ export async function runBranchSession(
 	let registeredId: string | undefined;
 	try {
 		// Step 2: seed context
-		const messageCount = seedBranchContext(branchSession, mainSession);
+		const _messageCount = seedBranchContext(branchSession, mainSession);
 
 		if (registry) {
 			registeredId = crypto.randomUUID();
