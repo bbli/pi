@@ -59,7 +59,7 @@ async function createBranchAgentSession(
 	const customToolNames = (options.customTools ?? []).map((t) => t.name);
 	const { session } = await createAgentSession({
 		sessionManager: SessionManager.inMemory(),
-		model: mainSession.model!,
+		model: options.model ?? mainSession.model!,
 		modelRegistry: mainSession.modelRegistry,
 		thinkingLevel: "off",
 		tools: [...builtinTools, ...customToolNames],
@@ -181,7 +181,7 @@ export async function runBranchSession(
 		}
 
 		console.error(
-			`[branch-session] start label=${label} model=${mainSession.model.id} context_messages=${messageCount}`,
+			`[branch-session] start label=${label} model=${(options.model ?? mainSession.model).id} context_messages=${messageCount}`,
 		);
 
 		// Step 3: run the prompt
