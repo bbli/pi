@@ -582,12 +582,22 @@ export class ExtensionRunner {
 	 * directly for each condition it deems met. Awaited synchronously — blocks agent_end.
 	 */
 	private async _runContinuationsSync(continuations: ContinuationDefinition[]): Promise<void> {
+		const now = Date.now();
+		const eligible = continuations.filter((c) => {
+			const last = this._lastInjectedAt.get(c.id);
+			return last === undefined || now - last > ExtensionRunner.GUIDELINE_COOLDOWN_MS;
+		});
+		if (eligible.length === 0) return;
 		try {
-			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(continuations), {
+			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(eligible), {
 				systemPrompt: ADVISORY_EVAL_SYSTEM_PROMPT,
 				tools: ["read", "grep", "find", "ls"],
 				customTools: [
-					makeInjectGuidelineTool(continuations, (prompt) => this.runtime.injectUserMessage(prompt, "followUp")),
+					makeInjectGuidelineTool(
+						eligible,
+						(prompt) => this.runtime.injectUserMessage(prompt, "followUp"),
+						this._lastInjectedAt,
+					),
 				],
 				label: "advisory:continuations",
 			});
