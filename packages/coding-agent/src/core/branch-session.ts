@@ -144,10 +144,6 @@ export async function runBranchSession(
 			registry.register({ id: registeredId, label, kind: "branch", session: branchSession });
 		}
 
-		console.error(
-			`[branch-session] start label=${label} model=${(options.model ?? mainSession.model).id} context_messages=${messageCount}`,
-		);
-
 		// Step 3: run the prompt
 		await branchSession.prompt(prompt, { source: "extension" });
 	} finally {

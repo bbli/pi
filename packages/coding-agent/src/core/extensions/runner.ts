@@ -7,6 +7,7 @@ import type { ImageContent, Model } from "@earendil-works/pi-ai";
 import type { KeyId } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { type Theme, theme } from "../../modes/interactive/theme/theme.ts";
+import { debugLog } from "../debug.ts";
 import type { ResourceDiagnostic } from "../diagnostics.ts";
 import type { KeybindingsConfig } from "../keybindings.ts";
 import type { ModelRegistry } from "../model-registry.ts";
@@ -311,7 +312,7 @@ function makeInjectGuidelineTool(
 				console.error(`injectGuideline unknown id=${params.id}`);
 				return { content: [{ type: "text" as const, text: `unknown id: ${params.id}` }], details: undefined };
 			}
-			console.error(`injectGuideline id=${params.id} chars=${prompt.length}`);
+			debugLog(`injectGuideline id=${params.id} chars=${prompt.length}`);
 			lastInjectedAt?.set(params.id, Date.now());
 			onInject(prompt);
 			return { content: [{ type: "text" as const, text: "injected" }], details: undefined };

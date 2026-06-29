@@ -13,9 +13,8 @@
  * The advisory system can be toggled at runtime via /advisor [on|off].
  * Pass --no-advisor on the CLI to start with it disabled.
  *
- * Each inject prompt begins with an [ADVISORY: ID] sentinel that:
- * - Identifies the message as coming from a background monitor
- * - Gives the main agent explicit discretion to follow or ignore it
+ * Each inject prompt begins with a [SYSTEM INSTRUCTION: ID] sentinel that:
+ * - Directs the main agent to follow the instructions before proceeding
  * - Provides an idempotency skip condition for the main agent
  */
 
@@ -25,15 +24,15 @@ import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tu
 
 // ---------------------------------------------------------------------------
 // Inject prompts
-// Each begins with an [ADVISORY: ID] sentinel that identifies the source,
-// grants the main agent discretion, and carries an idempotency skip condition.
+// Each begins with a [SYSTEM INSTRUCTION: ID] sentinel that directs the main agent
+// to follow the instructions and carries an idempotency skip condition.
 // ---------------------------------------------------------------------------
 
 const CODE_WORKFLOW_PROMPT = `\
-[ADVISORY: CODE_WORKFLOW — injected by a background monitor. Please follow these \
-instructions for your current task first, then continue with what you were doing \
-afterward if still needed. Skip only if you have already received and are actively \
-following these instructions for the current task.]
+[SYSTEM INSTRUCTION: CODE_WORKFLOW — You must follow this workflow before proceeding. \
+Before starting, briefly note what you were in the middle of and outline the steps \
+you will need to return to once this workflow is complete. \
+Skip only if you are already actively working through these steps.]
 
 
 # Integrated System Code Implementation Plan
@@ -255,10 +254,8 @@ PHASE 2: Implementation → Code per Step → Verify observable behavior → �
 **Remember**: Identifying what you don't understand about your specific implementation plan is just as valuable as planning what you do understand. The user EXPECTS and VALUES uncertainty identification based on the concrete plan you've created. **Equally, every step should leave the system in a runnable state with a new, verifiable behavior — thin vertical slices beat broad horizontal layers. And the callpath diagram is the shared map everyone navigates by — keep it accurate and up to date throughout Phase 2.**`;
 
 const DEBUG_WORKFLOW_PROMPT = `\
-[ADVISORY: DEBUG_WORKFLOW — injected by a background monitor. Please follow these \
-instructions for your current task first, then continue with what you were doing \
-afterward if still needed. Skip only if you have already received and are actively \
-following these instructions for the current task.]
+[SYSTEM INSTRUCTION: DEBUG_WORKFLOW — You must follow this workflow before proceeding. \
+Skip only if you are already actively working through these steps.]
 
 You are about to debug an issue. Before making any changes:
 
@@ -269,9 +266,9 @@ You are about to debug an issue. Before making any changes:
 5. Confirm the failure no longer occurs, then run npm run check.`;
 
 const REVIEW_PROMPT = `\
-[ADVISORY: CODE_REVIEW — injected by a background monitor. Please work through this \
-checklist for the commit just made, then continue with what you were doing afterward \
-if still needed. Skip only if a review for this specific commit has already been completed.]
+[SYSTEM INSTRUCTION: CODE_REVIEW — You must work through this checklist for the commit \
+just made before proceeding. Skip only if a review for this specific commit has already \
+been completed.]
 
 ### System Role
 You are a senior software engineer performing a comprehensive code review for a colleague. Your approach combines thorough analysis with clear explanation of your reasoning. Follow the following three-phase procedure:
@@ -609,7 +606,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"a non-trivial code change is underway. " +
 			"Do not trigger for purely mechanical git operations (staging, committing, pushing, " +
 			"branching, or reviewing already-written changes) — no new code is being written. " +
-			"If a recent [ADVISORY: CODE_WORKFLOW] message already covers this task, do not trigger.",
+			"If a recent [SYSTEM INSTRUCTION: CODE_WORKFLOW] message already covers this task, do not trigger.",
 		injectPrompt: CODE_WORKFLOW_PROMPT,
 		label: "advisory:code-workflow",
 	});
@@ -620,7 +617,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"Is the user starting a new debugging or bug-fix task that hasn't already received " +
 			"debugging workflow guidance in the recent conversation? " +
 			"Use your judgment: if this looks like a fresh debugging request that hasn't " +
-			"been covered by a recent [ADVISORY: DEBUG_WORKFLOW] message, trigger. " +
+			"been covered by a recent [SYSTEM INSTRUCTION: DEBUG_WORKFLOW] message, trigger. " +
 			"If the conversation already has debug guidance covering this task, do not trigger.",
 		injectPrompt: DEBUG_WORKFLOW_PROMPT,
 		label: "advisory:debug-workflow",
@@ -633,7 +630,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 		triggerPrompt:
 			"Was a git commit made during this agent run that has not yet been followed by a code review? " +
 			"Find the most recent successful git commit in the tool call results. " +
-			"Then check whether a [ADVISORY: CODE_REVIEW] review checklist has appeared in the " +
+			"Then check whether a [SYSTEM INSTRUCTION: CODE_REVIEW] review checklist has appeared in the " +
 			"conversation AFTER that specific commit. " +
 			"Use your judgment: if the commit is recent and no review has followed it yet, trigger. " +
 			"If a review has already been conducted for this specific commit, do not trigger.",

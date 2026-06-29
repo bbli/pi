@@ -106,7 +106,6 @@ export default function checkGuard(pi: ExtensionAPI) {
 			),
 		}),
 		execute: async (_id, params) => {
-			console.error("[manage_check] called with", params);
 			const cmd = params.command?.trim() ?? "";
 			if (!cmd) {
 				checkCommand = null;
