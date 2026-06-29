@@ -414,14 +414,10 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.on("session_start", (_, ctx) => {
 		const guidelines = pi.getGuidelines();
 		const continuations = pi.getContinuations();
-		console.error(
-			`[advisory] registered ${guidelines.length} guideline(s), ${continuations.length} continuation(s)`,
-		);
 
 		// Apply --no-advisor flag if set.
 		if (pi.getFlag("no-advisor") === true) {
 			pi.setAdvisoryEnabled(false);
-			console.error("[advisory] disabled via --no-advisor flag");
 			if (ctx.hasUI) ctx.ui.notify("[advisory] disabled via --no-advisor", "warning");
 		}
 	});

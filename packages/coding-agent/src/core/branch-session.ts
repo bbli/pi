@@ -16,7 +16,6 @@
  */
 
 import * as crypto from "node:crypto";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { AgentSession } from "./agent-session.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { BranchSessionOptions } from "./extensions/types.ts";
@@ -81,38 +80,6 @@ function seedBranchContext(branchSession: AgentSession, mainSession: AgentSessio
 }
 
 /**
- * Step 4 — Scan the branch session's messages backwards for the last assistant
- * text response. Returns the trimmed text, or undefined if the session errored,
- * was aborted, or produced no text output (tool-use only turns are skipped).
- */
-function processBranchResponse(branchSession: AgentSession, label: string, start: number): string | undefined {
-	for (let i = branchSession.state.messages.length - 1; i >= 0; i--) {
-		const m = branchSession.state.messages[i];
-		if (m.role !== "assistant") continue;
-		const assistant = m as AssistantMessage;
-		if (assistant.stopReason === "error" || assistant.stopReason === "aborted") {
-			console.error(
-				`[branch-session] stopReason=${assistant.stopReason} label=${label} elapsed=${Date.now() - start}ms`,
-			);
-			return undefined;
-		}
-		const raw = assistant.content
-			.filter((c) => c.type === "text")
-			.map((c) => (c as Extract<typeof c, { type: "text" }>).text)
-			.join("\n")
-			.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
-			.trim();
-		if (raw) {
-			console.error(`[branch-session] result label=${label} elapsed=${Date.now() - start}ms:\n${raw}`);
-			return raw;
-		}
-		// Tool-use only turn — keep scanning backwards.
-	}
-	console.error(`[branch-session] no text output label=${label} elapsed=${Date.now() - start}ms`);
-	return undefined;
-}
-
-/**
  * Step 5 — Abort and optionally dispose the branch session.
  * When keepAlive is true (e.g. --keep-branch-sessions flag), only abort is
  * called so the session remains inspectable after the run.
@@ -150,22 +117,19 @@ async function cleanupBranchSession(
 
 /**
  * Run a separate agentic session seeded with the full main session history.
- *
- * Returns the last assistant text produced, or undefined if the session
- * produced no text output or errored/aborted. Sentinel parsing (e.g. looking
- * for YES/NO markers or structured output) is left to the caller.
+ * Results are delivered via custom tool calls (e.g. injectGuideline) rather
+ * than through the return value.
  */
 export async function runBranchSession(
 	prompt: string,
 	options: BranchSessionOptions,
 	mainSession: AgentSession,
 	registry?: SubagentRegistry,
-): Promise<string | undefined> {
-	if (!prompt.trim()) return undefined;
-	if (!mainSession.model) return undefined;
+): Promise<void> {
+	if (!prompt.trim()) return;
+	if (!mainSession.model) return;
 
 	const label = options.label ?? "branch";
-	const start = Date.now();
 
 	// Step 1: create session
 	const branchSession = await createBranchAgentSession(options, mainSession);
@@ -186,9 +150,6 @@ export async function runBranchSession(
 
 		// Step 3: run the prompt
 		await branchSession.prompt(prompt, { source: "extension" });
-
-		// Step 4: process response
-		return processBranchResponse(branchSession, label, start);
 	} finally {
 		// Step 5: cleanup
 		await cleanupBranchSession(branchSession, registry, registeredId, options.keepAlive ?? false);

@@ -255,7 +255,8 @@ with the id shown for that condition. If no condition is met, output nothing and
 call the tool.
 
 You may use read, grep, find, ls, bash to inspect the codebase if needed to evaluate a condition. \
-Do not call injectGuideline when uncertain. Do not explain your reasoning.`;
+Do not call injectGuideline when uncertain. Do not explain your reasoning. \
+Once you have called injectGuideline for all matched conditions (or decided none apply), stop immediately.`;
 
 /**
  * Builds the evaluation prompt listing trigger conditions with their IDs.
@@ -291,6 +292,7 @@ function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ id: string; triggerPro
 function makeInjectGuidelineTool(
 	entries: ReadonlyArray<{ id: string; injectPrompt: string }>,
 	onInject: (prompt: string) => void,
+	lastInjectedAt?: Map<string, number>,
 ) {
 	const promptById = new Map(entries.map((e) => [e.id, e.injectPrompt]));
 	return defineTool({
@@ -306,10 +308,11 @@ function makeInjectGuidelineTool(
 		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
 			const prompt = promptById.get(params.id);
 			if (prompt === undefined) {
-				console.error(`[advisory] injectGuideline unknown id=${params.id}`);
+				console.error(`injectGuideline unknown id=${params.id}`);
 				return { content: [{ type: "text" as const, text: `unknown id: ${params.id}` }], details: undefined };
 			}
-			console.error(`[advisory] injectGuideline id=${params.id} chars=${prompt.length}`);
+			console.error(`injectGuideline id=${params.id} chars=${prompt.length}`);
+			lastInjectedAt?.set(params.id, Date.now());
 			onInject(prompt);
 			return { content: [{ type: "text" as const, text: "injected" }], details: undefined };
 		},
@@ -351,6 +354,12 @@ export class ExtensionRunner {
 	 * Guards against re-entrant advisory runs when turns fire rapidly.
 	 */
 	private _advisoryRunning = false;
+	/**
+	 * Tracks the last time each guideline was injected (by id).
+	 * Used to suppress re-evaluation of recently-fired guidelines.
+	 */
+	private _lastInjectedAt = new Map<string, number>();
+	private static readonly GUIDELINE_COOLDOWN_MS = 30_000;
 
 	constructor(
 		extensions: Extension[],
@@ -525,12 +534,25 @@ export class ExtensionRunner {
 	 */
 	private async _runGuidelinesAsync(guidelines: GuidelineDefinition[]): Promise<void> {
 		this._advisoryRunning = true;
+		const now = Date.now();
+		const eligible = guidelines.filter((g) => {
+			const last = this._lastInjectedAt.get(g.id);
+			return last === undefined || now - last > ExtensionRunner.GUIDELINE_COOLDOWN_MS;
+		});
+		if (eligible.length === 0) {
+			this._advisoryRunning = false;
+			return;
+		}
 		try {
-			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(guidelines), {
+			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(eligible), {
 				systemPrompt: ADVISORY_EVAL_SYSTEM_PROMPT,
-				tools: ["read", "grep", "find", "ls", "bash"],
+				tools: ["read", "grep", "find", "ls"],
 				customTools: [
-					makeInjectGuidelineTool(guidelines, (prompt) => this.runtime.injectUserMessage(prompt, "steer")),
+					makeInjectGuidelineTool(
+						eligible,
+						(prompt) => this.runtime.injectUserMessage(prompt, "steer"),
+						this._lastInjectedAt,
+					),
 				],
 				label: "advisory:guidelines",
 			});
@@ -563,7 +585,7 @@ export class ExtensionRunner {
 		try {
 			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(continuations), {
 				systemPrompt: ADVISORY_EVAL_SYSTEM_PROMPT,
-				tools: ["read", "grep", "find", "ls", "bash"],
+				tools: ["read", "grep", "find", "ls"],
 				customTools: [
 					makeInjectGuidelineTool(continuations, (prompt) => this.runtime.injectUserMessage(prompt, "followUp")),
 				],

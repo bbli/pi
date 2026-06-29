@@ -1288,7 +1288,7 @@ export interface ExtensionAPI {
 	 * Returns the last assistant text produced, or undefined if nothing was output or the session errored.
 	 * Sentinel parsing is the caller's responsibility.
 	 */
-	runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined>;
+	runBranchSession(prompt: string, options: BranchSessionOptions): Promise<void>;
 
 	// =========================================================================
 	// Actions
@@ -1613,7 +1613,7 @@ export interface ExtensionActions {
 	setModel: SetModelHandler;
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
-	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
+	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<void>;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**

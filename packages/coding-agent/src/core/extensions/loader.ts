@@ -280,7 +280,7 @@ function createExtensionAPI(
 			return runtime.getContinuations();
 		},
 
-		runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined> {
+		runBranchSession(prompt: string, options: BranchSessionOptions): Promise<void> {
 			runtime.assertActive();
 			return runtime.runBranchSession(prompt, options);
 		},
