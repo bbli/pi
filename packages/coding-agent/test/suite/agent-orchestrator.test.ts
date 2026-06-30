@@ -12,6 +12,7 @@ function makeMockSession(): AgentSession {
 		abort: vi.fn().mockResolvedValue(undefined),
 		dispose: vi.fn(),
 		setSubagentRegistry: vi.fn(),
+		addBuiltinTool: vi.fn(),
 		prompt: vi.fn().mockResolvedValue(undefined),
 		get isStreaming() {
 			return false;

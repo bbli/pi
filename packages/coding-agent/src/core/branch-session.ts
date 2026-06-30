@@ -17,6 +17,7 @@
 
 import * as crypto from "node:crypto";
 import type { AgentSession } from "./agent-session.ts";
+import { debugLog } from "./debug.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { BranchSessionOptions } from "./extensions/types.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
@@ -152,6 +153,7 @@ export async function runBranchSession(
 
 		// Step 4: capture last assistant text
 		text = branchSession.lastAssistantText;
+		debugLog(`[branch:${label}] session complete, text.length=${text?.length ?? 0}`);
 	} finally {
 		// Step 5: cleanup
 		await cleanupBranchSession(branchSession, registry, registeredId, options.keepAlive ?? false);

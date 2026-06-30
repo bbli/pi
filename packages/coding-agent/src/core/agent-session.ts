@@ -50,6 +50,7 @@ import {
 	prepareCompaction,
 	shouldCompact,
 } from "./compaction/index.ts";
+import { debugLog } from "./debug.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import { exportSessionToHtml, type ToolHtmlRenderer } from "./export-html/index.ts";
 import { createToolHtmlRenderer } from "./export-html/tool-renderer.ts";
@@ -857,10 +858,13 @@ export class AgentSession {
 	 * session construction, and on every session rebind.
 	 */
 	addBuiltinTool(tool: ToolDefinition): void {
+		// Safe to call only when idle. Current callers (AgentOrchestrator constructor
+		// and setRebindSession) always run before any prompt is submitted.
 		if (this._customTools.some((t) => t.name === tool.name)) return;
 		this._customTools.push(tool);
 		this._allowedToolNames?.add(tool.name);
 		this._refreshToolRegistry();
+		debugLog(`addBuiltinTool: registered "${tool.name}"`);
 	}
 
 	/** Whether compaction or branch summarization is currently running */
