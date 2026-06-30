@@ -6,8 +6,8 @@
  * The branch session is registered in SubagentRegistry while running, making
  * it visible in the TUI footer and switchable via /agent.
  *
- * History seeding is opt-in (seedHistory param) — the research question is
- * usually self-contained and seeding the full main-session history wastes tokens.
+ * History seeding is always enabled so the subagent has full context from the
+ * main session.
  */
 
 import { Type } from "typebox";
@@ -39,33 +39,22 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 			"and bash. Returns structured findings: relevant file paths, key code snippets, and a conclusion. " +
 			"Use this when you need to look something up before acting, or when the answer requires " +
 			"exploring multiple files. Do not use for simple single-file reads.",
-		promptSnippet: "research(question, seedHistory?): investigate a codebase question and return structured findings",
+		promptSnippet: "research(question): investigate a codebase question and return structured findings",
 		promptGuidelines: [
 			"Use the research tool only when answering requires reading multiple unknown files. " +
 				"Do not use it when the relevant file is already known or visible in context.",
-			"Pass seedHistory: true only when the question explicitly references the current conversation.",
 		],
 		parameters: Type.Object({
 			question: Type.String({
 				description: "The question or topic to research.",
 			}),
-			seedHistory: Type.Optional(
-				Type.Boolean({
-					description:
-						"If true, seed the research session with the full conversation history. " +
-						"Use when the question references prior context. Default false.",
-					default: false,
-				}),
-			),
 		}),
 		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
 			// Note: _signal is not forwarded to runBranchSession. Aborting the main session
 			// while research is running will not interrupt the subagent — the main turn
 			// remains blocked until the branch session completes.
 			// TODO: add timeoutMs to BranchSessionOptions to bound long-running sessions.
-			debugLog(
-				`[research] starting: question.length=${params.question.length} seedHistory=${params.seedHistory ?? false}`,
-			);
+			debugLog(`[research] starting: question.length=${params.question.length}`);
 			let text: string | undefined;
 			try {
 				text = await runBranchSession(
@@ -74,7 +63,7 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 						systemPrompt: RESEARCH_SYSTEM_PROMPT,
 						tools: ["read", "grep", "find", "ls", "bash"],
 						label: "research",
-						seedContext: params.seedHistory === true,
+						seedContext: true,
 					},
 					session,
 					registry,

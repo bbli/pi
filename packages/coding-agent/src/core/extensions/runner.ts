@@ -279,7 +279,7 @@ function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ id: string; triggerPro
 		[`--- Condition ${i + 1} ---`, `ID: ${e.id}`, `Trigger: ${e.triggerPrompt}`].join("\n"),
 	);
 	return [
-		"# SYSTEM PLAN\n" + ADVISORY_EVAL_SYSTEM_PROMPT,
+		`# SYSTEM PLAN\n${ADVISORY_EVAL_SYSTEM_PROMPT}`,
 		"",
 		...sections,
 		"",
