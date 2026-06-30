@@ -217,6 +217,15 @@ describe("AgentOrchestrator", () => {
 		expect(rebindCb).toHaveBeenCalledTimes(1);
 	});
 
+	it("re-wires addBuiltinTool on session rebind", async () => {
+		const addBuiltinToolSpy = vi.spyOn(rootSession, "addBuiltinTool");
+		const callCountAfterConstruction = addBuiltinToolSpy.mock.calls.length;
+		orchestrator.setRebindSession(vi.fn().mockResolvedValue(undefined));
+		await mock.fireRebind();
+		// addBuiltinTool must be called again after rebind so built-in tools survive session replacement.
+		expect(addBuiltinToolSpy).toHaveBeenCalledTimes(callCountAfterConstruction + 1);
+	});
+
 	// ── pass-throughs ────────────────────────────────────────────────────────
 
 	it("delegates newSession to the runtime", async () => {

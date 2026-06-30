@@ -258,7 +258,7 @@ In your evaluation, do the following:
 
 4. **Justify and Inject Matched Guidelines:**
    - As your final step, work through each condition and state a brief justification for your decision: cite the specific observation in the conversation history (or codebase) that makes the condition true or false.
-   - For each condition you have justified as clearly true, call the injectGuideline tool with the id shown for that condition.
+   - For each condition you have justified as clearly true, call the injectGuideline tool with (a) the id shown for that condition and (b) a reason string — one concise sentence citing the specific observation that made the condition true.
    - **injectGuideline is a tool call, NOT a bash command.** Do not run it via bash.
    - If no condition is met, do not call the tool.
 
@@ -283,7 +283,8 @@ function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ id: string; triggerPro
 		"",
 		"=== Action ===",
 		"For each condition above that is clearly true, call the injectGuideline tool with the ID " +
-			"shown for that condition. " +
+			"shown for that condition AND a reason string: one concise sentence citing the specific " +
+			"observation in the conversation that makes the condition clearly true. " +
 			"injectGuideline is a tool — do not run it as a bash command. " +
 			"If no condition is met, do nothing.",
 	].join("\n");
@@ -309,6 +310,10 @@ function makeInjectGuidelineTool(
 			"This is a tool call, not a bash command. Do not call if the condition is not clearly met.",
 		parameters: Type.Object({
 			id: Type.String({ description: "The guideline or continuation ID to inject (e.g. 'code-workflow')." }),
+			reason: Type.String({
+				description:
+					"One concise sentence citing the specific observation in the conversation that makes this condition clearly true.",
+			}),
 		}),
 		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
 			const prompt = promptById.get(params.id);
@@ -316,7 +321,7 @@ function makeInjectGuidelineTool(
 				console.error(`injectGuideline unknown id=${params.id}`);
 				return { content: [{ type: "text" as const, text: `unknown id: ${params.id}` }], details: undefined };
 			}
-			debugLog(`injectGuideline id=${params.id} chars=${prompt.length}`);
+			debugLog(`injectGuideline id=${params.id} reason="${params.reason.slice(0, 120)}" chars=${prompt.length}`);
 			lastInjectedAt?.set(params.id, Date.now());
 			onInject(prompt);
 			return { content: [{ type: "text" as const, text: "injected" }], details: undefined };

@@ -41,7 +41,8 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 			"exploring multiple files. Do not use for simple single-file reads.",
 		promptSnippet: "research(question, seedHistory?): investigate a codebase question and return structured findings",
 		promptGuidelines: [
-			"Use the research tool to explore the codebase before making changes when the answer is not obvious.",
+			"Use the research tool only when answering requires reading multiple unknown files. " +
+				"Do not use it when the relevant file is already known or visible in context.",
 			"Pass seedHistory: true only when the question explicitly references the current conversation.",
 		],
 		parameters: Type.Object({
@@ -58,6 +59,10 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 			),
 		}),
 		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+			// Note: _signal is not forwarded to runBranchSession. Aborting the main session
+			// while research is running will not interrupt the subagent — the main turn
+			// remains blocked until the branch session completes.
+			// TODO: add timeoutMs to BranchSessionOptions to bound long-running sessions.
 			debugLog(
 				`[research] starting: question.length=${params.question.length} seedHistory=${params.seedHistory ?? false}`,
 			);
@@ -84,7 +89,12 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 			}
 			debugLog(`[research] complete, findings.length=${text?.length ?? 0}`);
 			return {
-				content: [{ type: "text" as const, text: text ?? "(no findings returned)" }],
+				content: [
+					{
+						type: "text" as const,
+						text: text ?? "(research subagent produced no output — it may have exited without writing findings)",
+					},
+				],
 				details: undefined,
 			};
 		},
