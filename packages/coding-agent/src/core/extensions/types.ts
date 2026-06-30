@@ -1120,6 +1120,13 @@ export interface BranchSessionOptions {
 	 * callers can also set it explicitly.
 	 */
 	keepAlive?: boolean;
+	/**
+	 * If false, skip seeding the branch session with the main session's conversation
+	 * history. Defaults to true (full history is seeded), matching prior behavior.
+	 * Pass false for self-contained sessions (e.g. research tool) to avoid sending
+	 * unrelated conversation context and reduce token usage.
+	 */
+	seedContext?: boolean;
 }
 
 /** A guideline registered via registerGuideline(). Evaluated at turn_start. */
@@ -1288,7 +1295,7 @@ export interface ExtensionAPI {
 	 * Returns the last assistant text produced, or undefined if nothing was output or the session errored.
 	 * Sentinel parsing is the caller's responsibility.
 	 */
-	runBranchSession(prompt: string, options: BranchSessionOptions): Promise<void>;
+	runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined>;
 
 	// =========================================================================
 	// Actions
@@ -1613,7 +1620,7 @@ export interface ExtensionActions {
 	setModel: SetModelHandler;
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
-	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<void>;
+	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**

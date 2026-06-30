@@ -117,17 +117,17 @@ async function cleanupBranchSession(
 
 /**
  * Run a separate agentic session seeded with the full main session history.
- * Results are delivered via custom tool calls (e.g. injectGuideline) rather
- * than through the return value.
+ * Returns the last assistant text produced by the branch session, or undefined
+ * if nothing was output or the session errored. Sentinel parsing is the caller's job.
  */
 export async function runBranchSession(
 	prompt: string,
 	options: BranchSessionOptions,
 	mainSession: AgentSession,
 	registry?: SubagentRegistry,
-): Promise<void> {
-	if (!prompt.trim()) return;
-	if (!mainSession.model) return;
+): Promise<string | undefined> {
+	if (!prompt.trim()) return undefined;
+	if (!mainSession.model) return undefined;
 
 	const label = options.label ?? "branch";
 
@@ -135,9 +135,12 @@ export async function runBranchSession(
 	const branchSession = await createBranchAgentSession(options, mainSession);
 
 	let registeredId: string | undefined;
+	let text: string | undefined;
 	try {
-		// Step 2: seed context
-		const _messageCount = seedBranchContext(branchSession, mainSession);
+		// Step 2: seed context (skipped when seedContext: false)
+		if (options.seedContext !== false) {
+			seedBranchContext(branchSession, mainSession);
+		}
 
 		if (registry) {
 			registeredId = crypto.randomUUID();
@@ -146,8 +149,12 @@ export async function runBranchSession(
 
 		// Step 3: run the prompt
 		await branchSession.prompt(prompt, { source: "extension" });
+
+		// Step 4: capture last assistant text
+		text = branchSession.lastAssistantText;
 	} finally {
 		// Step 5: cleanup
 		await cleanupBranchSession(branchSession, registry, registeredId, options.keepAlive ?? false);
 	}
+	return text;
 }

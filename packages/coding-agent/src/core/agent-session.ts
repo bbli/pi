@@ -594,6 +594,21 @@ export class AgentSession {
 		return undefined;
 	}
 
+	/**
+	 * Returns the joined text content of the last assistant message, or undefined
+	 * if no assistant message exists or it contains no text blocks.
+	 * Used by runBranchSession to surface branch session output to callers.
+	 */
+	get lastAssistantText(): string | undefined {
+		const msg = this._findLastAssistantMessage();
+		if (!msg) return undefined;
+		const text = msg.content
+			.filter((c): c is TextContent => c.type === "text")
+			.map((c) => c.text)
+			.join("");
+		return text || undefined;
+	}
+
 	private _replaceMessageInPlace(target: AgentMessage, replacement: AgentMessage): void {
 		// Agent-core stores the finalized message object in its state before emitting message_end.
 		// SessionManager persistence happens later in _handleAgentEvent() with event.message.
@@ -833,6 +848,19 @@ export class AgentSession {
 		// Rebuild base system prompt with new tool set
 		this._baseSystemPrompt = this._rebuildSystemPrompt(validToolNames);
 		this.agent.state.systemPrompt = this._baseSystemPrompt;
+	}
+
+	/**
+	 * Register an additional tool in this session at runtime.
+	 * Idempotent: calling with the same tool name twice is a no-op.
+	 * Used by AgentOrchestrator to wire built-in tools (e.g. research) after
+	 * session construction, and on every session rebind.
+	 */
+	addBuiltinTool(tool: ToolDefinition): void {
+		if (this._customTools.some((t) => t.name === tool.name)) return;
+		this._customTools.push(tool);
+		this._allowedToolNames?.add(tool.name);
+		this._refreshToolRegistry();
 	}
 
 	/** Whether compaction or branch summarization is currently running */

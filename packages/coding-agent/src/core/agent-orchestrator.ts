@@ -7,6 +7,7 @@ import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { SessionManager } from "./session-manager.ts";
 import { type SubagentRecord, SubagentRegistry } from "./subagent-registry.ts";
+import { makeResearchTool } from "./tools/research.ts";
 
 /**
  * Sits above AgentSessionRuntime and manages multi-session concerns:
@@ -25,6 +26,7 @@ export class AgentOrchestrator implements ConversationSession {
 		this._runtime = runtime;
 		this.registry = new SubagentRegistry();
 		runtime.session.setSubagentRegistry(this.registry);
+		runtime.session.addBuiltinTool(makeResearchTool(runtime.session, this.registry));
 		// Branch sessions are removed immediately on completion — no TTL needed.
 	}
 
@@ -160,8 +162,9 @@ export class AgentOrchestrator implements ConversationSession {
 
 	setRebindSession(cb: () => Promise<void>): void {
 		this._runtime.setRebindSession(async () => {
-			// Wire the registry into the newly created root session.
+			// Wire the registry and built-in tools into the newly created root session.
 			this._runtime.session.setSubagentRegistry(this.registry);
+			this._runtime.session.addBuiltinTool(makeResearchTool(this._runtime.session, this.registry));
 			await cb();
 		});
 	}
