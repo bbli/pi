@@ -8,6 +8,7 @@
  *   - debug-workflow: inject debugging workflow instructions when a bug fix is requested
  *
  * Continuations (evaluated at agent_end, sync):
+ *   - suggest-research: inject research suggestion when the agent has unresolved uncertainties
  *   - review-after-commit: inject a review checklist after a git commit
  *
  * The advisory system can be toggled at runtime via /advisor [on|off].
@@ -501,28 +502,26 @@ export default function osAgent(pi: ExtensionAPI): void {
 		label: "advisory:debug-workflow",
 	});
 
-	pi.registerGuideline({
+	// --- Continuations (agent_end, sync) ---
+
+	pi.registerContinuation({
 		id: "suggest-research",
 		triggerPrompt:
-			"Does the conversation contain explicit, unresolved questions or uncertainties that the " +
-			"assistant has listed but NOT yet answered? " +
+			"Does the most recent assistant response contain explicit, unresolved questions or " +
+			"uncertainties that have NOT yet been investigated? " +
 			"Look for either: " +
-			"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) containing " +
-			"🔴 CRITICAL or 🟠 LOW confidence items with no subsequent research tool calls. " +
-			"(2) A recent assistant message that explicitly enumerates questions or knowledge gaps " +
-			"it needs to resolve before proceeding (e.g. 'I need to understand X', 'I'm not sure " +
-			"how Y works', numbered open questions). " +
+			"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) in the " +
+			"most recent assistant message, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
+			"(2) The most recent assistant message explicitly enumerates questions or knowledge " +
+			"gaps it needs to resolve before proceeding. " +
 			"Do NOT trigger if any of these are true: " +
-			"- The research tool was called after the uncertainties appeared in the conversation. " +
-			"- A [SYSTEM INSTRUCTION: RESEARCH_SUGGESTED] message already appears after the " +
-			"uncertainties. " +
-			"- The questions were answered by the user or resolved through direct context inspection. " +
-			"- The assistant is already proceeding confidently without flagged open items.",
+			"- The research tool was already called after the uncertainties appeared. " +
+			"- A [SYSTEM INSTRUCTION: RESEARCH_SUGGESTED] message already follows the uncertainties. " +
+			"- The questions were answered by the user or resolved through direct context. " +
+			"- The assistant ended its turn proceeding confidently without flagged open items.",
 		injectPrompt: RESEARCH_SUGGESTED_PROMPT,
 		label: "advisory:suggest-research",
 	});
-
-	// --- Continuations (agent_end, sync) ---
 
 	pi.registerContinuation({
 		id: "review-after-commit",
