@@ -513,7 +513,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) in the " +
 			"most recent assistant message, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
 			"(2) The most recent assistant message explicitly enumerates questions or knowledge " +
-			"gaps it needs to resolve before proceeding. " +
+			"gaps it needs to resolve before proceeding (e.g. numbered open items, " +
+			"'I need to verify X before implementing', or an ⚠️ IMPLEMENTATION UNCERTAINTIES block). " +
 			"Do NOT trigger if any of these are true: " +
 			"- The research tool was already called after the uncertainties appeared. " +
 			"- A [SYSTEM INSTRUCTION: RESEARCH_SUGGESTED] message already follows the uncertainties. " +

@@ -295,10 +295,12 @@ function buildAdvisoryEvalPrompt(entries: ReadonlyArray<{ id: string; triggerPro
 
 /**
  * Creates the injectGuideline tool used by both guidelines and continuations.
- * The LLM passes the guideline/continuation ID; the full inject prompt is
- * resolved here so it never needs to appear in the evaluation prompt.
+ * The LLM passes the guideline/continuation ID and a reason string; the full
+ * inject prompt is resolved by ID so it never needs to appear in the evaluation prompt.
+ *
+ * Exported for testing.
  */
-function makeInjectGuidelineTool(
+export function makeInjectGuidelineTool(
 	entries: ReadonlyArray<{ id: string; injectPrompt: string }>,
 	onInject: (prompt: string) => void,
 	lastInjectedAt?: Map<string, number>,
@@ -309,7 +311,8 @@ function makeInjectGuidelineTool(
 		label: "Inject Advisory",
 		description:
 			"Tool: inject the advisory prompt for the given guideline ID into the main session. " +
-			"Call this with the ID of a condition that is clearly met. " +
+			"Call this with the ID of a condition that is clearly met and a reason string explaining " +
+			"the specific observation that makes it true. " +
 			"This is a tool call, not a bash command. Do not call if the condition is not clearly met.",
 		parameters: Type.Object({
 			id: Type.String({ description: "The guideline or continuation ID to inject (e.g. 'code-workflow')." }),

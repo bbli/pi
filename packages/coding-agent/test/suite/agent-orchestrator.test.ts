@@ -218,12 +218,12 @@ describe("AgentOrchestrator", () => {
 	});
 
 	it("re-wires addBuiltinTool on session rebind", async () => {
+		// Spy is fresh (call count 0) regardless of calls made before spyOn.
 		const addBuiltinToolSpy = vi.spyOn(rootSession, "addBuiltinTool");
-		const callCountAfterConstruction = addBuiltinToolSpy.mock.calls.length;
 		orchestrator.setRebindSession(vi.fn().mockResolvedValue(undefined));
 		await mock.fireRebind();
 		// addBuiltinTool must be called again after rebind so built-in tools survive session replacement.
-		expect(addBuiltinToolSpy).toHaveBeenCalledTimes(callCountAfterConstruction + 1);
+		expect(addBuiltinToolSpy).toHaveBeenCalledTimes(1);
 	});
 
 	// ── pass-throughs ────────────────────────────────────────────────────────

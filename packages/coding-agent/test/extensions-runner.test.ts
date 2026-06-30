@@ -8,7 +8,7 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthStorage } from "../src/core/auth-storage.ts";
 import { createExtensionRuntime, discoverAndLoadExtensions } from "../src/core/extensions/loader.ts";
-import { ExtensionRunner } from "../src/core/extensions/runner.ts";
+import { ExtensionRunner, makeInjectGuidelineTool } from "../src/core/extensions/runner.ts";
 import type {
 	ExtensionActions,
 	ExtensionContextActions,
@@ -909,6 +909,42 @@ describe("ExtensionRunner", () => {
 					.map((g) => g.id)
 					.sort(),
 			).toEqual(["a", "b"]);
+		});
+	});
+
+	describe("makeInjectGuidelineTool", () => {
+		it("calls onInject with the correct prompt and returns injected for a valid id+reason", async () => {
+			const entries = [{ id: "g1", injectPrompt: "inject-payload" }];
+			const injected: string[] = [];
+			const tool = makeInjectGuidelineTool(entries, (prompt) => injected.push(prompt));
+
+			const result = await tool.execute(
+				"call1",
+				{ id: "g1", reason: "assistant listed open questions" },
+				undefined,
+				undefined,
+				{} as never,
+			);
+
+			expect(injected).toEqual(["inject-payload"]);
+			expect((result.content[0] as { text: string } | undefined)?.text).toBe("injected");
+		});
+
+		it("returns error content and does not call onInject for an unrecognised id", async () => {
+			const entries = [{ id: "g1", injectPrompt: "inject-payload" }];
+			const injected: string[] = [];
+			const tool = makeInjectGuidelineTool(entries, (prompt) => injected.push(prompt));
+
+			const result = await tool.execute(
+				"call1",
+				{ id: "nonexistent", reason: "test" },
+				undefined,
+				undefined,
+				{} as never,
+			);
+
+			expect(injected).toHaveLength(0);
+			expect((result.content[0] as { text: string } | undefined)?.text).toBe("unknown id: nonexistent");
 		});
 	});
 
