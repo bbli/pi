@@ -28,7 +28,10 @@ Guidelines:
 - Do not make any edits, commits, or other side-effecting operations.
 - Do not spawn further subagents or advisory sessions.
 - When you have enough information to answer the question, stop immediately and \
-write your findings. Do not over-investigate.`;
+write your findings. Do not over-investigate.
+- End your report with two explicit lines: (1) whether the findings are \
+sufficient for the main session to act on the question, and (2) any unknowns \
+you could not resolve that may still be relevant.`;
 
 export function makeResearchTool(session: AgentSession, registry: SubagentRegistry): ToolDefinition {
 	return defineTool({
@@ -41,8 +44,15 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 			"exploring multiple files. Do not use for simple single-file reads.",
 		promptSnippet: "research(question): investigate a codebase question and return structured findings",
 		promptGuidelines: [
-			"Use the research tool only when answering requires reading multiple unknown files. " +
-				"Do not use it when the relevant file is already known or visible in context.",
+			"Research is most useful when exploring unfamiliar codebase territory across " +
+				"multiple files where inline exploration would consume significant context. " +
+				"It is less warranted when the relevant file is already open, a single read " +
+				"would suffice, or bash can answer in one command.",
+			"Before invoking research, enumerate all open questions for the current task " +
+				"and research them together rather than one at a time.",
+			"After research returns findings, apply them to the task at hand and bias " +
+				"toward acting. Only invoke research again if a specific remaining gap would " +
+				"cause a concrete mistake — not for exploratory or derivative follow-on questions.",
 		],
 		parameters: Type.Object({
 			question: Type.String({
