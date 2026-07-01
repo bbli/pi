@@ -479,13 +479,17 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "code-workflow",
 		triggerPrompt:
-			"Are we doing coding work that hasn't already received workflow guidance? " +
-			"Examples that would indicate yes: the user asked to implement, add, change, " +
-			"refactor, fix, update, or remove code; the agent is writing or editing files; " +
-			"a non-trivial code change is underway. " +
-			"Do not trigger for purely mechanical git operations (staging, committing, pushing, " +
-			"branching, or reviewing already-written changes) — no new code is being written. " +
-			"If a recent [SYSTEM INSTRUCTION: CODE_WORKFLOW] message already covers this task, do not trigger.",
+			"Is there new implementation work underway that has not yet received CODE_WORKFLOW guidance? " +
+			"This applies when the user has asked for a change and the agent is about to start " +
+			"writing or editing files to fulfill it — for example, adding a feature, fixing a bug, " +
+			"refactoring, or wiring up something new. " +
+			"It does not apply when a CODE_WORKFLOW has already run and the work it covered has been " +
+			"committed — for example, if the most recent agent turns show a completed workflow followed " +
+			"by a commit and the user is now asking a question, reviewing output, or giving feedback " +
+			"rather than requesting new changes. " +
+			"Do not trigger for purely mechanical git operations with no new file edits. " +
+			"Use the working tree state as your anchor: if there are no new uncommitted changes " +
+			"since the last CODE_WORKFLOW completed, do not trigger.",
 		injectPrompt: CODE_WORKFLOW_PROMPT,
 		label: "advisory:code-workflow",
 	});
