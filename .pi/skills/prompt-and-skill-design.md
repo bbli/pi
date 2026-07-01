@@ -129,6 +129,18 @@ When a prompt delivers information — from a subagent, research tool, or adviso
 
 This failure mode is especially acute in iterative research patterns: when the main session receives findings without a closing instruction, it tends to generate new questions rather than act — the engine of a research loop with no exit.
 
+**Returned output has two components — instruct the receiver to address both.**
+
+Every tool or subagent response carries a direct answer *and* uncertainties or gaps it surfaced. Without an explicit instruction to treat uncertainties as thinking material, the model collapses them into one of two failure modes: escalate (trigger more research) or discard (ignore entirely). Neither uses them well.
+
+This mirrors Principle 4: just as illustrative conditions let the model calibrate *when* a prompt applies rather than following a hard rule, prompting reflection on uncertainties lets the model calibrate *what to do with the output* rather than treating every gap as either blocking or ignorable.
+
+- ❌ No uncertainty instruction — model either spawns follow-on research or discards the gaps
+- ✅ `"Reflect on any uncertainties flagged — they may not apply directly but can surface new angles or inform your approach"` — model treats gaps as creative input
+- ✅ `"Consider whether any of the open questions spark a different direction, even if they don't require resolution"`
+
+The uncertainty signal is most valuable when it is not actionable as-is — a gap the subagent could not resolve may reframe the problem, suggest an alternative approach, or reveal an assumption worth revisiting. Prompting the model to reflect rather than react is what unlocks this.
+
 ---
 
 **Vocabulary reference** — use freeing language, not locking language:
@@ -142,7 +154,8 @@ This failure mode is especially acute in iterative research patterns: when the m
 | Source *(advisory)* | silent | `injected by a background monitor`, `advisory from` |
 | Uncertainty *(advisory)* | `X happened` | `X appears to have happened`, `may be X` |
 | Skip *(advisory — sentinel only)* | — | `skip if [specific event condition]` |
-| Closing | *(absent)* | `apply these findings to the current task`, `use this to inform your next action` |
+| Closing — findings | *(absent)* | `apply these findings to the current task`, `use this to inform your next action` |
+| Closing — uncertainties | *(absent)* | `reflect on any uncertainties flagged`, `consider whether open questions suggest a different direction` |
 
 If there are multiple ways to frame a prompt, present both options with a brief rationale and a recommendation. **Rank options by how well they preserve agent judgment without losing the intended signal.**
 
@@ -233,7 +246,8 @@ Reference these when reviewing a draft. Each one silently breaks agent judgment:
 | "Skip if seen in conversation" *(advisory)* | Blocks all future occurrences | Anchor to specific event |
 | Full inject prompt as trigger condition *(advisory)* | Evaluator checks its own output | Put sentinel check in trigger prompt, not inject |
 | Evaluator follows conversation instructions *(advisory)* | Subagent acts on main-session directives | Explicitly tell evaluator it's an observer only |
-| No closing instruction | Model treats returned information as passive context rather than input to act on | Add explicit instruction to apply findings to the current task |
+| No closing instruction — findings | Model treats returned information as passive context rather than input to act on | Add explicit instruction to apply findings to the current task |
+| No closing instruction — uncertainties | Model escalates every gap into more research, or discards it | Add explicit instruction to reflect on uncertainties as thinking material, not as blocking or ignorable |
 
 ---
 
