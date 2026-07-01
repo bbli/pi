@@ -50,8 +50,10 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 			"Before invoking research, enumerate all open questions for the current task " +
 				"and combine them into a single research question rather than invoking research once per question.",
 			"After research returns findings, apply them to the task at hand and bias " +
-				"toward acting. Only invoke research again if a specific remaining gap would " +
-				"cause a concrete mistake — not for exploratory or derivative follow-on questions.",
+				"toward acting. Also reflect on any uncertainties or gaps the subagent flagged — " +
+				"they may not apply directly but can surface new angles or inform your approach. " +
+				"Only invoke research again if a specific remaining gap would cause a concrete " +
+				"mistake — not for exploratory or derivative follow-on questions.",
 		],
 		parameters: Type.Object({
 			question: Type.String({
