@@ -1,6 +1,6 @@
 ---
-name: advisory-prompt-design
-description: Principles and vocabulary for designing advisory/injection prompts that preserve LLM judgment and agency. Use when writing inject prompts, system advisories, or any background-injected message where the receiving agent should decide whether to follow the suggestion rather than comply mechanically.
+name: prompt-and-skill-design
+description: Workflow and principles for designing prompts and skills. Use when creating or editing any prompt, system instruction, injection advisory, or skill file.
 ---
 
 # Advisory Prompt Design
