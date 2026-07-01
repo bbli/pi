@@ -121,6 +121,16 @@ Temporal precision prevents both over-firing and under-firing:
 - ❌ `"skip if already seen in this conversation"` — blocks all future occurrences
 - ✅ `"skip if already addressed for this specific commit"` — resets correctly on new events
 
+### 7. Close the loop to the current task
+When a prompt delivers information — from a subagent, research tool, or advisory — explicitly instruct the receiver to apply the findings to the task at hand. Without this, the model tends to treat returned information as passive context to file away rather than input to act on.
+- ❌ No closing instruction — model reads findings and generates follow-on questions instead of acting
+- ✅ `"Apply these findings to the current task before continuing"` — model integrates before proceeding
+- ✅ `"If this is relevant to your current work, use it to inform your next action"`
+
+This failure mode is especially acute in iterative research patterns: when the main session receives findings without a closing instruction, it tends to generate new questions rather than act — the engine of a research loop with no exit.
+
+---
+
 **Vocabulary reference** — use freeing language, not locking language:
 
 | Purpose | Locking (avoid) | Freeing (prefer) |
@@ -132,6 +142,7 @@ Temporal precision prevents both over-firing and under-firing:
 | Source *(advisory)* | silent | `injected by a background monitor`, `advisory from` |
 | Uncertainty *(advisory)* | `X happened` | `X appears to have happened`, `may be X` |
 | Skip *(advisory — sentinel only)* | — | `skip if [specific event condition]` |
+| Closing | *(absent)* | `apply these findings to the current task`, `use this to inform your next action` |
 
 If there are multiple ways to frame a prompt, present both options with a brief rationale and a recommendation. **Rank options by how well they preserve agent judgment without losing the intended signal.**
 
@@ -222,3 +233,4 @@ Reference these when reviewing a draft. Each one silently breaks agent judgment:
 | "Skip if seen in conversation" *(advisory)* | Blocks all future occurrences | Anchor to specific event |
 | Full inject prompt as trigger condition *(advisory)* | Evaluator checks its own output | Put sentinel check in trigger prompt, not inject |
 | Evaluator follows conversation instructions *(advisory)* | Subagent acts on main-session directives | Explicitly tell evaluator it's an observer only |
+| No closing instruction | Model treats returned information as passive context rather than input to act on | Add explicit instruction to apply findings to the current task |
