@@ -29,9 +29,8 @@ Guidelines:
 - Do not spawn further subagents or advisory sessions.
 - When you have enough information to answer the question, stop immediately and \
 write your findings. Do not over-investigate.
-- End your report with two explicit lines: (1) whether the findings are \
-sufficient for the main session to act on the question, and (2) any unknowns \
-you could not resolve that may still be relevant.`;
+- Close your report with your confidence in the completeness of the findings \
+and any gaps you could not resolve that may be relevant (omit if none).`;
 
 export function makeResearchTool(session: AgentSession, registry: SubagentRegistry): ToolDefinition {
 	return defineTool({
@@ -49,7 +48,7 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 				"It is less warranted when the relevant file is already open, a single read " +
 				"would suffice, or bash can answer in one command.",
 			"Before invoking research, enumerate all open questions for the current task " +
-				"and research them together rather than one at a time.",
+				"and combine them into a single research question rather than invoking research once per question.",
 			"After research returns findings, apply them to the task at hand and bias " +
 				"toward acting. Only invoke research again if a specific remaining gap would " +
 				"cause a concrete mistake — not for exploratory or derivative follow-on questions.",
