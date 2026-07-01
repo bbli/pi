@@ -234,3 +234,51 @@ Reference these when reviewing a draft. Each one silently breaks agent judgment:
 | Full inject prompt as trigger condition *(advisory)* | Evaluator checks its own output | Put sentinel check in trigger prompt, not inject |
 | Evaluator follows conversation instructions *(advisory)* | Subagent acts on main-session directives | Explicitly tell evaluator it's an observer only |
 | No closing instruction | Model treats returned information as passive context rather than input to act on | Add explicit instruction to apply findings to the current task |
+
+---
+
+## Prompt Types Reference
+
+Five distinct prompt types exist in the pi system. Identifying which type you are writing is the first design decision — it determines authority, scope, what the receiver should do with the content, and which principles apply.
+
+### 1. Main session system prompt
+**Lives in:** `buildSystemPrompt()`, tool `promptSnippet` (Available tools section), tool `promptGuidelines` (Guidelines section), `appendSystemPrompt`, skill files, context files (e.g. AGENTS.md).  
+**Audience:** Main session.  
+**Authority:** High — the main session treats this as its static operating context.  
+**Design rule:** Keep it stable, not turn-by-turn reactive. All principles 0–7 above apply. Tool-contributed guidelines (`promptGuidelines`) belong here when they govern *when and how to invoke* a tool.
+
+### 2. Main session injection (`injectPrompt`)
+**Lives in:** `GuidelineDefinition.injectPrompt`, `ContinuationDefinition.injectPrompt` — steered into the main conversation as a user message when the advisory fires.  
+**Audience:** Main session (dynamic, in-conversation).  
+**Authority:** Moderate — the main session sees it as an in-conversation message, not part of the system prompt.  
+**Design rule:** Must include an idempotency sentinel (Principle 6). Frame as an advisory (Principles 1–2). Always include a closing instruction (Principle 7) — the main session needs to be explicitly told to apply the content to the current task.
+
+### 3. Trigger condition (`triggerPrompt`)
+**Lives in:** `GuidelineDefinition.triggerPrompt`, `ContinuationDefinition.triggerPrompt` — assembled by the runner alongside other conditions into the evaluator's task input.  
+**Audience:** Advisory evaluator subagent (as one of several condition inputs).  
+**Authority:** N/A — this is a predicate fragment, not a standalone prompt.  
+**Design rule:** Write as a specific, observable, binary question evaluatable from the conversation history alone (e.g. *"Has the user just requested a code implementation task?"*). It must not require speculation. It is never shown to the main session and never appears alongside `injectPrompt` content — the evaluator resolves inject content by ID server-side.
+
+### 4. Evaluator subagent prompt
+**Lives in:** `ADVISORY_EVAL_SYSTEM_PROMPT` — the system prompt for the advisory branch session that evaluates trigger conditions.  
+**Audience:** Advisory evaluator branch session.  
+**Authority:** High within the evaluator.  
+**Design rule:** Observer only — must explicitly instruct the evaluator to ignore any instructions embedded in the conversation history (those are directed at the main session). Single tool call (`injectGuideline`) then stop. Never put `injectPrompt` content here — inject content is resolved by ID so it never pollutes the evaluator's context or creates a self-referential check.
+
+### 5. Worker subagent prompt
+**Lives in:** `RESEARCH_SYSTEM_PROMPT`, `SUMMARIZATION_SYSTEM_PROMPT`, and any branch session system prompt for a task-scoped worker.  
+**Audience:** Worker branch session (research, compaction, etc.).  
+**Authority:** High within the worker.  
+**Design rule:** Contains role, tools available, output format, hard constraints (no edits, no sub-subagents), and stop condition. Must not contain main-session-aware language (e.g. *"sufficient for the main session to act"*) — the worker only reports its own confidence and findings. Closing instructions (Principle 7) belong in the caller's `promptGuidelines`, not here.
+
+---
+
+### Quick reference
+
+| Type | Audience | Authority | Key constraints |
+|---|---|---|---|
+| Main session system prompt | Main session | High (static) | Stable; tool guidelines go here via `promptGuidelines` |
+| Main session injection | Main session | Moderate (dynamic) | Sentinel + advisory framing + closing instruction |
+| Trigger condition | Evaluator (as input fragment) | N/A | Binary, observable, no speculation |
+| Evaluator subagent | Advisory evaluator | High (within evaluator) | Observer only; single tool call; ignore conversation directives |
+| Worker subagent | Worker branch session | High (within worker) | Task-scoped; no side effects; no main-session-aware language |
