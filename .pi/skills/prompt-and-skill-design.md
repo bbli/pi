@@ -13,9 +13,21 @@ Follow the steps in sequence — each step surfaces information the next depends
 
 ---
 
+## Before You Begin
+
+If you are in the middle of another task when this skill fires:
+- Briefly note what you were working on
+- Outline what you will return to after Step 5 completes
+
+Return to that work explicitly at the end. Do not let the skill silently drop the surrounding context.
+
+---
+
 ## Step 1 — Clarify the Request
 
-Before drafting anything, understand what the user actually needs. Ask:
+Before asking anything, survey what is already available in the conversation and environment — recent messages, files read, current task state, previous outputs. Derive as many answers as you can from context. Only ask the user about what is genuinely missing or ambiguous.
+
+For what remains unclear, ask:
 
 - **Purpose**: what should this prompt or skill cause the agent to do or consider?
 - **Receiving system**: which agent or model gets this? Does it have other system instructions or competing context?
@@ -65,6 +77,13 @@ The model already has context. Your job is to surface an observation and offer a
 ---
 
 Now apply the principles below to shape the draft. For each one, decide whether it is relevant to this prompt and, if so, how to satisfy it. You do not need to act on all of them — but you must consciously evaluate each.
+
+### 0. Ground inputs in live context
+Prompts that reference the live environment are more precise and require less user intervention than static templates. Before finalizing the draft, identify which inputs could be derived automatically from observable context — the current task, recent output, detected patterns, file being edited — rather than hardcoded or left as static placeholders.
+- ❌ `"review the recent changes"` — static, requires the model to guess what changed
+- ✅ `"a commit to [filename] was just detected"` — grounded in a specific observable event
+
+The more a prompt can derive from context automatically, the more precisely it targets the situation it was designed for.
 
 ### 1. Label the source *(advisory prompts only)*
 Name where the message comes from. The LLM weights authority differently by perceived origin.
@@ -186,6 +205,8 @@ Conclude with a `SUMMARY` section covering:
 > - What to observe in the agent's response
 
 Finally, suggest **follow-up questions** that would sharpen the design — e.g., edge cases in the conditions, whether the prompt overlaps with an existing one, or whether the framing preserves enough judgment for the receiving agent.
+
+If you noted a prior task in **Before You Begin**, return to it now.
 
 ---
 
