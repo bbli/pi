@@ -479,15 +479,21 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "code-workflow",
 		triggerPrompt:
-			"Is there new implementation work underway that has not yet received CODE_WORKFLOW guidance? " +
-			"This applies when the user has asked for a change and the agent is about to start " +
-			"writing or editing files to fulfill it — for example, adding a feature, fixing a bug, " +
-			"refactoring, or wiring up something new. " +
-			"It does not apply when a CODE_WORKFLOW has already run and the work it covered has been " +
-			"committed — for example, if the most recent agent turns show a completed workflow followed " +
-			"by a commit and the user is now asking a question, reviewing output, or giving feedback " +
-			"rather than requesting new changes. " +
-			"Do not trigger for purely mechanical git operations with no new file edits. " +
+			"Is the user giving the agent an explicit directive to write or modify code, such that " +
+			"the agent's immediate next action would be to write, edit, or create files? " +
+			"This applies when the user has directly asked for a code change (e.g., 'add X', 'fix Y', " +
+			"'refactor Z to do W') and the agent is about to start writing or editing files to fulfill it — " +
+			"for example, adding a feature, fixing a bug, refactoring, or wiring up something new. " +
+			"This does NOT apply when: " +
+			"- The agent's immediate next action is to search, read, or explain code, even if the user " +
+			"  mentions potential future changes in the same message (e.g., 'what are the upstream fields? " +
+			"  we should probably remove some of them' — the question is analytical, not a code directive). " +
+			"- The user expresses future intent without directing the agent to act now " +
+			"  (e.g., 'we should probably...', 'this might need to change', 'I think X should do Y'). " +
+			"- A CODE_WORKFLOW has already run and the work it covered has been committed — for example, " +
+			"  if the most recent turns show a completed workflow followed by a commit and the user is now " +
+			"  asking a question, reviewing output, or giving feedback. " +
+			"- Purely mechanical git operations with no new file edits. " +
 			"Use the working tree state as your anchor: if there are no new uncommitted changes " +
 			"since the last CODE_WORKFLOW completed, do not trigger.",
 		injectPrompt: CODE_WORKFLOW_PROMPT,
