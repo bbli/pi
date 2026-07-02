@@ -33,6 +33,7 @@ For what remains unclear, ask:
 - **Receiving system**: which agent or model gets this? Does it have other system instructions or competing context?
 - **Existing prompt**: is there an existing prompt or skill to improve, or is this net-new?
 - **Scope**: is this a one-shot instruction, a reusable skill, or a recurring automated advisory?
+- **Examples**: are there exchanges in this conversation — or prior work — that illustrate the behavior the skill should produce, or cases where the agent did something it should not have? If so, note them; they become the calibration examples in the draft.
 
 > **If this is an advisory/injection prompt** (fired automatically by a trigger, not written directly by the user):
 > - **Trigger**: what event or condition fires this advisory? (commit, pattern match, time-based, etc.)
@@ -51,6 +52,13 @@ Once the request is clear, collect relevant material:
 - Read any existing prompts, skill files, or related instructions the user references.
 - Summarize each source and how it relates to the new prompt.
 - Note any prior prompt or skill that covers similar ground — duplication and overlap cause conflicting behavior.
+
+**Mine the conversation for illustrative examples.** The current conversation is often the best source of calibration material for Principle 4. Before drafting, scan it for:
+- Specific exchanges where the agent behaved in the way the skill should encourage — these become positive examples.
+- Exchanges where the agent behaved in a way the skill should prevent — these become non-examples.
+- Any concrete artifacts (commands run, code written, phrasing used) that anchor what "doing it right" actually looks like.
+
+Collect these verbatim or as close paraphrases. If the conversation is thin on examples, note this and ask the user for one concrete positive and one negative case before drafting. Examples embedded in the skill are more durable than abstract principles — they define intent for models that have never seen this conversation.
 
 > **If this is an advisory/injection prompt:**
 > - Note any prior advisory that covers similar ground — over-advising is a real failure mode.
@@ -103,7 +111,7 @@ The model should treat the prompt as a thinking aid, not a checklist.
 ### 3. Separate observation from action
 Describe what was detected or observed first, then offer a suggestion as a consequence. This lets the model validate the observation against its own context before deciding how to act.
 
-### 4. Provide illustrative conditions, not hard rules
+### 4. Provide illustrative conditions, not hard rules(IMPORTANT)
 Rather than defining explicit follow/skip rules, give the model representative examples of when this prompt applies and when it might not. The model uses these as a basis to form its own judgment about whether the prompt fits its current situation.
 - ❌ `"follow if X; skip if Y"` — hard rules invite mechanical compliance
 - ✅ `"for example, this applies when you are starting a new feature; it may not be relevant if you are in the middle of debugging an existing one"`
@@ -121,9 +129,8 @@ Temporal precision prevents both over-firing and under-firing:
 - ❌ `"skip if already seen in this conversation"` — blocks all future occurrences
 - ✅ `"skip if already addressed for this specific commit"` — resets correctly on new events
 
-### 7. Close the loop to the current task
+### 7. Close the loop to the current task(IMPORTANT)
 When a prompt delivers information — from a subagent, research tool, or advisory — explicitly instruct the receiver to apply the findings to the task at hand. Without this, the model tends to treat returned information as passive context to file away rather than input to act on.
-- ❌ No closing instruction — model reads findings and generates follow-on questions instead of acting
 - ✅ `"Apply these findings to the current task before continuing"` — model integrates before proceeding
 - ✅ `"If this is relevant to your current work, use it to inform your next action"`
 
@@ -166,7 +173,9 @@ If there are multiple ways to frame a prompt, present both options with a brief 
 Produce a complete draft. Structure it with:
 - A clear statement of what context or observation the prompt is responding to
 - The suggestion or instruction, framed as interpretive guidance (principle 2)
-- Illustrative conditions for when it applies and when it does not (principle 4)
+- Illustrative conditions for when it applies and when it does not (principle 4), populated with the concrete examples gathered in Step 2 — not invented generic placeholders
+
+If Step 2 produced specific examples from the conversation, embed them directly in the draft rather than replacing them with abstract descriptions. The examples are the most transferable part of the skill: they tell the model what this situation actually looks like, grounded in real evidence rather than hypotheticals.
 
 > **If this is an advisory/injection prompt**, begin with a sentinel:
 >

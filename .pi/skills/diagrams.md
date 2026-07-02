@@ -1,6 +1,6 @@
 ---
 name: diagrams
-description: Creating diagrams — ASCII flow diagrams, callpath trees, file trees, lifecycle diagrams, and tables. Use when producing or editing any visual structure in documentation or comments.
+description: Creating diagrams — ASCII flow diagrams, callpath trees, file trees, lifecycle diagrams, and tables. Use when producing or editing any visual structure anywhere — in responses, documentation, or comments.
 ---
 
 # Diagrams
