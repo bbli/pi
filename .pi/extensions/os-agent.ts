@@ -127,7 +127,11 @@ For each unresolved question or uncertainty:
 1. Call research(question) with a precise, self-contained question.
 2. Read the returned findings.
 3. Repeat for each remaining question.
-4. Once all questions are answered, continue with the original task.
+4. Once you have the findings, apply them to the current task before continuing. \
+Consider whether the answers resolve your uncertainties sufficiently to proceed. \
+Also reflect on any gaps or uncertainties the research itself surfaced — they may not \
+require further investigation, but they can surface new angles or reveal assumptions \
+worth revisiting before acting.
 
 If your questions are already answered or you have sufficient context to proceed, \
 skip this instruction.`;
