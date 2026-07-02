@@ -12,7 +12,7 @@
  *   - review-after-commit: inject a review checklist after a git commit
  *
  * The advisory system can be toggled at runtime via /advisor [on|off].
- * Pass --no-advisor on the CLI to start with it disabled.
+ * Pass --advisor on the CLI to enable it on startup.
  *
  * Each inject prompt begins with a [SYSTEM INSTRUCTION: ID] sentinel that:
  * - Directs the main agent to follow the instructions before proceeding
@@ -569,17 +569,17 @@ export default function osAgent(pi: ExtensionAPI): void {
 		const guidelines = pi.getGuidelines();
 		const continuations = pi.getContinuations();
 
-		// Apply --no-advisor flag if set.
-		if (pi.getFlag("no-advisor") === true) {
-			pi.setAdvisoryEnabled(false);
-			if (ctx.hasUI) ctx.ui.notify("[advisory] disabled via --no-advisor", "warning");
+		// Apply --advisor flag if set.
+		if (pi.getFlag("advisor") === true) {
+			pi.setAdvisoryEnabled(true);
+			if (ctx.hasUI) ctx.ui.notify("[advisory] enabled via --advisor", "info");
 		}
 	});
 
 	// --- CLI flags ---
 
-	pi.registerFlag("no-advisor", {
-		description: "Disable the advisory system on startup",
+	pi.registerFlag("advisor", {
+		description: "Enable the advisory system on startup",
 		type: "boolean",
 		default: false,
 	});

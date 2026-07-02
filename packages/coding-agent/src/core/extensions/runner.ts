@@ -364,7 +364,7 @@ export class ExtensionRunner {
 	private commandDiagnostics: ResourceDiagnostic[] = [];
 	private staleMessage: string | undefined;
 	/** Whether the advisory system is enabled. Toggled via setAdvisoryEnabled(). */
-	private _advisoryEnabled = true;
+	private _advisoryEnabled = false;
 	/**
 	 * True while a guideline branch session is in-flight at turn_start.
 	 * Guards against re-entrant advisory runs when turns fire rapidly.
