@@ -34,25 +34,22 @@ and any gaps you could not resolve that may be relevant (omit if none).`;
 
 export function makeResearchTool(session: AgentSession, registry: SubagentRegistry): ToolDefinition {
 	return defineTool({
-		name: "research",
+		name: "researchConversationQuestion",
 		label: "Research",
 		description:
 			"Spawn a subagent to investigate a question about the codebase using read, grep, find, ls, " +
 			"and bash. Returns structured findings: relevant file paths, key code snippets, and a conclusion. " +
-			"Use this when you need to look something up before acting, or when the answer requires " +
-			"exploring multiple files. Do not use for simple single-file reads.",
-		promptSnippet: "research(question): investigate a codebase question and return structured findings",
+			"Only invoke this when an injected advisory or guideline explicitly requests it.",
+		promptSnippet:
+			"researchConversationQuestion(question): investigate a codebase question and return structured findings",
 		promptGuidelines: [
-			"Research is most useful when exploring unfamiliar codebase territory across " +
-				"multiple files where inline exploration would consume significant context. " +
-				"It is less warranted when the relevant file is already open, a single read " +
-				"would suffice, or bash can answer in one command.",
-			"Before invoking research, enumerate all open questions for the current task " +
-				"and combine them into a single research question rather than invoking research once per question.",
-			"After research returns findings, apply them to the task at hand and bias " +
+			"Only invoke researchConversationQuestion when an injected advisory or guideline explicitly requests it. " +
+				"Do not invoke it on your own initiative — explore the codebase directly in the main " +
+				"session using read, bash, grep, and find instead.",
+			"After researchConversationQuestion returns findings, apply them to the task at hand and bias " +
 				"toward acting. Also reflect on any uncertainties or gaps the subagent flagged — " +
 				"they may not apply directly but can surface new angles or inform your approach. " +
-				"Only invoke research again if a specific remaining gap would cause a concrete " +
+				"Only invoke researchConversationQuestion again if a specific remaining gap would cause a concrete " +
 				"mistake — not for exploratory or derivative follow-on questions.",
 		],
 		parameters: Type.Object({
