@@ -308,9 +308,6 @@ export class InteractiveMode {
 	// Thinking block visibility state
 	private hideThinkingBlock = false;
 
-	// Skill commands: command name -> skill file path (root-sourced, global)
-	private skillCommands = new Map<string, string>();
-
 	private signalCleanupHandlers: Array<() => void> = [];
 
 	// Track if editor is in bash mode (text starts with !)
@@ -515,54 +512,44 @@ export class InteractiveMode {
 			}));
 	}
 
-	private createBaseAutocompleteProvider(): AutocompleteProvider {
-		// Define commands for autocomplete
+	/**
+	 * Build an AutocompleteProvider scoped to a specific AgentSession.
+	 * Root session: full set (skills, extension commands, prompt templates, models).
+	 * Subagent sessions: only what was configured for that session (usually empty
+	 * skill/extension lists, yielding built-in commands + file completions only).
+	 */
+	private createPaneAutocompleteProvider(session: AgentSession): AutocompleteProvider {
 		const slashCommands: SlashCommand[] = BUILTIN_SLASH_COMMANDS.map((command) => ({
 			name: command.name,
 			description: command.description,
 		}));
 
+		// /model completion uses root's model registry (single global registry).
 		const modelCommand = slashCommands.find((command) => command.name === "model");
 		if (modelCommand) {
 			modelCommand.getArgumentCompletions = (prefix: string): AutocompleteItem[] | null => {
-				// Get available models (scoped or from registry)
 				const models =
 					this.resources.scopedModels.length > 0
 						? this.resources.scopedModels.map((s) => s.model)
 						: this.resources.modelRegistry.getAvailable();
-
 				if (models.length === 0) return null;
-
-				// Create items with provider/id format
-				const items = models.map((m) => ({
-					id: m.id,
-					provider: m.provider,
-					label: `${m.provider}/${m.id}`,
-				}));
-
-				// Fuzzy filter by model ID + provider (allows "opus anthropic" to match)
+				const items = models.map((m) => ({ id: m.id, provider: m.provider, label: `${m.provider}/${m.id}` }));
 				const filtered = fuzzyFilter(items, prefix, (item) => `${item.id} ${item.provider}`);
-
 				if (filtered.length === 0) return null;
-
-				return filtered.map((item) => ({
-					value: item.label,
-					label: item.id,
-					description: item.provider,
-				}));
+				return filtered.map((item) => ({ value: item.label, label: item.id, description: item.provider }));
 			};
 		}
 
-		// Convert prompt templates to SlashCommand format for autocomplete
-		const templateCommands: SlashCommand[] = this.resources.promptTemplates.map((cmd) => ({
+		// Prompt templates from this session's resource loader.
+		const templateCommands: SlashCommand[] = session.resourceLoader.getPrompts().prompts.map((cmd) => ({
 			name: cmd.name,
 			description: this.prefixAutocompleteDescription(cmd.description, cmd.sourceInfo),
 			...(cmd.argumentHint && { argumentHint: cmd.argumentHint }),
 		}));
 
-		// Convert extension commands to SlashCommand format
+		// Extension commands from this session (empty for subagents with no extensions).
 		const builtinCommandNames = new Set(slashCommands.map((c) => c.name));
-		const extensionCommands: SlashCommand[] = this.resources.extensionRunner
+		const extensionCommands: SlashCommand[] = session.extensionRunner
 			.getRegisteredCommands()
 			.filter((cmd) => !builtinCommandNames.has(cmd.name))
 			.map((cmd) => ({
@@ -571,15 +558,12 @@ export class InteractiveMode {
 				getArgumentCompletions: cmd.getArgumentCompletions,
 			}));
 
-		// Build skill commands from session.skills (if enabled)
-		this.skillCommands.clear();
+		// Skill commands from this session (empty for subagents with no skills).
 		const skillCommandList: SlashCommand[] = [];
 		if (this.settingsManager.getEnableSkillCommands()) {
-			for (const skill of this.resources.resourceLoader.getSkills().skills) {
-				const commandName = `skill:${skill.name}`;
-				this.skillCommands.set(commandName, skill.filePath);
+			for (const skill of session.resourceLoader.getSkills().skills) {
 				skillCommandList.push({
-					name: commandName,
+					name: `skill:${skill.name}`,
 					description: this.prefixAutocompleteDescription(skill.description, skill.sourceInfo),
 				});
 			}
@@ -587,21 +571,32 @@ export class InteractiveMode {
 
 		return new CombinedAutocompleteProvider(
 			[...slashCommands, ...templateCommands, ...extensionCommands, ...skillCommandList],
-			this.sessionManager.getCwd(),
+			session.cwd,
 			this.fdPath,
 		);
 	}
 
+	/**
+	 * Rebuild and set autocomplete providers for ALL panes.
+	 * Root pane gets the root-session provider wrapped by any extension factories.
+	 * Subagent panes get a minimal provider from their own session's resources.
+	 */
 	private setupAutocompleteProvider(): void {
-		let provider = this.createBaseAutocompleteProvider();
-		for (const wrapProvider of this.autocompleteProviderWrappers) {
-			provider = wrapProvider(provider);
+		for (const [id, pane] of this.panes) {
+			if (!pane.editor) continue; // not yet wired (root pane before init)
+			let provider = this.createPaneAutocompleteProvider(pane.session);
+			if (id === "root") {
+				// Root pane: apply extension provider wrappers.
+				for (const wrapProvider of this.autocompleteProviderWrappers) {
+					provider = wrapProvider(provider);
+				}
+				this.autocompleteProvider = provider;
+			}
+			pane.editor.setAutocompleteProvider(provider);
 		}
-
-		this.autocompleteProvider = provider;
-		this.defaultEditor.setAutocompleteProvider(provider);
-		if (this.editor !== this.defaultEditor) {
-			this.editor.setAutocompleteProvider?.(provider);
+		// If a factory editor is active, give it the root provider too.
+		if (this.editor !== this.defaultEditor && this.autocompleteProvider) {
+			this.editor.setAutocompleteProvider?.(this.autocompleteProvider);
 		}
 	}
 
@@ -2709,15 +2704,15 @@ export class InteractiveMode {
 				return;
 			}
 
-			// Root-session commands (extension commands, prompt templates, skill commands) must
-			// always execute on the root session — subagents have no extension runner or resources.
-			if (this.isRootCommand(text)) {
+			// Pane-specific commands (extension commands, prompt templates, skill commands
+			// registered on the active session) route to the active session.
+			if (this.isPaneCommand(text)) {
 				this.editor.addToHistory?.(text);
 				this.editor.setText("");
-				if (this.resources.isStreaming) {
-					await this.resources.prompt(text, { streamingBehavior: "steer" });
+				if (this.active.isStreaming) {
+					await this.active.session.prompt(text, { streamingBehavior: "steer" });
 				} else {
-					await this.resources.prompt(text);
+					await this.active.session.prompt(text);
 				}
 				this.updatePendingMessagesDisplay();
 				this.ui.requestRender();
@@ -2785,9 +2780,9 @@ export class InteractiveMode {
 		for (const [action, handler] of src.actionHandlers) {
 			e.onAction(action, handler);
 		}
-		if (this.autocompleteProvider) {
-			e.setAutocompleteProvider(this.autocompleteProvider);
-		}
+		// Build autocomplete from this pane's session's resources.
+		const paneProvider = this.createPaneAutocompleteProvider(pane.session);
+		e.setAutocompleteProvider(paneProvider);
 		pane.editor = e;
 	}
 
@@ -3742,14 +3737,14 @@ export class InteractiveMode {
 			return;
 		}
 
-		// Root-session commands always execute on the root session.
-		if (this.isRootCommand(text)) {
+		// Pane-specific commands route to the active session.
+		if (this.isPaneCommand(text)) {
 			this.editor.addToHistory?.(text);
 			this.editor.setText("");
-			if (this.resources.isStreaming) {
-				await this.resources.prompt(text, { streamingBehavior: "followUp" });
+			if (this.active.isStreaming) {
+				await this.active.session.prompt(text, { streamingBehavior: "followUp" });
 			} else {
-				await this.resources.prompt(text);
+				await this.active.session.prompt(text);
 			}
 			this.updatePendingMessagesDisplay();
 			this.ui.requestRender();
@@ -4066,34 +4061,42 @@ export class InteractiveMode {
 		this.showStatus("Queued message for after compaction");
 	}
 
+	/**
+	 * Returns true if this text is an extension command, prompt template, or skill
+	 * command registered on the ACTIVE pane's session.
+	 *
+	 * For root: resolves against root's full extension runner, prompts, and skills.
+	 * For subagents: resolves against the subagent's (minimal) resources — returns
+	 * false for any slash command the subagent wasn't configured with, letting the
+	 * text flow through as a plain prompt to active.session.prompt().
+	 *
+	 * Note: do NOT use this in compaction-queue paths (flushCompactionQueue) —
+	 * compaction is root-only so those paths keep using isExtensionCommand directly.
+	 */
+	private isPaneCommand(text: string): boolean {
+		if (!text.startsWith("/")) return false;
+		const spaceIndex = text.indexOf(" ");
+		const name = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
+		const session = this.active.session;
+		// Extension command on this pane's session?
+		if (session.extensionRunner.getCommand(name)) return true;
+		// Prompt template?
+		if (session.resourceLoader.getPrompts().prompts.some((t) => t.name === name)) return true;
+		// Skill command (e.g. "skill:diagrams")?
+		if (name.startsWith("skill:")) {
+			const skillName = name.slice("skill:".length);
+			if (session.resourceLoader.getSkills().skills.some((s) => s.name === skillName)) return true;
+		}
+		return false;
+	}
+
+	/** For compaction-queue paths only: checks root's extension runner. */
 	private isExtensionCommand(text: string): boolean {
 		if (!text.startsWith("/")) return false;
 		const extensionRunner = this.resources.extensionRunner;
 		const spaceIndex = text.indexOf(" ");
 		const commandName = spaceIndex === -1 ? text.slice(1) : text.slice(1, spaceIndex);
 		return !!extensionRunner.getCommand(commandName);
-	}
-
-	/** Returns true if this command must execute on the root session regardless of focus.
-	 *  Superset of isExtensionCommand — also includes prompt templates and skill commands
-	 *  whose resources live on the root session only.
-	 *  Do NOT use this in compaction paths — use isExtensionCommand there, which preserves
-	 *  the distinction between immediate-execution vs queued-LLM-prompt commands.
-	 */
-	private isRootCommand(text: string): boolean {
-		return this.isExtensionCommand(text) || this.isPromptTemplate(text) || this.isSkillCommand(text);
-	}
-
-	private isPromptTemplate(text: string): boolean {
-		if (!text.startsWith("/")) return false;
-		const name = text.slice(1).split(/\s/, 1)[0] ?? "";
-		return this.resources.promptTemplates.some((t) => t.name === name);
-	}
-
-	private isSkillCommand(text: string): boolean {
-		if (!text.startsWith("/")) return false;
-		const name = text.slice(1).split(/\s/, 1)[0] ?? "";
-		return this.skillCommands.has(name);
 	}
 
 	private async flushCompactionQueue(options?: { willRetry?: boolean }): Promise<void> {
