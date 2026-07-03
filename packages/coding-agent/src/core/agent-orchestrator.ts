@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { AgentSession, AgentSessionEventListener } from "./agent-session.ts";
+import type { AgentSession } from "./agent-session.ts";
 import type { AgentSessionRuntime } from "./agent-session-runtime.ts";
-import type { ConversationSession } from "./conversation-session.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
@@ -17,7 +16,7 @@ import { makeResearchTool } from "./tools/research.ts";
  * AgentSessionRuntime remains responsible only for replacing the root session
  * (fork, new, switch). AgentOrchestrator is responsible for everything else.
  */
-export class AgentOrchestrator implements ConversationSession {
+export class AgentOrchestrator {
 	readonly registry: SubagentRegistry;
 	private _focused: SubagentRecord | undefined = undefined;
 	private readonly _runtime: AgentSessionRuntime;
@@ -58,30 +57,6 @@ export class AgentOrchestrator implements ConversationSession {
 	/** Switch focus to a subagent record, or pass undefined to return to root. */
 	focus(record: SubagentRecord | undefined): void {
 		this._focused = record;
-	}
-
-	// =========================================================================
-	// ConversationSession implementation — routes to focusedSession
-	// =========================================================================
-
-	get isStreaming(): boolean {
-		return this.focusedSession.isStreaming;
-	}
-
-	get retryAttempt(): number {
-		return this.focusedSession.retryAttempt;
-	}
-
-	prompt(...args: Parameters<AgentSession["prompt"]>): ReturnType<AgentSession["prompt"]> {
-		return this.focusedSession.prompt(...args);
-	}
-
-	subscribe(listener: AgentSessionEventListener): () => void {
-		return this.focusedSession.subscribe(listener);
-	}
-
-	async abort(): Promise<void> {
-		return this.focusedSession.abort();
 	}
 
 	// =========================================================================
