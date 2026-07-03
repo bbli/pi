@@ -4186,11 +4186,13 @@ export class InteractiveMode {
 
 	/** Move pending bash components from pending area to chat */
 	private flushPendingBashComponents(): void {
-		for (const component of this.active.pendingBashComponents) {
-			this.active.pendingMessages.removeChild(component);
+		// Capture once: focusedId may change if called after a focus switch.
+		const pane = this.active;
+		for (const component of pane.pendingBashComponents) {
+			pane.pendingMessages.removeChild(component);
 			this.chatContainer.addChild(component);
 		}
-		this.active.pendingBashComponents = [];
+		pane.pendingBashComponents = [];
 	}
 
 	// =========================================================================
@@ -5894,6 +5896,11 @@ export class InteractiveMode {
 	}
 
 	private async handleBashCommand(command: string, excludeFromContext = false): Promise<void> {
+		// Snapshot the active pane at entry. this.active re-evaluates focusedId
+		// on every call; if the user switches focus while executeBash is awaited,
+		// every subsequent this.active.* would silently target the wrong pane.
+		const pane = this.active;
+		debugLog(`[bash] pane=${pane.id} command="${command.slice(0, 60)}"`);
 		const extensionRunner = this.resources.extensionRunner;
 
 		// Emit user_bash event to let extensions intercept
@@ -5909,19 +5916,19 @@ export class InteractiveMode {
 			const result = eventResult.result;
 
 			// Create UI component for display
-			this.active.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
-			if (this.active.session.isStreaming) {
-				this.active.pendingMessages.addChild(this.active.bashComponent);
-				this.active.pendingBashComponents.push(this.active.bashComponent);
+			pane.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
+			if (pane.session.isStreaming) {
+				pane.pendingMessages.addChild(pane.bashComponent);
+				pane.pendingBashComponents.push(pane.bashComponent);
 			} else {
-				this.chatContainer.addChild(this.active.bashComponent);
+				this.chatContainer.addChild(pane.bashComponent);
 			}
 
 			// Show output and complete
 			if (result.output) {
-				this.active.bashComponent.appendOutput(result.output);
+				pane.bashComponent.appendOutput(result.output);
 			}
-			this.active.bashComponent.setComplete(
+			pane.bashComponent.setComplete(
 				result.exitCode,
 				result.cancelled,
 				result.truncated ? ({ truncated: true, content: result.output } as TruncationResult) : undefined,
@@ -5929,40 +5936,40 @@ export class InteractiveMode {
 			);
 
 			// Record the result in session
-			this.active.session.recordBashResult(command, result, { excludeFromContext });
-			this.active.bashComponent = undefined;
+			pane.session.recordBashResult(command, result, { excludeFromContext });
+			pane.bashComponent = undefined;
 			this.ui.requestRender();
 			return;
 		}
 
 		// Normal execution path (possibly with custom operations)
-		const isDeferred = this.active.session.isStreaming;
-		this.active.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
+		const isDeferred = pane.session.isStreaming;
+		pane.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
 
 		if (isDeferred) {
 			// Show in pending area when agent is streaming
-			this.active.pendingMessages.addChild(this.active.bashComponent);
-			this.active.pendingBashComponents.push(this.active.bashComponent);
+			pane.pendingMessages.addChild(pane.bashComponent);
+			pane.pendingBashComponents.push(pane.bashComponent);
 		} else {
 			// Show in chat immediately when agent is idle
-			this.chatContainer.addChild(this.active.bashComponent);
+			this.chatContainer.addChild(pane.bashComponent);
 		}
 		this.ui.requestRender();
 
 		try {
-			const result = await this.active.session.executeBash(
+			const result = await pane.session.executeBash(
 				command,
 				(chunk) => {
-					if (this.active.bashComponent) {
-						this.active.bashComponent.appendOutput(chunk);
+					if (pane.bashComponent) {
+						pane.bashComponent.appendOutput(chunk);
 						this.ui.requestRender();
 					}
 				},
 				{ excludeFromContext, operations: eventResult?.operations },
 			);
 
-			if (this.active.bashComponent) {
-				this.active.bashComponent.setComplete(
+			if (pane.bashComponent) {
+				pane.bashComponent.setComplete(
 					result.exitCode,
 					result.cancelled,
 					result.truncated ? ({ truncated: true, content: result.output } as TruncationResult) : undefined,
@@ -5970,13 +5977,13 @@ export class InteractiveMode {
 				);
 			}
 		} catch (error) {
-			if (this.active.bashComponent) {
-				this.active.bashComponent.setComplete(undefined, false);
+			if (pane.bashComponent) {
+				pane.bashComponent.setComplete(undefined, false);
 			}
 			this.showError(`Bash command failed: ${error instanceof Error ? error.message : "Unknown error"}`);
 		}
 
-		this.active.bashComponent = undefined;
+		pane.bashComponent = undefined;
 		this.ui.requestRender();
 	}
 
