@@ -122,6 +122,11 @@ export function buildSystemPrompt(options: BuildSystemPromptOptions): string {
 	}
 
 	// Always include these
+	addGuideline(
+		"For consequential design decisions with multiple valid approaches (API shape, naming, architecture, test cases), " +
+			"generate candidates with brief rationale for each, select the best one, and explain why before implementing. " +
+			"Skip this for minor or easily reversible choices.",
+	);
 	addGuideline("Be concise in your responses");
 	addGuideline("Show file paths clearly when working with files");
 
