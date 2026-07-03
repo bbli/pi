@@ -61,7 +61,7 @@ async function createBranchAgentSession(
 		sessionManager: SessionManager.inMemory(),
 		model: options.model ?? mainSession.model!,
 		modelRegistry: mainSession.modelRegistry,
-		thinkingLevel: "off",
+		thinkingLevel: options.thinkingLevel ?? "off",
 		tools: [...builtinTools, ...customToolNames],
 		customTools: options.customTools,
 		resourceLoader: createBranchResourceLoader(options.systemPrompt),
@@ -148,7 +148,20 @@ export async function runBranchSession(
 			registry.register({ id: registeredId, label, kind: "branch", session: branchSession });
 		}
 
-		// Step 3: run the prompt
+		// Step 3a: wire abort signal — if the caller cancels, abort the branch session too.
+		// Without this the branch session runs to completion even after the parent turn is aborted,
+		// keeping the main turn blocked until the branch finishes.
+		const abortSignal = options.abortSignal;
+		if (abortSignal) {
+			if (abortSignal.aborted) {
+				// Already cancelled before we started — skip the prompt entirely.
+				debugLog(`[branch:${label}] aborted before start`);
+				return undefined;
+			}
+			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
+		}
+
+		// Step 3b: run the prompt
 		await branchSession.prompt(prompt, { source: "extension" });
 
 		// Step 4: capture last assistant text

@@ -1122,11 +1122,24 @@ export interface BranchSessionOptions {
 	keepAlive?: boolean;
 	/**
 	 * If false, skip seeding the branch session with the main session's conversation
-	 * history. Defaults to true (full history is seeded), matching prior behavior.
-	 * Pass false for self-contained sessions (e.g. research tool) to avoid sending
-	 * unrelated conversation context and reduce token usage.
+	 * history. Defaults to true (full history is seeded).
+	 * Pass false for fully self-contained sessions that must not receive any prior
+	 * conversation context.
 	 */
 	seedContext?: boolean;
+	/**
+	 * Thinking level for the branch session.
+	 * Defaults to "off" — branch sessions do not use extended thinking unless
+	 * explicitly requested. Set to a higher level for sessions that require deep
+	 * analytical reasoning rather than tool-driven exploration.
+	 */
+	thinkingLevel?: ThinkingLevel;
+	/**
+	 * Optional AbortSignal from the caller. When the signal fires, the branch session
+	 * is aborted via branchSession.abort(). This allows callers (e.g. tool execute())
+	 * to cancel an in-flight branch session when the parent turn is cancelled.
+	 */
+	abortSignal?: AbortSignal;
 }
 
 /** A guideline registered via registerGuideline(). Evaluated at turn_start. */
