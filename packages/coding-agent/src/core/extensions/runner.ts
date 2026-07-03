@@ -572,6 +572,7 @@ export class ExtensionRunner {
 					),
 				],
 				label: "advisory:guidelines",
+				seedContext: true,
 			});
 		} catch (err) {
 			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
@@ -617,6 +618,7 @@ export class ExtensionRunner {
 					),
 				],
 				label: "advisory:continuations",
+				seedContext: true,
 			});
 		} catch (err) {
 			console.error(`[advisory] continuations error: ${err instanceof Error ? err.message : String(err)}`);
