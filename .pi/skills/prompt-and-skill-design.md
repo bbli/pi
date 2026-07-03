@@ -60,6 +60,8 @@ Once the request is clear, collect relevant material:
 
 Collect these verbatim or as close paraphrases. If the conversation is thin on examples, note this and ask the user for one concrete positive and one negative case before drafting. Examples embedded in the skill are more durable than abstract principles — they define intent for models that have never seen this conversation.
 
+**Identify edge cases before drafting.** Once the request is clear and examples are gathered, reason about situations the user may not have anticipated — ambiguous inputs, conflicting signals, partial matches, or boundary conditions where the intended behavior is unclear. Surface the ones that would meaningfully affect the design. For each, briefly describe the scenario and ask the user how the prompt or skill should handle it. Resolve these before moving to Step 3 — unresolved edge cases become ambiguities embedded in the draft.
+
 > **If this is an advisory/injection prompt:**
 > - Note any prior advisory that covers similar ground — over-advising is a real failure mode.
 > - Identify the **idempotency anchor**: what specific event state will the skip condition reference?
@@ -240,6 +242,27 @@ Conclude with a `SUMMARY` section covering:
 Finally, suggest **follow-up questions** that would sharpen the design — e.g., edge cases in the conditions, whether the prompt overlaps with an existing one, or whether the framing preserves enough judgment for the receiving agent.
 
 If you noted a prior task in **Before You Begin**, return to it now.
+
+---
+
+## Step 6 — Broader Improvement Suggestions
+
+The user's request may have been scoped to a specific symptom, phrasing issue, or narrow fix. Before closing, step back and evaluate the prompt or skill as a whole — not just what was asked about.
+
+Review the final draft and any existing material gathered in Step 2. For each area below, decide whether it surfaces a meaningful gap the user did not address:
+
+- **Missing coverage**: is there a scenario or failure mode this prompt does not handle that it plausibly should? Name the scenario concretely.
+- **Structural issues**: does the prompt have competing or redundant instructions, implicit assumptions about context, or framing that will silently degrade in adjacent situations?
+- **Principle gaps**: scan the prompt against the principles in Step 3. Is any principle that clearly applies absent from the draft?
+- **Scope mismatch**: was the user's ask too narrow (fixing a phrase when the structure is the real problem) or too broad (a new prompt where a small addition to an existing one would suffice)?
+- **Anti-pattern residue**: does the final draft still contain any anti-pattern from the table below, even partially?
+
+For each meaningful gap found, state:
+1. What the issue is
+2. Why it matters (what failure mode it creates or avoids)
+3. A concrete suggestion for how to address it
+
+Do not generate suggestions for the sake of completeness — only surface improvements that would materially change the prompt's behavior or robustness. If the draft is sound and the user's ask was well-scoped, say so explicitly.
 
 ---
 
