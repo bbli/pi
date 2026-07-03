@@ -311,12 +311,6 @@ export class InteractiveMode {
 
 	private signalCleanupHandlers: Array<() => void> = [];
 
-	// Track current bash execution component
-	private bashComponent: BashExecutionComponent | undefined = undefined;
-
-	// Track pending bash components (shown in pending area, moved to chat on submit)
-	private pendingBashComponents: BashExecutionComponent[] = [];
-
 	// The main escape handler set in setupKeyHandlers. Stored so wirePaneEditor
 	// always copies the clean handler, not a compaction/retry override.
 	private mainEscapeHandler?: () => void;
@@ -2459,8 +2453,8 @@ export class InteractiveMode {
 					// Root session — abort and restore pending messages to editor.
 					this.restoreQueuedMessagesToEditor({ abort: true });
 				}
-			} else if (this.resources.isBashRunning) {
-				this.resources.abortBash();
+			} else if (this.active.session.isBashRunning) {
+				this.active.session.abortBash();
 			} else if (this.active.isBashMode) {
 				this.editor.setText("");
 				this.active.isBashMode = false;
@@ -2690,7 +2684,7 @@ export class InteractiveMode {
 				const isExcluded = text.startsWith("!!");
 				const command = isExcluded ? text.slice(2).trim() : text.slice(1).trim();
 				if (command) {
-					if (this.resources.isBashRunning) {
+					if (this.active.session.isBashRunning) {
 						this.showWarning("A bash command is already running. Press Esc to cancel it first.");
 						this.editor.setText(text);
 						return;
@@ -4192,11 +4186,11 @@ export class InteractiveMode {
 
 	/** Move pending bash components from pending area to chat */
 	private flushPendingBashComponents(): void {
-		for (const component of this.pendingBashComponents) {
+		for (const component of this.active.pendingBashComponents) {
 			this.active.pendingMessages.removeChild(component);
 			this.chatContainer.addChild(component);
 		}
-		this.pendingBashComponents = [];
+		this.active.pendingBashComponents = [];
 	}
 
 	// =========================================================================
@@ -5915,19 +5909,19 @@ export class InteractiveMode {
 			const result = eventResult.result;
 
 			// Create UI component for display
-			this.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
-			if (this.resources.isStreaming) {
-				this.active.pendingMessages.addChild(this.bashComponent);
-				this.pendingBashComponents.push(this.bashComponent);
+			this.active.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
+			if (this.active.session.isStreaming) {
+				this.active.pendingMessages.addChild(this.active.bashComponent);
+				this.active.pendingBashComponents.push(this.active.bashComponent);
 			} else {
-				this.chatContainer.addChild(this.bashComponent);
+				this.chatContainer.addChild(this.active.bashComponent);
 			}
 
 			// Show output and complete
 			if (result.output) {
-				this.bashComponent.appendOutput(result.output);
+				this.active.bashComponent.appendOutput(result.output);
 			}
-			this.bashComponent.setComplete(
+			this.active.bashComponent.setComplete(
 				result.exitCode,
 				result.cancelled,
 				result.truncated ? ({ truncated: true, content: result.output } as TruncationResult) : undefined,
@@ -5935,40 +5929,40 @@ export class InteractiveMode {
 			);
 
 			// Record the result in session
-			this.resources.recordBashResult(command, result, { excludeFromContext });
-			this.bashComponent = undefined;
+			this.active.session.recordBashResult(command, result, { excludeFromContext });
+			this.active.bashComponent = undefined;
 			this.ui.requestRender();
 			return;
 		}
 
 		// Normal execution path (possibly with custom operations)
-		const isDeferred = this.resources.isStreaming;
-		this.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
+		const isDeferred = this.active.session.isStreaming;
+		this.active.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
 
 		if (isDeferred) {
 			// Show in pending area when agent is streaming
-			this.active.pendingMessages.addChild(this.bashComponent);
-			this.pendingBashComponents.push(this.bashComponent);
+			this.active.pendingMessages.addChild(this.active.bashComponent);
+			this.active.pendingBashComponents.push(this.active.bashComponent);
 		} else {
 			// Show in chat immediately when agent is idle
-			this.chatContainer.addChild(this.bashComponent);
+			this.chatContainer.addChild(this.active.bashComponent);
 		}
 		this.ui.requestRender();
 
 		try {
-			const result = await this.resources.executeBash(
+			const result = await this.active.session.executeBash(
 				command,
 				(chunk) => {
-					if (this.bashComponent) {
-						this.bashComponent.appendOutput(chunk);
+					if (this.active.bashComponent) {
+						this.active.bashComponent.appendOutput(chunk);
 						this.ui.requestRender();
 					}
 				},
 				{ excludeFromContext, operations: eventResult?.operations },
 			);
 
-			if (this.bashComponent) {
-				this.bashComponent.setComplete(
+			if (this.active.bashComponent) {
+				this.active.bashComponent.setComplete(
 					result.exitCode,
 					result.cancelled,
 					result.truncated ? ({ truncated: true, content: result.output } as TruncationResult) : undefined,
@@ -5976,13 +5970,13 @@ export class InteractiveMode {
 				);
 			}
 		} catch (error) {
-			if (this.bashComponent) {
-				this.bashComponent.setComplete(undefined, false);
+			if (this.active.bashComponent) {
+				this.active.bashComponent.setComplete(undefined, false);
 			}
 			this.showError(`Bash command failed: ${error instanceof Error ? error.message : "Unknown error"}`);
 		}
 
-		this.bashComponent = undefined;
+		this.active.bashComponent = undefined;
 		this.ui.requestRender();
 	}
 

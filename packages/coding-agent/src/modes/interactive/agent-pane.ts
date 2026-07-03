@@ -11,6 +11,7 @@ import { Container, type LoaderIndicatorOptions, type Spacer, type Text } from "
 import type { AgentSession, AgentSessionEventListener } from "../../core/agent-session.ts";
 import { debugLog } from "../../core/debug.ts";
 import type { AssistantMessageComponent } from "./components/assistant-message.ts";
+import type { BashExecutionComponent } from "./components/bash-execution.ts";
 import type { CustomEditor } from "./components/custom-editor.ts";
 import type { ToolExecutionComponent } from "./components/tool-execution.ts";
 
@@ -35,6 +36,13 @@ export class AgentPane {
 	editor!: CustomEditor;
 	/** Whether the editor currently starts with "!" (bash mode). */
 	isBashMode = false;
+
+	// ── Bash execution (per-pane) ──────────────────────────────────────────
+	/** The currently-executing (or just-completed) bash UI component. */
+	bashComponent: BashExecutionComponent | undefined = undefined;
+	/** Bash components shown in pendingMessages while the session is streaming;
+	 *  moved to chatContainer by flushPendingBashComponents() on the next submit. */
+	pendingBashComponents: BashExecutionComponent[] = [];
 
 	// ── Pending messages container (per-pane, swapped into layout slot) ───
 	/** Container for steering/follow-up queue display and pending bash components. */
