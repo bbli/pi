@@ -6,8 +6,8 @@
  * The branch session is registered in SubagentRegistry while running, making
  * it visible in the TUI footer and switchable via /agent.
  *
- * History seeding is always enabled so the subagent has full context from the
- * main session.
+ * The branch session receives the full main session history (seedContext: true
+ * is the default) so the subagent has complete context for codebase questions.
  */
 
 import { Type } from "typebox";
@@ -46,6 +46,10 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 			"Only invoke researchConversationQuestion when an injected advisory or guideline explicitly requests it. " +
 				"Do not invoke it on your own initiative — explore the codebase directly in the main " +
 				"session using read, bash, grep, and find instead.",
+			"When you have multiple distinct questions to research, call researchConversationQuestion for ALL of " +
+				"them in a single turn — do not call it sequentially across multiple turns. " +
+				"Tool calls within one turn run in parallel, so batching all questions into one turn is faster " +
+				"than issuing them one at a time.",
 			"After researchConversationQuestion returns findings, apply them to the task at hand and bias " +
 				"toward acting. Also reflect on any uncertainties or gaps the subagent flagged — " +
 				"they may not apply directly but can surface new angles or inform your approach. " +
@@ -57,11 +61,7 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 				description: "The question or topic to research.",
 			}),
 		}),
-		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
-			// Note: _signal is not forwarded to runBranchSession. Aborting the main session
-			// while research is running will not interrupt the subagent — the main turn
-			// remains blocked until the branch session completes.
-			// TODO: add timeoutMs to BranchSessionOptions to bound long-running sessions.
+		execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {
 			debugLog(`[research] starting: question.length=${params.question.length}`);
 			let text: string | undefined;
 			try {
@@ -72,6 +72,7 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 						tools: ["read", "grep", "find", "ls", "bash"],
 						label: "research",
 						seedContext: true,
+						abortSignal: signal,
 					},
 					session,
 					registry,

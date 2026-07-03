@@ -7,6 +7,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthStorage } from "../src/core/auth-storage.ts";
+import * as branchSessionModule from "../src/core/branch-session.ts";
 import { createExtensionRuntime, discoverAndLoadExtensions } from "../src/core/extensions/loader.ts";
 import { ExtensionRunner, makeInjectGuidelineTool } from "../src/core/extensions/runner.ts";
 import type {
@@ -18,6 +19,7 @@ import type {
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
 import { ModelRegistry } from "../src/core/model-registry.ts";
 import { SessionManager } from "../src/core/session-manager.ts";
+import { makeResearchTool } from "../src/core/tools/research.ts";
 
 describe("ExtensionRunner", () => {
 	let tempDir: string;
@@ -945,6 +947,50 @@ describe("ExtensionRunner", () => {
 
 			expect(injected).toHaveLength(0);
 			expect((result.content[0] as { text: string } | undefined)?.text).toBe("unknown id: nonexistent");
+		});
+	});
+
+	describe("makeResearchTool", () => {
+		it("returns error content when runBranchSession throws", async () => {
+			vi.spyOn(branchSessionModule, "runBranchSession").mockRejectedValueOnce(new Error("model unavailable"));
+
+			const mockSession = { model: "claude-sonnet", modelRegistry: {} } as never;
+			const mockRegistry = {} as never;
+			const tool = makeResearchTool(mockSession, mockRegistry);
+
+			const result = await tool.execute("call1", { question: "what is X?" }, undefined, undefined, {} as never);
+
+			const text = (result.content[0] as { text: string } | undefined)?.text ?? "";
+			expect(text).toMatch(/^Research failed: model unavailable/);
+		});
+
+		it("returns fallback message when runBranchSession returns undefined", async () => {
+			vi.spyOn(branchSessionModule, "runBranchSession").mockResolvedValueOnce(undefined);
+
+			const mockSession = { model: "claude-sonnet", modelRegistry: {} } as never;
+			const mockRegistry = {} as never;
+			const tool = makeResearchTool(mockSession, mockRegistry);
+
+			const result = await tool.execute("call1", { question: "what is X?" }, undefined, undefined, {} as never);
+
+			const text = (result.content[0] as { text: string } | undefined)?.text ?? "";
+			expect(text).toContain("produced no output");
+		});
+
+		it("forwards the abort signal to runBranchSession", async () => {
+			const capturedOptions: import("../src/core/extensions/types.ts").BranchSessionOptions[] = [];
+			vi.spyOn(branchSessionModule, "runBranchSession").mockImplementationOnce(async (_prompt, options) => {
+				capturedOptions.push(options);
+				return "findings";
+			});
+
+			const controller = new AbortController();
+			const mockSession = { model: "claude-sonnet", modelRegistry: {} } as never;
+			const tool = makeResearchTool(mockSession, {} as never);
+
+			await tool.execute("call1", { question: "q" }, controller.signal, undefined, {} as never);
+
+			expect(capturedOptions[0]?.abortSignal).toBe(controller.signal);
 		});
 	});
 
