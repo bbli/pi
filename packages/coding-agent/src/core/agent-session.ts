@@ -598,6 +598,9 @@ export class AgentSession {
 	/**
 	 * Returns the joined text content of the last assistant message, or undefined
 	 * if no assistant message exists or it contains no text blocks.
+	 * ThinkingContent and ToolCall blocks are excluded — only TextContent is joined.
+	 * NOTE: Do not use on sessions with thinkingLevel !== "off" when thinking-only
+	 * turns are possible — they will silently return undefined.
 	 * Used by runBranchSession to surface branch session output to callers.
 	 */
 	get lastAssistantText(): string | undefined {
@@ -858,8 +861,13 @@ export class AgentSession {
 	 * session construction, and on every session rebind.
 	 */
 	addBuiltinTool(tool: ToolDefinition): void {
-		// Safe to call only when idle. Current callers (AgentOrchestrator constructor
-		// and setRebindSession) always run before any prompt is submitted.
+		// PRECONDITION: must only be called while the session is idle.
+		// _refreshToolRegistry() mutates agent.state.tools and agent.state.systemPrompt;
+		// calling this mid-turn would corrupt state the active agent loop is reading.
+		if (this.isStreaming) {
+			console.error(`addBuiltinTool called while streaming — ignored (tool="${tool.name}")`);
+			return;
+		}
 		if (this._customTools.some((t) => t.name === tool.name)) return;
 		this._customTools.push(tool);
 		this._allowedToolNames?.add(tool.name);
