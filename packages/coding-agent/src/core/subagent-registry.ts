@@ -14,8 +14,10 @@ export interface SubagentRecord {
 export class SubagentRegistry {
 	private readonly _records = new Map<string, SubagentRecord>();
 	onStatusChange: (() => void) | undefined = undefined;
-	/** Fired after a new record is added. Orchestrator uses this to start TTLs. */
+	/** Fired after a new record is added. */
 	onRegister: ((record: SubagentRecord) => void) | undefined = undefined;
+	/** Fired after a record is removed (session aborted and disposed). */
+	onRemove: ((id: string) => void) | undefined = undefined;
 
 	register(record: Pick<SubagentRecord, "id" | "label" | "kind" | "session">): void {
 		const unsubscribeStatus = record.session.subscribe((event) => {
@@ -39,6 +41,7 @@ export class SubagentRegistry {
 		void record.session.abort().catch(() => {});
 		record.session.dispose();
 		this._records.delete(id);
+		this.onRemove?.(id);
 		this.onStatusChange?.();
 	}
 

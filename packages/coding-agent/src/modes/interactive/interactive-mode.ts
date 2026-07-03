@@ -62,6 +62,7 @@ import {
 import type { AgentOrchestrator } from "../../core/agent-orchestrator.ts";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
 import { SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
+import { debugLog } from "../../core/debug.ts";
 import type {
 	AutocompleteProviderFactory,
 	EditorFactory,
@@ -310,14 +311,15 @@ export class InteractiveMode {
 
 	private signalCleanupHandlers: Array<() => void> = [];
 
-	// Track if editor is in bash mode (text starts with !)
-	private isBashMode = false;
-
 	// Track current bash execution component
 	private bashComponent: BashExecutionComponent | undefined = undefined;
 
 	// Track pending bash components (shown in pending area, moved to chat on submit)
 	private pendingBashComponents: BashExecutionComponent[] = [];
+
+	// The main escape handler set in setupKeyHandlers. Stored so wirePaneEditor
+	// always copies the clean handler, not a compaction/retry override.
+	private mainEscapeHandler?: () => void;
 
 	// Auto-compaction state (active-only TUI objects; not per-pane)
 	private autoCompactionLoader: Loader | undefined = undefined;
@@ -406,6 +408,12 @@ export class InteractiveMode {
 			const pane = new AgentPane(record.session, record.id, record.label);
 			this.wirePaneEditor(pane);
 			this.panes.set(record.id, pane);
+			debugLog(`[AgentPane] pane ready id=${record.id}, total=${this.panes.size}`);
+		};
+		// Mirror registry removals (auto-terminated branch sessions) into panes map.
+		this.orchestrator.registry.onRemove = (id) => {
+			this.panes.delete(id);
+			debugLog(`[AgentPane] pane removed id=${id}, remaining=${this.panes.size}`);
 		};
 
 		// When the root session is replaced (/new, /fork, /resume), clear all
@@ -2475,6 +2483,9 @@ export class InteractiveMode {
 				}
 			}
 		};
+		// Capture main escape handler so wirePaneEditor always copies the clean
+		// version (not a compaction/retry override).
+		this.mainEscapeHandler = this.defaultEditor.onEscape;
 
 		// Register app action handlers
 		this.defaultEditor.onAction("app.clear", () => this.handleCtrlC());
@@ -2773,9 +2784,9 @@ export class InteractiveMode {
 		e.onCtrlD = src.onCtrlD;
 		e.onPasteImage = src.onPasteImage;
 		e.onExtensionShortcut = src.onExtensionShortcut;
-		// Main escape — always use the root editor's main handler (not the
-		// currently-overridden compaction/retry one).
-		e.onEscape = src.onEscape;
+		// Main escape — use the stored main handler, not src.onEscape which
+		// may currently be a transient compaction/retry override.
+		e.onEscape = this.mainEscapeHandler ?? src.onEscape;
 		// Copy all registered app actions (model cycle, clear, suspend, etc.).
 		for (const [action, handler] of src.actionHandlers) {
 			e.onAction(action, handler);
@@ -2911,6 +2922,7 @@ export class InteractiveMode {
 	 * "root" to return to the root session.
 	 */
 	private switchFocus(id: string): void {
+		debugLog(`[AgentPane] switchFocus from=${this.focusedId} to=${id}`);
 		if (!this.panes.has(id)) {
 			throw new Error(`[AgentPane] switchFocus: unknown pane id="${id}"`);
 		}
@@ -2922,6 +2934,8 @@ export class InteractiveMode {
 			this.ui.terminal.setProgress(false);
 		}
 		this.focusedId = id;
+		// Keep orchestrator._focused in sync so FooterComponent.focusedRecord is correct.
+		this.orchestrator.focus(id === "root" ? undefined : this.orchestrator.registry.get(id));
 		// Swap editor into the editor slot.
 		this.editor = this.active.editor;
 		this.editorContainer.clear();
@@ -4809,6 +4823,9 @@ export class InteractiveMode {
 		const remaining = Array.from(this.panes.keys()).filter((id) => id !== killedId);
 		const nextId = remaining.length > 0 ? (remaining[remaining.length - 1] ?? "root") : "root";
 		this.focusedId = nextId;
+		// Keep orchestrator._focused in sync (kill() may have set a different value).
+		const nextRecord = nextId === "root" ? undefined : this.orchestrator.registry.get(nextId);
+		this.orchestrator.focus(nextRecord);
 		// Swap in the new pane's editor and pending messages.
 		this.editor = this.active.editor;
 		this.editorContainer.clear();
