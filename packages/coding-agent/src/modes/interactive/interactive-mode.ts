@@ -62,7 +62,6 @@ import {
 import type { AgentOrchestrator } from "../../core/agent-orchestrator.ts";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
 import { SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
-import type { ConversationSession } from "../../core/conversation-session.ts";
 import type {
 	AutocompleteProviderFactory,
 	EditorFactory,
@@ -97,6 +96,7 @@ import { getPiUserAgent } from "../../utils/pi-user-agent.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { ensureTool } from "../../utils/tools-manager.ts";
 import { checkForNewPiVersion, type LatestPiRelease } from "../../utils/version-check.ts";
+import { AgentPane } from "./agent-pane.ts";
 import { ArminComponent } from "./components/armin.ts";
 import { AssistantMessageComponent } from "./components/assistant-message.ts";
 import { BashExecutionComponent } from "./components/bash-execution.ts";
@@ -175,11 +175,6 @@ class ExpandableText extends Text implements Expandable {
 		this.setText(expanded ? this.getExpandedText() : this.getCollapsedText());
 	}
 }
-
-type CompactionQueuedMessage = {
-	text: string;
-	mode: "steer" | "followUp";
-};
 
 const DEAD_TERMINAL_ERROR_CODES = new Set(["EIO", "EPIPE", "ENOTCONN"]);
 
@@ -266,6 +261,14 @@ export interface InteractiveModeOptions {
 
 export class InteractiveMode {
 	private orchestrator: AgentOrchestrator;
+
+	// ── Session pane registry ────────────────────────────────────────────────
+	// Every interactive AgentSession (root, user subagent, branch session) owns
+	// one AgentPane. Focus switches by changing focusedId.
+	private panes = new Map<string, AgentPane>();
+	private focusedId = "root";
+
+	// ── Global TUI state (shared across all panes) ───────────────────────────
 	private ui: TUI;
 	private chatContainer: Container;
 	private pendingMessagesContainer: Container;
@@ -286,9 +289,6 @@ export class InteractiveMode {
 	private onInputCallback?: (text: string) => void;
 	private pendingUserInputs: string[] = [];
 	private loadingAnimation: Loader | undefined = undefined;
-	private workingMessage: string | undefined = undefined;
-	private workingVisible = true;
-	private workingIndicatorOptions: LoaderIndicatorOptions | undefined = undefined;
 	private readonly defaultWorkingMessage = "Working...";
 	private readonly defaultHiddenThinkingLabel = "Thinking...";
 	private hiddenThinkingLabel = this.defaultHiddenThinkingLabel;
@@ -299,44 +299,19 @@ export class InteractiveMode {
 	private startupNoticesShown = false;
 	private anthropicSubscriptionWarningShown = false;
 
-	// Status line tracking (for mutating immediately-sequential status updates)
-	private lastStatusSpacer: Spacer | undefined = undefined;
-	private lastStatusText: Text | undefined = undefined;
-
-	// Streaming message tracking
-	private streamingComponent: AssistantMessageComponent | undefined = undefined;
-	private streamingMessage: AssistantMessage | undefined = undefined;
-
-	// Tool execution tracking: toolCallId -> component
-	private pendingTools = new Map<string, ToolExecutionComponent>();
-
 	// Tool output expansion state
 	private toolOutputExpanded = false;
 
 	// Thinking block visibility state
 	private hideThinkingBlock = false;
 
-	// Skill commands: command name -> skill file path
+	// Skill commands: command name -> skill file path (root-sourced, global)
 	private skillCommands = new Map<string, string>();
 
-	// Per-session editor history: sessionId -> history entries (most-recent first)
+	// Per-session editor history: id -> history entries. Kept until Step 2
+	// (per-pane editor) replaces it.
 	private sessionHistories = new Map<string, string[]>();
 
-	// Per-session conversation state: saved and restored on every focus switch.
-	// Key is SubagentRecord.id or "root". Holds the data-only conversation state
-	// so each session resumes with its own compaction queue, working-message, etc.
-	private conversationStates = new Map<
-		string,
-		{
-			compactionQueuedMessages: CompactionQueuedMessage[];
-			workingMessage: string | undefined;
-			workingVisible: boolean;
-			workingIndicatorOptions: LoaderIndicatorOptions | undefined;
-		}
-	>();
-
-	// Agent subscription unsubscribe function
-	private unsubscribe?: () => void;
 	private signalCleanupHandlers: Array<() => void> = [];
 
 	// Track if editor is in bash mode (text starts with !)
@@ -348,7 +323,7 @@ export class InteractiveMode {
 	// Track pending bash components (shown in pending area, moved to chat on submit)
 	private pendingBashComponents: BashExecutionComponent[] = [];
 
-	// Auto-compaction state
+	// Auto-compaction state (active-only TUI objects; not per-pane)
 	private autoCompactionLoader: Loader | undefined = undefined;
 	private autoCompactionEscapeHandler?: () => void;
 
@@ -356,9 +331,6 @@ export class InteractiveMode {
 	private retryLoader: Loader | undefined = undefined;
 	private retryCountdown: CountdownTimer | undefined = undefined;
 	private retryEscapeHandler?: () => void;
-
-	// Messages queued while compaction is running
-	private compactionQueuedMessages: CompactionQueuedMessage[] = [];
 
 	// Shutdown state
 	private shutdownRequested = false;
@@ -392,23 +364,25 @@ export class InteractiveMode {
 	// =========================================================================
 	// Session accessors
 	//
-	// conversation — the currently focused session (root or subagent).
-	//   Use for: prompt, subscribe, isStreaming, retryAttempt, abort.
-	//   Routing is handled transparently by AgentOrchestrator.
+	// active  — the AgentPane that is currently focused (root or subagent).
+	//   Use for: prompt, subscribe, isStreaming, retryAttempt, abort, and all
+	//   per-session state (compactionQueue, workingMessage, renderState, etc.).
 	//
-	// resources — always the root session.
+	// resources — always the root session's AgentSession.
 	//   Use for: settings, models, extensions, compaction, bash, export, reload.
-	//   Never changes regardless of which session is focused.
+	//   Never changes regardless of which pane is focused.
 	// =========================================================================
 
-	/** Routes to whichever session is currently focused. */
-	private get conversation(): ConversationSession {
-		return this.orchestrator;
+	/** The currently focused AgentPane. Always valid — root pane created in constructor. */
+	private get active(): AgentPane {
+		const pane = this.panes.get(this.focusedId);
+		if (!pane) throw new Error(`[AgentPane] no pane for focusedId="${this.focusedId}"`);
+		return pane;
 	}
 
 	/** Always the root session — infrastructure access only. */
 	private get resources(): AgentSession {
-		return this.orchestrator.rootSession;
+		return this.panes.get("root")!.session;
 	}
 
 	private get agent() {
@@ -424,16 +398,38 @@ export class InteractiveMode {
 	constructor(orchestrator: AgentOrchestrator, options: InteractiveModeOptions = {}) {
 		this.orchestrator = orchestrator;
 		this.options = options;
+
+		// Create the root pane — always id="root".
+		const rootPane = new AgentPane(orchestrator.rootSession, "root", "Main");
+		this.panes.set("root", rootPane);
+
+		// Wire onRegister: every new AgentSession registered in the SubagentRegistry
+		// (user subagents via spawn(), branch sessions via runBranchSession(), advisory
+		// evaluators, extension pi.runBranchSession()) automatically gets an AgentPane.
+		this.orchestrator.registry.onRegister = (record) => {
+			const pane = new AgentPane(record.session, record.id, record.label);
+			this.panes.set(record.id, pane);
+		};
+
+		// When the root session is replaced (/new, /fork, /resume), clear all
+		// non-root panes and reset focus to root.
 		this.orchestrator.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
-			// Clean up per-subagent state. registry.getAll() is already empty at this point
-			// (registry.clearAll() runs before this callback), so we delete all non-root keys.
+			// Tear down all subagent panes (registry.clearAll already aborted sessions).
+			for (const [id] of this.panes) {
+				if (id !== "root") this.panes.delete(id);
+			}
+			// Clean up session history entries for gone sessions.
 			for (const key of this.sessionHistories.keys()) {
 				if (key !== "root") this.sessionHistories.delete(key);
 			}
-			this.conversationStates.clear();
+			this.focusedId = "root";
 		});
 		this.orchestrator.setRebindSession(async () => {
+			// After session replacement the runtime created a new root AgentSession.
+			// Swap the root pane's reference to the new session.
+			const newRoot = new AgentPane(orchestrator.rootSession, "root", "Main");
+			this.panes.set("root", newRoot);
 			await this.rebindCurrentSession();
 		});
 		this.version = VERSION;
@@ -855,7 +851,7 @@ export class InteractiveMode {
 		while (true) {
 			const userInput = await this.getUserInput();
 			try {
-				await this.conversation.prompt(userInput);
+				await this.active.session.prompt(userInput);
 			} catch (error: unknown) {
 				const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
 				this.showError(errorMessage);
@@ -1624,7 +1620,7 @@ export class InteractiveMode {
 			},
 			shutdownHandler: () => {
 				this.shutdownRequested = true;
-				if (!this.conversation.isStreaming) {
+				if (!this.active.isStreaming) {
 					void this.shutdown();
 				}
 			},
@@ -1661,8 +1657,7 @@ export class InteractiveMode {
 	}
 
 	private async rebindCurrentSession(): Promise<void> {
-		this.unsubscribe?.();
-		this.unsubscribe = undefined;
+		this.active.unsubscribe();
 		this.applyRuntimeSettings();
 		await this.bindCurrentSessionExtensions();
 		this.subscribeToAgent();
@@ -1682,10 +1677,10 @@ export class InteractiveMode {
 	private renderCurrentSessionState(): void {
 		this.chatContainer.clear();
 		this.pendingMessagesContainer.clear();
-		this.compactionQueuedMessages = [];
-		this.streamingComponent = undefined;
-		this.streamingMessage = undefined;
-		this.pendingTools.clear();
+		this.active.compactionQueuedMessages = [];
+		this.active.streamingComponent = undefined;
+		this.active.streamingMessage = undefined;
+		this.active.pendingTools.clear();
 		this.renderInitialMessages();
 	}
 
@@ -1712,7 +1707,7 @@ export class InteractiveMode {
 			sessionManager: this.sessionManager,
 			modelRegistry: this.resources.modelRegistry,
 			model: this.resources.model,
-			isIdle: () => !this.conversation.isStreaming,
+			isIdle: () => !this.active.isStreaming,
 			signal: this.resources.agent.signal,
 			abort: () => {
 				this.restoreQueuedMessagesToEditor({ abort: true });
@@ -1761,7 +1756,7 @@ export class InteractiveMode {
 	}
 
 	private getWorkingLoaderMessage(): string {
-		return this.workingMessage ?? this.defaultWorkingMessage;
+		return this.active.workingMessage ?? this.defaultWorkingMessage;
 	}
 
 	private createWorkingLoader(): Loader {
@@ -1770,7 +1765,7 @@ export class InteractiveMode {
 			(spinner) => theme.fg("accent", spinner),
 			(text) => theme.fg("muted", text),
 			this.getWorkingLoaderMessage(),
-			this.workingIndicatorOptions,
+			this.active.workingIndicatorOptions,
 		);
 	}
 
@@ -1783,13 +1778,13 @@ export class InteractiveMode {
 	}
 
 	private setWorkingVisible(visible: boolean): void {
-		this.workingVisible = visible;
+		this.active.workingVisible = visible;
 		if (!visible) {
 			this.stopWorkingLoader();
 			this.ui.requestRender();
 			return;
 		}
-		if (this.conversation.isStreaming && !this.loadingAnimation) {
+		if (this.active.isStreaming && !this.loadingAnimation) {
 			this.statusContainer.clear();
 			this.loadingAnimation = this.createWorkingLoader();
 			this.statusContainer.addChild(this.loadingAnimation);
@@ -1798,7 +1793,7 @@ export class InteractiveMode {
 	}
 
 	private setWorkingIndicator(options?: LoaderIndicatorOptions): void {
-		this.workingIndicatorOptions = options;
+		this.active.workingIndicatorOptions = options;
 		this.loadingAnimation?.setIndicator(options);
 		this.ui.requestRender();
 	}
@@ -1810,8 +1805,8 @@ export class InteractiveMode {
 				child.setHiddenThinkingLabel(this.hiddenThinkingLabel);
 			}
 		}
-		if (this.streamingComponent) {
-			this.streamingComponent.setHiddenThinkingLabel(this.hiddenThinkingLabel);
+		if (this.active.streamingComponent) {
+			this.active.streamingComponent.setHiddenThinkingLabel(this.hiddenThinkingLabel);
 		}
 		this.ui.requestRender();
 	}
@@ -1895,8 +1890,8 @@ export class InteractiveMode {
 		this.setupAutocompleteProvider();
 		this.defaultEditor.onExtensionShortcut = undefined;
 		this.updateTerminalTitle();
-		this.workingMessage = undefined;
-		this.workingVisible = true;
+		this.active.workingMessage = undefined;
+		this.active.workingVisible = true;
 		this.setWorkingIndicator();
 		if (this.loadingAnimation) {
 			this.loadingAnimation.setMessage(`${this.defaultWorkingMessage} (${keyText("app.interrupt")} to interrupt)`);
@@ -2047,7 +2042,7 @@ export class InteractiveMode {
 			onTerminalInput: (handler) => this.addExtensionTerminalInputListener(handler),
 			setStatus: (key, text) => this.setExtensionStatus(key, text),
 			setWorkingMessage: (message) => {
-				this.workingMessage = message;
+				this.active.workingMessage = message;
 				if (this.loadingAnimation) {
 					this.loadingAnimation.setMessage(message ?? this.defaultWorkingMessage);
 				}
@@ -2454,10 +2449,10 @@ export class InteractiveMode {
 		// Set up handlers on defaultEditor - they use this.editor for text access
 		// so they work correctly regardless of which editor is active
 		this.defaultEditor.onEscape = () => {
-			if (this.conversation.isStreaming) {
-				if (this.orchestrator.focusedRecord !== undefined) {
+			if (this.active.isStreaming) {
+				if (this.focusedId !== "root") {
 					// Focused on a subagent — abort it directly, no queue to restore.
-					void this.conversation.abort();
+					void this.active.abort();
 				} else {
 					// Root session — abort and restore pending messages to editor.
 					this.restoreQueuedMessagesToEditor({ abort: true });
@@ -2731,10 +2726,10 @@ export class InteractiveMode {
 			}
 
 			// If the focused session is streaming, steer the message into it.
-			if (this.conversation.isStreaming) {
+			if (this.active.isStreaming) {
 				this.editor.addToHistory?.(text);
 				this.editor.setText("");
-				await this.conversation.prompt(text, { streamingBehavior: "steer" });
+				await this.active.session.prompt(text, { streamingBehavior: "steer" });
 				this.updatePendingMessagesDisplay();
 				this.ui.requestRender();
 				return;
@@ -2754,43 +2749,38 @@ export class InteractiveMode {
 	}
 
 	private subscribeToAgent(): void {
-		this.unsubscribe = this.conversation.subscribe(async (event) => {
+		this.active.subscribe(async (event) => {
 			await this.handleEvent(event);
 		});
 	}
 
-	/** Save the editor's current history under the focused session's id. */
+	/** Save the editor's current history under the focused pane's id. */
 	private saveEditorHistory(): void {
-		const key = this.orchestrator.focusedRecord?.id ?? "root";
 		const history = this.editor.getHistory?.();
 		if (history !== undefined) {
-			this.sessionHistories.set(key, [...history]);
+			this.sessionHistories.set(this.focusedId, [...history]);
 		}
 	}
 
-	/** Restore the editor's history for the (newly) focused session. */
+	/** Restore the editor's history for the newly focused pane. */
 	private restoreEditorHistory(): void {
-		const key = this.orchestrator.focusedRecord?.id ?? "root";
-		const saved = this.sessionHistories.get(key) ?? [];
+		const saved = this.sessionHistories.get(this.focusedId) ?? [];
 		this.editor.setHistory?.(saved);
 	}
 
 	/**
-	 * Save all conversation-local state for the currently focused session, then
-	 * tear down any in-flight compaction/retry UI so statusContainer is clean.
-	 * Called before orchestrator.focus() changes the focused session.
+	 * Tear down active compaction/retry UI for the departing pane.
+	 * The pane owns its data (compactionQueuedMessages, workingMessage, etc.) so
+	 * no serialisation is needed — just clean up the TUI objects that only exist
+	 * while a pane is focused. Also resets the render-tracking pointers.
+	 * Called before focusedId changes.
 	 */
 	private saveConversationState(): void {
-		const key = this.orchestrator.focusedRecord?.id ?? "root";
-		this.conversationStates.set(key, {
-			compactionQueuedMessages: [...this.compactionQueuedMessages],
-			workingMessage: this.workingMessage,
-			workingVisible: this.workingVisible,
-			workingIndicatorOptions: this.workingIndicatorOptions,
-		});
+		// Reset render dedup pointers — chatContainer is about to be cleared.
+		this.active.lastStatusSpacer = undefined;
+		this.active.lastStatusText = undefined;
 
-		// Tear down compaction UI for the departing session.
-		// The underlying compaction continues on the session; we just remove the visual.
+		// Tear down compaction UI for the departing pane.
 		if (this.autoCompactionEscapeHandler) {
 			this.defaultEditor.onEscape = this.autoCompactionEscapeHandler;
 			this.autoCompactionEscapeHandler = undefined;
@@ -2813,33 +2803,6 @@ export class InteractiveMode {
 			this.retryLoader.stop();
 			this.retryLoader = undefined;
 		}
-
-		// Reset dedup pointers — chatContainer is about to be cleared.
-		this.lastStatusSpacer = undefined;
-		this.lastStatusText = undefined;
-
-		// Reset to defaults; restoreConversationState sets the correct values for the
-		// incoming session.
-		this.compactionQueuedMessages = [];
-		this.workingMessage = undefined;
-		this.workingVisible = true;
-		this.workingIndicatorOptions = undefined;
-	}
-
-	/**
-	 * Restore conversation-local state for the newly focused session.
-	 * Called after orchestrator.focus() and after the chat has been rebuilt.
-	 */
-	private restoreConversationState(): void {
-		const key = this.orchestrator.focusedRecord?.id ?? "root";
-		const saved = this.conversationStates.get(key);
-		if (saved) {
-			this.compactionQueuedMessages = [...saved.compactionQueuedMessages];
-			this.workingMessage = saved.workingMessage;
-			this.workingVisible = saved.workingVisible;
-			this.workingIndicatorOptions = saved.workingIndicatorOptions;
-		}
-		// If no saved state the defaults set by saveConversationState are already correct.
 	}
 
 	/**
@@ -2850,9 +2813,9 @@ export class InteractiveMode {
 		this.chatContainer.clear();
 		this.pendingMessagesContainer.clear();
 		// compactionQueuedMessages is managed by saveConversationState/restoreConversationState.
-		this.streamingComponent = undefined;
-		this.streamingMessage = undefined;
-		this.pendingTools.clear();
+		this.active.streamingComponent = undefined;
+		this.active.streamingMessage = undefined;
+		this.active.pendingTools.clear();
 
 		// The in-progress LLM message lives in state.streamingMessage (not state.messages).
 		// state.messages only contains completed messages (pushed on message_end).
@@ -2863,19 +2826,19 @@ export class InteractiveMode {
 			// Replay all completed messages, then re-establish streamingComponent for the partial one.
 			this.renderSessionContext({ messages: session.state.messages, thinkingLevel: "off", model: null });
 
-			this.streamingComponent = new AssistantMessageComponent(
+			this.active.streamingComponent = new AssistantMessageComponent(
 				undefined,
 				this.hideThinkingBlock,
 				this.getMarkdownThemeWithSettings(),
 				this.hiddenThinkingLabel,
 			);
-			this.streamingMessage = inProgress;
-			this.chatContainer.addChild(this.streamingComponent);
-			this.streamingComponent.updateContent(this.streamingMessage);
+			this.active.streamingMessage = inProgress;
+			this.chatContainer.addChild(this.active.streamingComponent);
+			this.active.streamingComponent.updateContent(this.active.streamingMessage);
 
 			// Set up ToolExecutionComponents for any tool calls in the partial message.
-			for (const content of this.streamingMessage.content) {
-				if (content.type === "toolCall" && !this.pendingTools.has(content.id)) {
+			for (const content of this.active.streamingMessage.content) {
+				if (content.type === "toolCall" && !this.active.pendingTools.has(content.id)) {
 					const component = new ToolExecutionComponent(
 						content.name,
 						content.id,
@@ -2890,12 +2853,12 @@ export class InteractiveMode {
 					);
 					component.setExpanded(this.toolOutputExpanded);
 					this.chatContainer.addChild(component);
-					this.pendingTools.set(content.id, component);
+					this.active.pendingTools.set(content.id, component);
 				}
 			}
 
 			// Start the working loader — session is actively generating.
-			if (this.workingVisible) {
+			if (this.active.workingVisible) {
 				this.loadingAnimation = this.createWorkingLoader();
 				this.statusContainer.addChild(this.loadingAnimation);
 			}
@@ -2909,10 +2872,10 @@ export class InteractiveMode {
 
 			// renderSessionContext already populated pendingTools — mark executing ones.
 			for (const toolCallId of session.state.pendingToolCalls) {
-				this.pendingTools.get(toolCallId)?.markExecutionStarted();
+				this.active.pendingTools.get(toolCallId)?.markExecutionStarted();
 			}
 
-			if (this.workingVisible) {
+			if (this.active.workingVisible) {
 				this.loadingAnimation = this.createWorkingLoader();
 				this.statusContainer.addChild(this.loadingAnimation);
 			}
@@ -2926,22 +2889,24 @@ export class InteractiveMode {
 	}
 
 	/**
-	 * Switch the rendered session. Pass undefined to return to the root session.
+	 * Switch the focused AgentPane. Pass a pane id (SubagentRecord.id) or
+	 * "root" to return to the root session.
 	 */
-	private switchFocus(record: SubagentRecord | undefined): void {
+	private switchFocus(id: string): void {
+		if (!this.panes.has(id)) {
+			throw new Error(`[AgentPane] switchFocus: unknown pane id="${id}"`);
+		}
 		this.saveEditorHistory();
 		this.saveConversationState();
-		this.unsubscribe?.();
-		this.unsubscribe = undefined;
+		this.active.unsubscribe();
 		// Stop the working loader (compaction/retry loaders already stopped by saveConversationState).
 		this.stopWorkingLoader();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
 		}
-		this.orchestrator.focus(record);
-		this.renderLiveSessionState(record?.session ?? this.orchestrator.rootSession);
-		this.restoreConversationState();
-		if (record === undefined) {
+		this.focusedId = id;
+		this.renderLiveSessionState(this.active.session);
+		if (id === "root") {
 			// Root's pending steer/followUp queue needs an explicit refresh — no queue_update fires on return.
 			this.updatePendingMessagesDisplay();
 		}
@@ -2960,7 +2925,7 @@ export class InteractiveMode {
 
 		switch (event.type) {
 			case "agent_start":
-				this.pendingTools.clear();
+				this.active.pendingTools.clear();
 				if (this.settingsManager.getShowTerminalProgress()) {
 					this.ui.terminal.setProgress(true);
 				}
@@ -2979,7 +2944,7 @@ export class InteractiveMode {
 					this.retryLoader = undefined;
 				}
 				this.stopWorkingLoader();
-				if (this.workingVisible) {
+				if (this.active.workingVisible) {
 					this.loadingAnimation = this.createWorkingLoader();
 					this.statusContainer.addChild(this.loadingAnimation);
 				}
@@ -3011,27 +2976,27 @@ export class InteractiveMode {
 					this.updatePendingMessagesDisplay();
 					this.ui.requestRender();
 				} else if (event.message.role === "assistant") {
-					this.streamingComponent = new AssistantMessageComponent(
+					this.active.streamingComponent = new AssistantMessageComponent(
 						undefined,
 						this.hideThinkingBlock,
 						this.getMarkdownThemeWithSettings(),
 						this.hiddenThinkingLabel,
 					);
-					this.streamingMessage = event.message;
-					this.chatContainer.addChild(this.streamingComponent);
-					this.streamingComponent.updateContent(this.streamingMessage);
+					this.active.streamingMessage = event.message;
+					this.chatContainer.addChild(this.active.streamingComponent);
+					this.active.streamingComponent.updateContent(this.active.streamingMessage);
 					this.ui.requestRender();
 				}
 				break;
 
 			case "message_update":
-				if (this.streamingComponent && event.message.role === "assistant") {
-					this.streamingMessage = event.message;
-					this.streamingComponent.updateContent(this.streamingMessage);
+				if (this.active.streamingComponent && event.message.role === "assistant") {
+					this.active.streamingMessage = event.message;
+					this.active.streamingComponent.updateContent(this.active.streamingMessage);
 
-					for (const content of this.streamingMessage.content) {
+					for (const content of this.active.streamingMessage.content) {
 						if (content.type === "toolCall") {
-							if (!this.pendingTools.has(content.id)) {
+							if (!this.active.pendingTools.has(content.id)) {
 								const component = new ToolExecutionComponent(
 									content.name,
 									content.id,
@@ -3046,9 +3011,9 @@ export class InteractiveMode {
 								);
 								component.setExpanded(this.toolOutputExpanded);
 								this.chatContainer.addChild(component);
-								this.pendingTools.set(content.id, component);
+								this.active.pendingTools.set(content.id, component);
 							} else {
-								const component = this.pendingTools.get(content.id);
+								const component = this.active.pendingTools.get(content.id);
 								if (component) {
 									component.updateArgs(content.arguments);
 								}
@@ -3061,45 +3026,48 @@ export class InteractiveMode {
 
 			case "message_end":
 				if (event.message.role === "user") break;
-				if (this.streamingComponent && event.message.role === "assistant") {
-					this.streamingMessage = event.message;
+				if (this.active.streamingComponent && event.message.role === "assistant") {
+					this.active.streamingMessage = event.message;
 					let errorMessage: string | undefined;
-					if (this.streamingMessage.stopReason === "aborted") {
-						const retryAttempt = this.conversation.retryAttempt;
+					if (this.active.streamingMessage.stopReason === "aborted") {
+						const retryAttempt = this.active.retryAttempt;
 						errorMessage =
 							retryAttempt > 0
 								? `Aborted after ${retryAttempt} retry attempt${retryAttempt > 1 ? "s" : ""}`
 								: "Operation aborted";
-						this.streamingMessage.errorMessage = errorMessage;
+						this.active.streamingMessage.errorMessage = errorMessage;
 					}
-					this.streamingComponent.updateContent(this.streamingMessage);
+					this.active.streamingComponent.updateContent(this.active.streamingMessage);
 
-					if (this.streamingMessage.stopReason === "aborted" || this.streamingMessage.stopReason === "error") {
+					if (
+						this.active.streamingMessage.stopReason === "aborted" ||
+						this.active.streamingMessage.stopReason === "error"
+					) {
 						if (!errorMessage) {
-							errorMessage = this.streamingMessage.errorMessage || "Error";
+							errorMessage = this.active.streamingMessage.errorMessage || "Error";
 						}
-						for (const [, component] of this.pendingTools.entries()) {
+						for (const [, component] of this.active.pendingTools.entries()) {
 							component.updateResult({
 								content: [{ type: "text", text: errorMessage }],
 								isError: true,
 							});
 						}
-						this.pendingTools.clear();
+						this.active.pendingTools.clear();
 					} else {
 						// Args are now complete - trigger diff computation for edit tools
-						for (const [, component] of this.pendingTools.entries()) {
+						for (const [, component] of this.active.pendingTools.entries()) {
 							component.setArgsComplete();
 						}
 					}
-					this.streamingComponent = undefined;
-					this.streamingMessage = undefined;
+					this.active.streamingComponent = undefined;
+					this.active.streamingMessage = undefined;
 					this.footer.invalidate();
 				}
 				this.ui.requestRender();
 				break;
 
 			case "tool_execution_start": {
-				let component = this.pendingTools.get(event.toolCallId);
+				let component = this.active.pendingTools.get(event.toolCallId);
 				if (!component) {
 					component = new ToolExecutionComponent(
 						event.toolName,
@@ -3115,7 +3083,7 @@ export class InteractiveMode {
 					);
 					component.setExpanded(this.toolOutputExpanded);
 					this.chatContainer.addChild(component);
-					this.pendingTools.set(event.toolCallId, component);
+					this.active.pendingTools.set(event.toolCallId, component);
 				}
 				component.markExecutionStarted();
 				this.ui.requestRender();
@@ -3123,7 +3091,7 @@ export class InteractiveMode {
 			}
 
 			case "tool_execution_update": {
-				const component = this.pendingTools.get(event.toolCallId);
+				const component = this.active.pendingTools.get(event.toolCallId);
 				if (component) {
 					component.updateResult({ ...event.partialResult, isError: false }, true);
 					this.ui.requestRender();
@@ -3132,10 +3100,10 @@ export class InteractiveMode {
 			}
 
 			case "tool_execution_end": {
-				const component = this.pendingTools.get(event.toolCallId);
+				const component = this.active.pendingTools.get(event.toolCallId);
 				if (component) {
 					component.updateResult({ ...event.result, isError: event.isError });
-					this.pendingTools.delete(event.toolCallId);
+					this.active.pendingTools.delete(event.toolCallId);
 					this.ui.requestRender();
 				}
 				break;
@@ -3150,12 +3118,12 @@ export class InteractiveMode {
 					this.loadingAnimation = undefined;
 					this.statusContainer.clear();
 				}
-				if (this.streamingComponent) {
-					this.chatContainer.removeChild(this.streamingComponent);
-					this.streamingComponent = undefined;
-					this.streamingMessage = undefined;
+				if (this.active.streamingComponent) {
+					this.chatContainer.removeChild(this.active.streamingComponent);
+					this.active.streamingComponent = undefined;
+					this.active.streamingMessage = undefined;
 				}
-				this.pendingTools.clear();
+				this.active.pendingTools.clear();
 
 				await this.checkShutdownRequested();
 
@@ -3169,7 +3137,8 @@ export class InteractiveMode {
 				// Keep editor active; submissions are queued during compaction.
 				this.autoCompactionEscapeHandler = this.defaultEditor.onEscape;
 				this.defaultEditor.onEscape = () => {
-					this.resources.abortCompaction();
+					// Always abort the session that fired this event (active pane at event time).
+					this.active.session.abortCompaction();
 				};
 				this.statusContainer.clear();
 				const cancelHint = `(${keyText("app.interrupt")} to cancel)`;
@@ -3235,7 +3204,8 @@ export class InteractiveMode {
 				// Set up escape to abort retry
 				this.retryEscapeHandler = this.defaultEditor.onEscape;
 				this.defaultEditor.onEscape = () => {
-					this.resources.abortRetry();
+					// Always abort the session that fired this event (active pane at event time).
+					this.active.session.abortRetry();
 				};
 				// Show retry indicator
 				this.statusContainer.clear();
@@ -3310,8 +3280,8 @@ export class InteractiveMode {
 		const last = children.length > 0 ? children[children.length - 1] : undefined;
 		const secondLast = children.length > 1 ? children[children.length - 2] : undefined;
 
-		if (last && secondLast && last === this.lastStatusText && secondLast === this.lastStatusSpacer) {
-			this.lastStatusText.setText(theme.fg("dim", message));
+		if (last && secondLast && last === this.active.lastStatusText && secondLast === this.active.lastStatusSpacer) {
+			this.active.lastStatusText.setText(theme.fg("dim", message));
 			this.ui.requestRender();
 			return;
 		}
@@ -3320,8 +3290,8 @@ export class InteractiveMode {
 		const text = new Text(theme.fg("dim", message), 1, 0);
 		this.chatContainer.addChild(spacer);
 		this.chatContainer.addChild(text);
-		this.lastStatusSpacer = spacer;
-		this.lastStatusText = text;
+		this.active.lastStatusSpacer = spacer;
+		this.active.lastStatusText = text;
 		this.ui.requestRender();
 	}
 
@@ -3429,7 +3399,7 @@ export class InteractiveMode {
 		sessionContext: SessionContext,
 		options: { updateFooter?: boolean; populateHistory?: boolean } = {},
 	): void {
-		this.pendingTools.clear();
+		this.active.pendingTools.clear();
 		const renderedPendingTools = new Map<string, ToolExecutionComponent>();
 
 		if (options.updateFooter) {
@@ -3462,7 +3432,7 @@ export class InteractiveMode {
 						if (message.stopReason === "aborted" || message.stopReason === "error") {
 							let errorMessage: string;
 							if (message.stopReason === "aborted") {
-								const retryAttempt = this.conversation.retryAttempt;
+								const retryAttempt = this.active.retryAttempt;
 								errorMessage =
 									retryAttempt > 0
 										? `Aborted after ${retryAttempt} retry attempt${retryAttempt > 1 ? "s" : ""}`
@@ -3490,7 +3460,7 @@ export class InteractiveMode {
 		}
 
 		for (const [toolCallId, component] of renderedPendingTools) {
-			this.pendingTools.set(toolCallId, component);
+			this.active.pendingTools.set(toolCallId, component);
 		}
 		this.ui.requestRender();
 	}
@@ -3757,10 +3727,10 @@ export class InteractiveMode {
 		}
 
 		// Alt+Enter queues a follow-up message to the focused session.
-		if (this.conversation.isStreaming) {
+		if (this.active.isStreaming) {
 			this.editor.addToHistory?.(text);
 			this.editor.setText("");
-			await this.conversation.prompt(text, { streamingBehavior: "followUp" });
+			await this.active.session.prompt(text, { streamingBehavior: "followUp" });
 			this.updatePendingMessagesDisplay();
 			this.ui.requestRender();
 		}
@@ -3847,10 +3817,10 @@ export class InteractiveMode {
 		this.rebuildChatFromMessages();
 
 		// If streaming, re-add the streaming component with updated visibility and re-render
-		if (this.streamingComponent && this.streamingMessage) {
-			this.streamingComponent.setHideThinkingBlock(this.hideThinkingBlock);
-			this.streamingComponent.updateContent(this.streamingMessage);
-			this.chatContainer.addChild(this.streamingComponent);
+		if (this.active.streamingComponent && this.active.streamingMessage) {
+			this.active.streamingComponent.setHideThinkingBlock(this.hideThinkingBlock);
+			this.active.streamingComponent.updateContent(this.active.streamingMessage);
+			this.chatContainer.addChild(this.active.streamingComponent);
 		}
 
 		this.showStatus(`Thinking blocks: ${this.hideThinkingBlock ? "hidden" : "visible"}`);
@@ -3989,11 +3959,11 @@ export class InteractiveMode {
 		return {
 			steering: [
 				...this.resources.getSteeringMessages(),
-				...this.compactionQueuedMessages.filter((msg) => msg.mode === "steer").map((msg) => msg.text),
+				...this.active.compactionQueuedMessages.filter((msg) => msg.mode === "steer").map((msg) => msg.text),
 			],
 			followUp: [
 				...this.resources.getFollowUpMessages(),
-				...this.compactionQueuedMessages.filter((msg) => msg.mode === "followUp").map((msg) => msg.text),
+				...this.active.compactionQueuedMessages.filter((msg) => msg.mode === "followUp").map((msg) => msg.text),
 			],
 		};
 	}
@@ -4004,13 +3974,13 @@ export class InteractiveMode {
 	 */
 	private clearAllQueues(): { steering: string[]; followUp: string[] } {
 		const { steering, followUp } = this.resources.clearQueue();
-		const compactionSteering = this.compactionQueuedMessages
+		const compactionSteering = this.active.compactionQueuedMessages
 			.filter((msg) => msg.mode === "steer")
 			.map((msg) => msg.text);
-		const compactionFollowUp = this.compactionQueuedMessages
+		const compactionFollowUp = this.active.compactionQueuedMessages
 			.filter((msg) => msg.mode === "followUp")
 			.map((msg) => msg.text);
-		this.compactionQueuedMessages = [];
+		this.active.compactionQueuedMessages = [];
 		return {
 			steering: [...steering, ...compactionSteering],
 			followUp: [...followUp, ...compactionFollowUp],
@@ -4058,7 +4028,7 @@ export class InteractiveMode {
 	}
 
 	private queueCompactionMessage(text: string, mode: "steer" | "followUp"): void {
-		this.compactionQueuedMessages.push({ text, mode });
+		this.active.compactionQueuedMessages.push({ text, mode });
 		this.editor.addToHistory?.(text);
 		this.editor.setText("");
 		this.updatePendingMessagesDisplay();
@@ -4096,17 +4066,17 @@ export class InteractiveMode {
 	}
 
 	private async flushCompactionQueue(options?: { willRetry?: boolean }): Promise<void> {
-		if (this.compactionQueuedMessages.length === 0) {
+		if (this.active.compactionQueuedMessages.length === 0) {
 			return;
 		}
 
-		const queuedMessages = [...this.compactionQueuedMessages];
-		this.compactionQueuedMessages = [];
+		const queuedMessages = [...this.active.compactionQueuedMessages];
+		this.active.compactionQueuedMessages = [];
 		this.updatePendingMessagesDisplay();
 
 		const restoreQueue = (error: unknown) => {
 			this.resources.clearQueue();
-			this.compactionQueuedMessages = queuedMessages;
+			this.active.compactionQueuedMessages = queuedMessages;
 			this.updatePendingMessagesDisplay();
 			this.showError(
 				`Failed to send queued message${queuedMessages.length > 1 ? "s" : ""}: ${
@@ -4751,22 +4721,23 @@ export class InteractiveMode {
 		if (arg) {
 			let record: SubagentRecord;
 			try {
+				// spawn() calls registry.register() which fires onRegister and creates the pane.
 				record = await this.orchestrator.spawn();
 			} catch (error: unknown) {
 				this.showError(error instanceof Error ? error.message : "Failed to spawn agent");
 				return;
 			}
-			this.switchFocus(record);
-			await this.conversation.prompt(arg);
+			this.switchFocus(record.id);
+			await this.active.session.prompt(arg);
 			return;
 		}
 
 		const records = Array.from(this.orchestrator.registry.getAll());
-		const focusedId = this.orchestrator.focusedRecord?.id;
+		const currentId = this.focusedId;
 
 		const options = [
-			`Main${focusedId === undefined ? " (current)" : ""}`,
-			...records.map((r) => `${r.label}${focusedId === r.id ? " (current)" : ""}`),
+			`Main${currentId === "root" ? " (current)" : ""}`,
+			...records.map((r) => `${r.label}${currentId === r.id ? " (current)" : ""}`),
 		];
 
 		const selected = await this.showExtensionSelector("Switch agent session", options);
@@ -4774,39 +4745,39 @@ export class InteractiveMode {
 
 		const idx = options.indexOf(selected);
 		if (idx === 0) {
-			this.switchFocus(undefined);
+			this.switchFocus("root");
 		} else if (idx > 0) {
 			const record = records[idx - 1];
-			if (record) this.switchFocus(record);
+			if (record) this.switchFocus(record.id);
 		}
 	}
 
 	private handleKillCommand(): void {
-		const focused = this.orchestrator.focusedRecord;
-		if (focused === undefined) {
+		if (this.focusedId === "root") {
 			this.showError("Cannot kill root session");
 			return;
 		}
-		// saveConversationState tears down compaction/retry UI; its data entry is deleted immediately after.
-		// We do NOT call saveEditorHistory — the killed session's history is also discarded below.
+		const killedId = this.focusedId;
+		// Tear down compaction/retry UI; do NOT save editor history (killed session is gone).
 		this.saveConversationState();
 		// Unsubscribe before kill so no stale events arrive during teardown.
-		this.unsubscribe?.();
-		this.unsubscribe = undefined;
+		this.active.unsubscribe();
 		// Stop any working loader from the session being killed.
 		this.stopWorkingLoader();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
 		}
-		// Discard the killed session's state — it no longer exists.
-		this.sessionHistories.delete(focused.id);
-		this.conversationStates.delete(focused.id);
-		this.orchestrator.kill(focused.id);
-		// Sync TUI to whatever focus the orchestrator settled on after the kill.
-		const next = this.orchestrator.focusedRecord;
-		this.renderLiveSessionState(next?.session ?? this.orchestrator.rootSession);
-		this.restoreConversationState();
-		if (next === undefined) {
+		// Remove pane and history for the killed session.
+		this.panes.delete(killedId);
+		this.sessionHistories.delete(killedId);
+		// orchestrator.kill aborts and disposes the session, removes from registry.
+		this.orchestrator.kill(killedId);
+		// Pick the next focus: last remaining non-root pane, or root.
+		const remaining = Array.from(this.panes.keys()).filter((id) => id !== killedId);
+		const nextId = remaining.length > 0 ? (remaining[remaining.length - 1] ?? "root") : "root";
+		this.focusedId = nextId;
+		this.renderLiveSessionState(this.active.session);
+		if (nextId === "root") {
 			this.updatePendingMessagesDisplay();
 		}
 		this.restoreEditorHistory();
@@ -5993,9 +5964,7 @@ export class InteractiveMode {
 		this.clearExtensionTerminalInputListeners();
 		this.footer.dispose();
 		this.footerDataProvider.dispose();
-		if (this.unsubscribe) {
-			this.unsubscribe();
-		}
+		this.active.unsubscribe();
 		if (this.isInitialized) {
 			this.ui.stop();
 			this.isInitialized = false;
