@@ -273,7 +273,10 @@ export class InteractiveMode {
 	private chatContainer: Container;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
-	private defaultEditor: CustomEditor;
+	/** Always the currently-focused pane's native CustomEditor. */
+	private get defaultEditor(): CustomEditor {
+		return this.active.editor;
+	}
 	private editor: EditorComponent;
 	private editorComponentFactory: EditorFactory | undefined;
 	private autocompleteProvider: AutocompleteProvider | undefined;
@@ -307,10 +310,6 @@ export class InteractiveMode {
 
 	// Skill commands: command name -> skill file path (root-sourced, global)
 	private skillCommands = new Map<string, string>();
-
-	// Per-session editor history: id -> history entries. Kept until Step 2
-	// (per-pane editor) replaces it.
-	private sessionHistories = new Map<string, string[]>();
 
 	private signalCleanupHandlers: Array<() => void> = [];
 
@@ -408,6 +407,7 @@ export class InteractiveMode {
 		// evaluators, extension pi.runBranchSession()) automatically gets an AgentPane.
 		this.orchestrator.registry.onRegister = (record) => {
 			const pane = new AgentPane(record.session, record.id, record.label);
+			this.wirePaneEditor(pane);
 			this.panes.set(record.id, pane);
 		};
 
@@ -419,17 +419,12 @@ export class InteractiveMode {
 			for (const [id] of this.panes) {
 				if (id !== "root") this.panes.delete(id);
 			}
-			// Clean up session history entries for gone sessions.
-			for (const key of this.sessionHistories.keys()) {
-				if (key !== "root") this.sessionHistories.delete(key);
-			}
 			this.focusedId = "root";
 		});
 		this.orchestrator.setRebindSession(async () => {
 			// After session replacement the runtime created a new root AgentSession.
-			// Swap the root pane's reference to the new session.
-			const newRoot = new AgentPane(orchestrator.rootSession, "root", "Main");
-			this.panes.set("root", newRoot);
+			// Update the root pane's session reference; preserve its editor.
+			this.panes.get("root")!.session = orchestrator.rootSession;
 			await this.rebindCurrentSession();
 		});
 		this.version = VERSION;
@@ -445,13 +440,17 @@ export class InteractiveMode {
 		setKeybindings(this.keybindings);
 		const editorPaddingX = this.settingsManager.getEditorPaddingX();
 		const autocompleteMaxVisible = this.settingsManager.getAutocompleteMaxVisible();
-		this.defaultEditor = new CustomEditor(this.ui, getEditorTheme(), this.keybindings, {
+		// Create the root pane's editor and wire it up.
+		const rootEditor = new CustomEditor(this.ui, getEditorTheme(), this.keybindings, {
 			paddingX: editorPaddingX,
 			autocompleteMaxVisible,
 		});
-		this.editor = this.defaultEditor;
+		this.panes.get("root")!.editor = rootEditor;
+		this.editor = rootEditor;
 		this.editorContainer = new Container();
 		this.editorContainer.addChild(this.editor as Component);
+		// Mount root pane's pending messages container into the layout slot.
+		this.pendingMessagesContainer.addChild(this.active.pendingMessages);
 		this.footerDataProvider = new FooterDataProvider(this.sessionManager.getCwd());
 		this.footer = new FooterComponent(this.resources, this.footerDataProvider, this.orchestrator);
 		this.orchestrator.registry.onStatusChange = () => {
@@ -1676,7 +1675,7 @@ export class InteractiveMode {
 
 	private renderCurrentSessionState(): void {
 		this.chatContainer.clear();
-		this.pendingMessagesContainer.clear();
+		this.active.pendingMessages.clear();
 		this.active.compactionQueuedMessages = [];
 		this.active.streamingComponent = undefined;
 		this.active.streamingMessage = undefined;
@@ -2459,9 +2458,9 @@ export class InteractiveMode {
 				}
 			} else if (this.resources.isBashRunning) {
 				this.resources.abortBash();
-			} else if (this.isBashMode) {
+			} else if (this.active.isBashMode) {
 				this.editor.setText("");
-				this.isBashMode = false;
+				this.active.isBashMode = false;
 				this.updateEditorBorderColor();
 			} else if (!this.editor.getText().trim()) {
 				// Double-escape with empty editor triggers /tree, /fork, or nothing based on setting
@@ -2504,9 +2503,9 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("app.session.resume", () => this.showSessionSelector());
 
 		this.defaultEditor.onChange = (text: string) => {
-			const wasBashMode = this.isBashMode;
-			this.isBashMode = text.trimStart().startsWith("!");
-			if (wasBashMode !== this.isBashMode) {
+			const wasBashMode = this.active.isBashMode;
+			this.active.isBashMode = text.trimStart().startsWith("!");
+			if (wasBashMode !== this.active.isBashMode) {
 				this.updateEditorBorderColor();
 			}
 		};
@@ -2692,7 +2691,7 @@ export class InteractiveMode {
 					}
 					this.editor.addToHistory?.(text);
 					await this.handleBashCommand(command, isExcluded);
-					this.isBashMode = false;
+					this.active.isBashMode = false;
 					this.updateEditorBorderColor();
 					return;
 				}
@@ -2754,18 +2753,42 @@ export class InteractiveMode {
 		});
 	}
 
-	/** Save the editor's current history under the focused pane's id. */
-	private saveEditorHistory(): void {
-		const history = this.editor.getHistory?.();
-		if (history !== undefined) {
-			this.sessionHistories.set(this.focusedId, [...history]);
+	/**
+	 * Create and wire a CustomEditor for the given pane.
+	 * Copies all key handlers, submit/change callbacks, and autocomplete provider
+	 * from the root pane's editor so the new editor behaves identically.
+	 *
+	 * Called by onRegister (for every new AgentSession) and should be called
+	 * after setupKeyHandlers/setupEditorSubmitHandler have run at least once
+	 * (i.e., after init()). For panes created during streaming the handlers
+	 * are already set on the root pane's editor at that point.
+	 */
+	private wirePaneEditor(pane: AgentPane): void {
+		const editorPaddingX = this.settingsManager.getEditorPaddingX();
+		const autocompleteMaxVisible = this.settingsManager.getAutocompleteMaxVisible();
+		const src = this.panes.get("root")!.editor; // source of handlers
+		const e = new CustomEditor(this.ui, getEditorTheme(), this.keybindings, {
+			paddingX: editorPaddingX,
+			autocompleteMaxVisible,
+		});
+		// Wire callbacks — all handlers close over `this` (InteractiveMode) so
+		// they correctly target whatever pane is active at call time.
+		e.onSubmit = src.onSubmit;
+		e.onChange = src.onChange;
+		e.onCtrlD = src.onCtrlD;
+		e.onPasteImage = src.onPasteImage;
+		e.onExtensionShortcut = src.onExtensionShortcut;
+		// Main escape — always use the root editor's main handler (not the
+		// currently-overridden compaction/retry one).
+		e.onEscape = src.onEscape;
+		// Copy all registered app actions (model cycle, clear, suspend, etc.).
+		for (const [action, handler] of src.actionHandlers) {
+			e.onAction(action, handler);
 		}
-	}
-
-	/** Restore the editor's history for the newly focused pane. */
-	private restoreEditorHistory(): void {
-		const saved = this.sessionHistories.get(this.focusedId) ?? [];
-		this.editor.setHistory?.(saved);
+		if (this.autocompleteProvider) {
+			e.setAutocompleteProvider(this.autocompleteProvider);
+		}
+		pane.editor = e;
 	}
 
 	/**
@@ -2811,8 +2834,8 @@ export class InteractiveMode {
 	 */
 	private renderLiveSessionState(session: AgentSession): void {
 		this.chatContainer.clear();
-		this.pendingMessagesContainer.clear();
-		// compactionQueuedMessages is managed by saveConversationState/restoreConversationState.
+		this.active.pendingMessages.clear();
+		// compactionQueuedMessages lives on the pane and is always live.
 		this.active.streamingComponent = undefined;
 		this.active.streamingMessage = undefined;
 		this.active.pendingTools.clear();
@@ -2896,7 +2919,6 @@ export class InteractiveMode {
 		if (!this.panes.has(id)) {
 			throw new Error(`[AgentPane] switchFocus: unknown pane id="${id}"`);
 		}
-		this.saveEditorHistory();
 		this.saveConversationState();
 		this.active.unsubscribe();
 		// Stop the working loader (compaction/retry loaders already stopped by saveConversationState).
@@ -2905,12 +2927,20 @@ export class InteractiveMode {
 			this.ui.terminal.setProgress(false);
 		}
 		this.focusedId = id;
+		// Swap editor into the editor slot.
+		this.editor = this.active.editor;
+		this.editorContainer.clear();
+		this.editorContainer.addChild(this.editor as Component);
+		this.ui.setFocus(this.editor as Component);
+		// Swap pending messages container into the layout slot.
+		this.pendingMessagesContainer.clear();
+		this.pendingMessagesContainer.addChild(this.active.pendingMessages);
+		// Rebuild chat for the new session.
 		this.renderLiveSessionState(this.active.session);
 		if (id === "root") {
 			// Root's pending steer/followUp queue needs an explicit refresh — no queue_update fires on return.
 			this.updatePendingMessagesDisplay();
 		}
-		this.restoreEditorHistory();
 		this.subscribeToAgent();
 		this.footer.invalidate();
 		this.ui.requestRender();
@@ -3751,7 +3781,7 @@ export class InteractiveMode {
 	}
 
 	private updateEditorBorderColor(): void {
-		if (this.isBashMode) {
+		if (this.active.isBashMode) {
 			this.editor.borderColor = theme.getBashModeBorderColor();
 		} else {
 			const level = this.resources.thinkingLevel || "off";
@@ -3988,21 +4018,22 @@ export class InteractiveMode {
 	}
 
 	private updatePendingMessagesDisplay(): void {
-		this.pendingMessagesContainer.clear();
+		const pending = this.active.pendingMessages;
+		pending.clear();
 		const { steering: steeringMessages, followUp: followUpMessages } = this.getAllQueuedMessages();
 		if (steeringMessages.length > 0 || followUpMessages.length > 0) {
-			this.pendingMessagesContainer.addChild(new Spacer(1));
+			pending.addChild(new Spacer(1));
 			for (const message of steeringMessages) {
 				const text = theme.fg("dim", `Steering: ${message}`);
-				this.pendingMessagesContainer.addChild(new TruncatedText(text, 1, 0));
+				pending.addChild(new TruncatedText(text, 1, 0));
 			}
 			for (const message of followUpMessages) {
 				const text = theme.fg("dim", `Follow-up: ${message}`);
-				this.pendingMessagesContainer.addChild(new TruncatedText(text, 1, 0));
+				pending.addChild(new TruncatedText(text, 1, 0));
 			}
 			const dequeueHint = this.getAppKeyDisplay("app.message.dequeue");
 			const hintText = theme.fg("dim", `↳ ${dequeueHint} to edit all queued messages`);
-			this.pendingMessagesContainer.addChild(new TruncatedText(hintText, 1, 0));
+			pending.addChild(new TruncatedText(hintText, 1, 0));
 		}
 	}
 
@@ -4145,7 +4176,7 @@ export class InteractiveMode {
 	/** Move pending bash components from pending area to chat */
 	private flushPendingBashComponents(): void {
 		for (const component of this.pendingBashComponents) {
-			this.pendingMessagesContainer.removeChild(component);
+			this.active.pendingMessages.removeChild(component);
 			this.chatContainer.addChild(component);
 		}
 		this.pendingBashComponents = [];
@@ -4767,20 +4798,25 @@ export class InteractiveMode {
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
 		}
-		// Remove pane and history for the killed session.
+		// Remove pane for the killed session. Editor history is on the pane's editor — no separate cleanup.
 		this.panes.delete(killedId);
-		this.sessionHistories.delete(killedId);
 		// orchestrator.kill aborts and disposes the session, removes from registry.
 		this.orchestrator.kill(killedId);
 		// Pick the next focus: last remaining non-root pane, or root.
 		const remaining = Array.from(this.panes.keys()).filter((id) => id !== killedId);
 		const nextId = remaining.length > 0 ? (remaining[remaining.length - 1] ?? "root") : "root";
 		this.focusedId = nextId;
+		// Swap in the new pane's editor and pending messages.
+		this.editor = this.active.editor;
+		this.editorContainer.clear();
+		this.editorContainer.addChild(this.editor as Component);
+		this.ui.setFocus(this.editor as Component);
+		this.pendingMessagesContainer.clear();
+		this.pendingMessagesContainer.addChild(this.active.pendingMessages);
 		this.renderLiveSessionState(this.active.session);
 		if (nextId === "root") {
 			this.updatePendingMessagesDisplay();
 		}
-		this.restoreEditorHistory();
 		this.subscribeToAgent();
 		this.footer.invalidate();
 		this.ui.requestRender();
@@ -5861,7 +5897,7 @@ export class InteractiveMode {
 			// Create UI component for display
 			this.bashComponent = new BashExecutionComponent(command, this.ui, excludeFromContext);
 			if (this.resources.isStreaming) {
-				this.pendingMessagesContainer.addChild(this.bashComponent);
+				this.active.pendingMessages.addChild(this.bashComponent);
 				this.pendingBashComponents.push(this.bashComponent);
 			} else {
 				this.chatContainer.addChild(this.bashComponent);
@@ -5891,7 +5927,7 @@ export class InteractiveMode {
 
 		if (isDeferred) {
 			// Show in pending area when agent is streaming
-			this.pendingMessagesContainer.addChild(this.bashComponent);
+			this.active.pendingMessages.addChild(this.bashComponent);
 			this.pendingBashComponents.push(this.bashComponent);
 		} else {
 			// Show in chat immediately when agent is idle
