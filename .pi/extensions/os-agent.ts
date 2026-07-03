@@ -33,7 +33,10 @@ const CODE_WORKFLOW_PROMPT = `\
 [SYSTEM INSTRUCTION: CODE_WORKFLOW — You must follow this workflow before proceeding. \
 Before starting, briefly note what you were in the middle of and outline the steps \
 you will need to return to once this workflow is complete. \
-Skip only if you are already actively working through these steps.]
+Skip if: (a) you are already actively working through these steps, or (b) the change \
+you are about to make directly implements a specific fix identified in a recent \
+[SYSTEM INSTRUCTION: CODE_REVIEW] — in that case the review already serves as the \
+plan for Steps 1 and 2.]
 
 # Code Implementation Workflow
 
@@ -483,23 +486,32 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "code-workflow",
 		triggerPrompt:
-			"Is the user giving the agent an explicit directive to write or modify code, such that " +
-			"the agent's immediate next action would be to write, edit, or create files? " +
-			"This applies when the user has directly asked for a code change (e.g., 'add X', 'fix Y', " +
-			"'refactor Z to do W') and the agent is about to start writing or editing files to fulfill it — " +
-			"for example, adding a feature, fixing a bug, refactoring, or wiring up something new. " +
-			"This does NOT apply when: " +
+			"Is the user giving the agent a directive to write or modify code in a way that requires " +
+			"planning — specifically, where the agent would benefit from researching context, " +
+			"identifying callers, or thinking through a multi-step implementation before writing files? " +
+			"Strong signals that this APPLIES: " +
+			"- A new feature, refactor, or architectural change where the approach is not yet determined. " +
+			"- The change touches multiple files or components without a clear pre-existing plan. " +
+			"- The agent would need to discover callers, data flows, or cross-file impacts before acting. " +
+			"Strong signals that this does NOT apply: " +
+			"- The code change is directly implementing a specific fix or suggestion from a " +
+			"  [SYSTEM INSTRUCTION: CODE_REVIEW] that appeared recently in the conversation. " +
+			"  A code review already provides the plan — what to change, where, and why. " +
+			"  Look for the user saying 'apply the fix', 'implement the suggestion', 'address the " +
+			"  review comment', or a reference to a specific finding from the review. " +
+			"- The change is fully specified: specific lines, functions, or patterns are identified " +
+			"  and no design decisions remain open. " +
 			"- The agent's immediate next action is to search, read, or explain code, even if the user " +
-			"  mentions potential future changes in the same message (e.g., 'what are the upstream fields? " +
-			"  we should probably remove some of them' — the question is analytical, not a code directive). " +
+			"  mentions potential future changes in the same message (e.g., 'what are the upstream " +
+			"  fields? we should probably remove some of them' — the question is analytical, not a code directive). " +
 			"- The user expresses future intent without directing the agent to act now " +
 			"  (e.g., 'we should probably...', 'this might need to change', 'I think X should do Y'). " +
-			"- A CODE_WORKFLOW has already run and the work it covered has been committed — for example, " +
-			"  if the most recent turns show a completed workflow followed by a commit and the user is now " +
-			"  asking a question, reviewing output, or giving feedback. " +
+			"- A CODE_WORKFLOW has already run and the work it covered has been committed — confirmed " +
+			"  by a completed workflow, a commit, and the user now asking a question or giving feedback. " +
 			"- Purely mechanical git operations with no new file edits. " +
-			"Use the working tree state as your anchor: if there are no new uncommitted changes " +
-			"since the last CODE_WORKFLOW completed, do not trigger.",
+			"Judgment heuristic: would a reasonable engineer need to research this or make a design " +
+			"decision before writing the code? If not — because a CODE_REVIEW or explicit user spec " +
+			"already provides the full plan — do not trigger.",
 		injectPrompt: CODE_WORKFLOW_PROMPT,
 		label: "advisory:code-workflow",
 	});
