@@ -4,7 +4,7 @@ import type { AgentSessionRuntime } from "./agent-session-runtime.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
-import { SessionManager } from "./session-manager.ts";
+import { buildSessionContext, SessionManager } from "./session-manager.ts";
 import { type SubagentRecord, SubagentRegistry } from "./subagent-registry.ts";
 import { makeResearchTool } from "./tools/research.ts";
 
@@ -85,15 +85,20 @@ export class AgentOrchestrator {
 		const root = this.rootSession;
 		if (!root.model) throw new Error("Cannot spawn subagent: no model selected");
 
+		// Delegate reads to root's loader so the subagent inherits skills, prompts,
+		// AGENTS.md context, and system prompt. Extensions are NOT shared — the
+		// subagent gets its own empty ExtensionRuntime to keep handler state separate.
+		// extendResources/reload are no-ops: bindExtensions is never called on subagents.
 		const extensionRuntime = createExtensionRuntime();
+		const rootLoader = root.resourceLoader;
 		const resourceLoader: ResourceLoader = {
 			getExtensions: () => ({ extensions: [], errors: [], runtime: extensionRuntime }),
-			getSkills: () => ({ skills: [], diagnostics: [] }),
-			getPrompts: () => ({ prompts: [], diagnostics: [] }),
-			getThemes: () => ({ themes: [], diagnostics: [] }),
-			getAgentsFiles: () => ({ agentsFiles: [] }),
-			getSystemPrompt: () => undefined,
-			getAppendSystemPrompt: () => [],
+			getSkills: () => rootLoader.getSkills(),
+			getPrompts: () => rootLoader.getPrompts(),
+			getThemes: () => rootLoader.getThemes(),
+			getAgentsFiles: () => rootLoader.getAgentsFiles(),
+			getSystemPrompt: () => rootLoader.getSystemPrompt(),
+			getAppendSystemPrompt: () => rootLoader.getAppendSystemPrompt(),
 			extendResources: () => {},
 			reload: async () => {},
 		};
@@ -106,6 +111,14 @@ export class AgentOrchestrator {
 			cwd: root.cwd,
 			resourceLoader,
 		});
+
+		// Seed the subagent with root's conversation history so it has full context.
+		// Same mechanism as runBranchSession's seedBranchContext — reads persisted
+		// entries so compaction boundaries and branching are respected.
+		const context = buildSessionContext(root.sessionManager.getEntries(), root.sessionManager.getLeafId());
+		if (context.messages.length > 0) {
+			session.agent.state.messages = [...context.messages];
+		}
 
 		const userCount = this.registry.getAll().filter((r) => r.kind === "user").length;
 		const label = `agent-${userCount + 1}`;
