@@ -2698,7 +2698,7 @@ export class InteractiveMode {
 			}
 
 			// Queue input during compaction (extension commands execute immediately)
-			if (this.resources.isCompacting) {
+			if (this.active.isCompacting) {
 				if (this.isExtensionCommand(text)) {
 					this.editor.addToHistory?.(text);
 					this.editor.setText("");
@@ -3736,7 +3736,7 @@ export class InteractiveMode {
 		if (!text) return;
 
 		// Queue input during compaction (extension commands execute immediately)
-		if (this.resources.isCompacting) {
+		if (this.active.isCompacting) {
 			if (this.isExtensionCommand(text)) {
 				this.editor.addToHistory?.(text);
 				this.editor.setText("");
@@ -3991,13 +3991,16 @@ export class InteractiveMode {
 	 * Combines session queue and compaction queue.
 	 */
 	private getAllQueuedMessages(): { steering: string[]; followUp: string[] } {
+		// Read from the focused session — steer/followUp messages are queued on
+		// active.session.agent via active.session.prompt({streamingBehavior:"steer"}),
+		// so we must read back from the same session.
 		return {
 			steering: [
-				...this.resources.getSteeringMessages(),
+				...this.active.session.getSteeringMessages(),
 				...this.active.compactionQueuedMessages.filter((msg) => msg.mode === "steer").map((msg) => msg.text),
 			],
 			followUp: [
-				...this.resources.getFollowUpMessages(),
+				...this.active.session.getFollowUpMessages(),
 				...this.active.compactionQueuedMessages.filter((msg) => msg.mode === "followUp").map((msg) => msg.text),
 			],
 		};
@@ -4008,7 +4011,8 @@ export class InteractiveMode {
 	 * Clears both session queue and compaction queue.
 	 */
 	private clearAllQueues(): { steering: string[]; followUp: string[] } {
-		const { steering, followUp } = this.resources.clearQueue();
+		// Clear the focused session's queue, not root's.
+		const { steering, followUp } = this.active.session.clearQueue();
 		const compactionSteering = this.active.compactionQueuedMessages
 			.filter((msg) => msg.mode === "steer")
 			.map((msg) => msg.text);

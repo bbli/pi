@@ -99,6 +99,10 @@ export class AgentPane {
 		return this.session.retryAttempt;
 	}
 
+	get isCompacting(): boolean {
+		return this.session.isCompacting;
+	}
+
 	prompt(...args: Parameters<AgentSession["prompt"]>): ReturnType<AgentSession["prompt"]> {
 		return this.session.prompt(...args);
 	}
