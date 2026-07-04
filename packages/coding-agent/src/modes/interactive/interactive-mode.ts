@@ -3531,7 +3531,9 @@ export class InteractiveMode {
 
 	private rebuildChatFromMessages(): void {
 		this.chatContainer.clear();
-		const context = this.sessionManager.buildSessionContext();
+		// Use the active session's SessionManager so this works for both root and
+		// subagent panes. For root, active.session.sessionManager === this.sessionManager.
+		const context = this.active.session.sessionManager.buildSessionContext();
 		this.renderSessionContext(context);
 	}
 
@@ -4116,9 +4118,15 @@ export class InteractiveMode {
 		this.active.compactionQueuedMessages = [];
 		this.updatePendingMessagesDisplay();
 
+		// Capture the active pane: flushCompactionQueue is called from handleEvent
+		// (subscribed to active.session) so the pane is whatever was focused when
+		// compaction ran. Capturing avoids TOCTOU if focus shifts before the async
+		// prompt/steer/followUp calls complete.
+		const pane = this.active;
+
 		const restoreQueue = (error: unknown) => {
-			this.resources.clearQueue();
-			this.active.compactionQueuedMessages = queuedMessages;
+			pane.session.clearQueue();
+			pane.compactionQueuedMessages = queuedMessages;
 			this.updatePendingMessagesDisplay();
 			this.showError(
 				`Failed to send queued message${queuedMessages.length > 1 ? "s" : ""}: ${
@@ -4129,14 +4137,16 @@ export class InteractiveMode {
 
 		try {
 			if (options?.willRetry) {
-				// When retry is pending, queue messages for the retry turn
+				// When retry is pending, queue messages for the retry turn.
+				// Extension commands are root-only; for subagents isExtensionCommand
+				// returns false so they all go to pane.session.prompt().
 				for (const message of queuedMessages) {
 					if (this.isExtensionCommand(message.text)) {
-						await this.resources.prompt(message.text);
+						await pane.session.prompt(message.text);
 					} else if (message.mode === "followUp") {
-						await this.resources.followUp(message.text);
+						await pane.session.followUp(message.text);
 					} else {
-						await this.resources.steer(message.text);
+						await pane.session.steer(message.text);
 					}
 				}
 				this.updatePendingMessagesDisplay();
@@ -4146,9 +4156,9 @@ export class InteractiveMode {
 			// Find first non-extension-command message to use as prompt
 			const firstPromptIndex = queuedMessages.findIndex((message) => !this.isExtensionCommand(message.text));
 			if (firstPromptIndex === -1) {
-				// All extension commands - execute them all
+				// All extension commands - execute them all on the pane's session
 				for (const message of queuedMessages) {
-					await this.resources.prompt(message.text);
+					await pane.session.prompt(message.text);
 				}
 				return;
 			}
@@ -4159,22 +4169,22 @@ export class InteractiveMode {
 			const rest = queuedMessages.slice(firstPromptIndex + 1);
 
 			for (const message of preCommands) {
-				await this.resources.prompt(message.text);
+				await pane.session.prompt(message.text);
 			}
 
 			// Send first prompt (starts streaming)
-			const promptPromise = this.resources.prompt(firstPrompt.text).catch((error) => {
+			const promptPromise = pane.session.prompt(firstPrompt.text).catch((error) => {
 				restoreQueue(error);
 			});
 
 			// Queue remaining messages
 			for (const message of rest) {
 				if (this.isExtensionCommand(message.text)) {
-					await this.resources.prompt(message.text);
+					await pane.session.prompt(message.text);
 				} else if (message.mode === "followUp") {
-					await this.resources.followUp(message.text);
+					await pane.session.followUp(message.text);
 				} else {
-					await this.resources.steer(message.text);
+					await pane.session.steer(message.text);
 				}
 			}
 			this.updatePendingMessagesDisplay();
