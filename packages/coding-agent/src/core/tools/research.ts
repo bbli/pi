@@ -18,6 +18,7 @@ import { defineTool, type ToolDefinition } from "../extensions/types.ts";
 import type { SubagentRegistry } from "../subagent-registry.ts";
 
 const RESEARCH_SYSTEM_PROMPT = `\
+# SYSTEM RESEARCH PLAN
 You are a research subagent. Your sole job is to investigate a question about the \
 codebase and return structured findings to the main session.
 

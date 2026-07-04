@@ -98,7 +98,7 @@ The more a prompt can derive from context automatically, the more precisely it t
 ### 1. Label the source *(advisory prompts only)*
 Name where the message comes from. The LLM weights authority differently by perceived origin.
 - ❌ Silent injection — model treats it as a user command
-- ✅ `"injected by a background monitor"` — model knows it's automated, lower authority
+- ✅ `[SYSTEM INSTRUCTION: <ID>]` sentinel prefix — the structured format signals the message is automated, not a user command
 
 ### 2. Frame instructions as interpretive guidance
 Rather than granting an explicit opt-out, frame the prompt as guidance the model should apply with judgment. The goal is soft compliance — the model follows the intent and adapts the specifics to its current situation, rather than either executing it rigidly or dismissing it entirely.
@@ -160,9 +160,9 @@ The uncertainty signal is most valuable when it is not actionable as-is — a ga
 | Relevance | unconditional | `if you judge this relevant`, `if this applies` |
 | Autonomy | `you are not required to follow this` | `apply with judgment`, `adapt to your situation` |
 | Action | `do X` | `you may want to consider X`, `consider whether X` |
-| Source *(advisory)* | silent | `injected by a background monitor`, `advisory from` |
+| Source *(advisory)* | silent | `[SYSTEM INSTRUCTION: <ID>]` prefix — the sentinel format itself signals the source |
 | Uncertainty *(advisory)* | `X happened` | `X appears to have happened`, `may be X` |
-| Skip *(advisory — sentinel only)* | — | `skip if [specific event condition]` |
+| Skip *(advisory — sentinel only)* | — | `Skip only if [specific event condition]` — embedded in the sentinel brackets |
 | Closing — findings | *(absent)* | `apply these findings to the current task`, `use this to inform your next action` |
 | Closing — uncertainties | *(absent)* | `reflect on any uncertainties flagged`, `consider whether open questions suggest a different direction` |
 
@@ -182,29 +182,20 @@ If Step 2 produced specific examples from the conversation, embed them directly 
 > **If this is an advisory/injection prompt**, begin with a sentinel:
 >
 > ```
-> [ADVISORY: <ID> — injected by a background monitor. Apply with judgment
-> for your current context — adapt the parts that are relevant to your situation.
-> Skip if <specific idempotency condition for this event>.]
+> [SYSTEM INSTRUCTION: <ID> — <brief directive>. Skip only if <idempotency condition>.]
 > ```
 >
-> - **ID** — a stable string the evaluator subagent can search for (used by idempotency checks in trigger prompts)
-> - **Source** — `"injected by a background monitor"`
-> - **Framing** — `"apply with judgment"`, `"adapt the parts that are relevant to your situation"`
-> - **Skip condition** — a hard, machine-evaluated idempotency gate run by the evaluator *before* injection (distinct from the soft applicability guidance in the body, which the receiving agent interprets)
+> - **ID** — a stable SCREAMING_SNAKE_CASE string the evaluator subagent scans for (e.g. `CODE_WORKFLOW`, `CODE_REVIEW`)
+> - **Directive** — a one-line imperative summary of what the agent should do (e.g. `"You must follow this workflow before proceeding."`)
+> - **Skip condition** — embedded inline in the sentinel; states the specific event or state that makes re-injection unnecessary (e.g. `"Skip only if a review for this specific commit has already been completed."`)
 >
 > Full template:
 >
 > ```
-> [ADVISORY: <ID> — injected by a background monitor. Apply with judgment
-> for your current context — adapt the parts that are relevant to your situation.
-> Skip if <idempotency condition>.]
+> [SYSTEM INSTRUCTION: <ID> — <brief directive>. Skip only if <idempotency condition>.]
 >
-> A background monitor detected <observation>. If this is relevant to your
-> current work, you may want to consider:
->
-> 1. <suggestion 1>
-> 2. <suggestion 2>
-> 3. <suggestion 3>
+> <Body: observation, context, and suggestions. Frame as interpretive guidance
+> the agent can apply with judgment — not a rigid checklist.>
 > ```
 
 Show the draft inline. Annotate each part with which principle it satisfies. Before finalizing, check the draft against the Anti-Patterns table below.
