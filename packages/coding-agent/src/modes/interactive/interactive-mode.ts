@@ -4631,10 +4631,14 @@ export class InteractiveMode {
 	}
 
 	private showTreeSelector(initialSelectedId?: string): void {
-		const rawTree = this.sessionManager.getTree();
+		// Snapshot active pane: the selector is async (awaits user input) and we
+		// must consistently use the same session throughout the interaction.
+		const pane = this.active;
+		const rawTree = pane.session.sessionManager.getTree();
+		// Tree filter is extension-provided — extensions live on root only.
 		const treeFilter = this.resources.extensionRunner.getTreeFilter();
 		const tree = treeFilter ? pruneTree(rawTree, treeFilter) : rawTree;
-		const realLeafId = this.sessionManager.getLeafId();
+		const realLeafId = pane.session.sessionManager.getLeafId();
 		const initialFilterMode = this.settingsManager.getTreeFilterMode();
 
 		if (tree.length === 0) {
@@ -4698,7 +4702,7 @@ export class InteractiveMode {
 
 					if (wantsSummary) {
 						this.defaultEditor.onEscape = () => {
-							this.resources.abortBranchSummary();
+							pane.session.abortBranchSummary();
 						};
 						this.chatContainer.addChild(new Spacer(1));
 						summaryLoader = new Loader(
@@ -4712,7 +4716,7 @@ export class InteractiveMode {
 					}
 
 					try {
-						const result = await this.resources.navigateTree(entryId, {
+						const result = await pane.session.navigateTree(entryId, {
 							summarize: wantsSummary,
 							customInstructions,
 						});
@@ -4728,9 +4732,11 @@ export class InteractiveMode {
 							return;
 						}
 
-						// Update UI
+						// Rebuild chat from the pane's session context (works for both root
+						// and subagent panes: both use their own in-memory SessionManager).
 						this.chatContainer.clear();
-						this.renderInitialMessages();
+						const navContext = pane.session.sessionManager.buildSessionContext();
+						this.renderSessionContext(navContext, { updateFooter: true, populateHistory: true });
 						if (result.editorText && !this.editor.getText().trim()) {
 							this.editor.setText(result.editorText);
 						}
@@ -4751,7 +4757,7 @@ export class InteractiveMode {
 					this.ui.requestRender();
 				},
 				(entryId, label) => {
-					this.sessionManager.appendLabelChange(entryId, label);
+					pane.session.sessionManager.appendLabelChange(entryId, label);
 					this.ui.requestRender();
 				},
 				initialSelectedId,
