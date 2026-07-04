@@ -6,17 +6,19 @@
  * Guidelines (evaluated at turn_start, async):
  *   - code-workflow: inject coding workflow instructions when a feature is requested
  *   - debug-workflow: inject debugging workflow instructions when a bug fix is requested
+ *   - research-uncertainties: inject research prompt when the agent has unresolved uncertainties
  *
  * Continuations (evaluated at agent_end, sync):
- *   - suggest-research: inject research suggestion when the agent has unresolved uncertainties
+ *   - research-uncertainties: same trigger as guideline, evaluated after the agent turn ends
  *   - review-after-commit: inject a review checklist after a git commit
  *
  * The advisory system can be toggled at runtime via /advisor [on|off].
  * Pass --advisor on the CLI to enable it on startup.
  *
- * Each inject prompt begins with a [SYSTEM INSTRUCTION: ID] sentinel that:
- * - Directs the main agent to follow the instructions before proceeding
- * - Provides an idempotency skip condition for the main agent
+ * Guideline inject prompts begin with [SYSTEM GUIDELINE INSTRUCTIONS: ID].
+ * Continuation inject prompts begin with [SYSTEM CONTINUATION INSTRUCTIONS: ID].
+ * Both sentinels direct the main agent to follow the instructions and provide an idempotency
+ * skip condition.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -25,17 +27,19 @@ import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tu
 
 // ---------------------------------------------------------------------------
 // Inject prompts
-// Each begins with a [SYSTEM INSTRUCTION: ID] sentinel that directs the main agent
-// to follow the instructions and carries an idempotency skip condition.
+// Guideline prompts begin with [SYSTEM GUIDELINE INSTRUCTIONS: ID].
+// Continuation prompts begin with [SYSTEM CONTINUATION INSTRUCTIONS: ID].
+// Both sentinels direct the main agent to follow the instructions and carry
+// an idempotency skip condition.
 // ---------------------------------------------------------------------------
 
 const CODE_WORKFLOW_PROMPT = `\
-[SYSTEM INSTRUCTION: CODE_WORKFLOW — You must follow this workflow before proceeding. \
+[SYSTEM GUIDELINE INSTRUCTIONS: CODE_WORKFLOW — You must follow this workflow before proceeding. \
 Before starting, briefly note what you were in the middle of and outline the steps \
 you will need to return to once this workflow is complete. \
 Skip if: (a) you are already actively working through these steps, or (b) the change \
 you are about to make directly implements a specific fix identified in a recent \
-[SYSTEM INSTRUCTION: CODE_REVIEW] — in that case the review already serves as the \
+[SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] — in that case the review already serves as the \
 plan for Steps 1 and 2.]
 
 # Code Implementation Workflow
@@ -120,14 +124,13 @@ For each slice:
 After all slices are committed, briefly note what was done and return to the original task.`;
 
 
-const RESEARCH_SUGGESTED_PROMPT = `\
-[SYSTEM INSTRUCTION: RESEARCH_SUGGESTED — You have unresolved questions or uncertainties \
-in this conversation. Use the research tool to investigate each distinct question in its own \
-focused subagent before proceeding — this surfaces answers without polluting the main \
-context window with exploratory reads.
+const RESEARCH_UNCERTAINTIES_PROMPT_BODY = `You have unresolved questions or uncertainties \
+in this conversation. Use the researchConversationQuestion tool to investigate each distinct \
+question in its own focused subagent before proceeding — this surfaces answers without \
+polluting the main context window with exploratory reads.
 
 For each unresolved question or uncertainty:
-1. Call research(question) with a precise, self-contained question.
+1. Call researchConversationQuestion(question) with a precise, self-contained question.
 2. Read the returned findings.
 3. Repeat for each remaining question.
 4. Once you have the findings, apply them to the current task before continuing. \
@@ -139,8 +142,14 @@ worth revisiting before acting.
 If your questions are already answered or you have sufficient context to proceed, \
 skip this instruction.`;
 
+const RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES — ${RESEARCH_UNCERTAINTIES_PROMPT_BODY}`;
+
+const RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT = `\
+[SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES — ${RESEARCH_UNCERTAINTIES_PROMPT_BODY}`;
+
 const DEBUG_WORKFLOW_PROMPT = `\
-[SYSTEM INSTRUCTION: DEBUG_WORKFLOW — You must follow this workflow before proceeding. \
+[SYSTEM GUIDELINE INSTRUCTIONS: DEBUG_WORKFLOW — You must follow this workflow before proceeding. \
 Skip only if you are already actively working through these steps.]
 
 You are about to debug an issue. Before making any changes:
@@ -152,7 +161,7 @@ You are about to debug an issue. Before making any changes:
 5. Confirm the failure no longer occurs, then run npm run check.`;
 
 const REVIEW_PROMPT = `\
-[SYSTEM INSTRUCTION: CODE_REVIEW — You must work through this checklist for the commit \
+[SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW — You must work through this checklist for the commit \
 just made before proceeding. Skip only if a review for this specific commit has already \
 been completed.]
 
@@ -495,7 +504,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- The agent would need to discover callers, data flows, or cross-file impacts before acting. " +
 			"Strong signals that this does NOT apply: " +
 			"- The code change is directly implementing a specific fix or suggestion from a " +
-			"  [SYSTEM INSTRUCTION: CODE_REVIEW] that appeared recently in the conversation. " +
+			"  [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] that appeared recently in the conversation. " +
 			"  A code review already provides the plan — what to change, where, and why. " +
 			"  Look for the user saying 'apply the fix', 'implement the suggestion', 'address the " +
 			"  review comment', or a reference to a specific finding from the review. " +
@@ -522,40 +531,52 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"Is the user starting a new debugging or bug-fix task that hasn't already received " +
 			"debugging workflow guidance in the recent conversation? " +
 			"Use your judgment: if this looks like a fresh debugging request that hasn't " +
-			"been covered by a recent [SYSTEM INSTRUCTION: DEBUG_WORKFLOW] message, trigger. " +
+			"been covered by a recent [SYSTEM GUIDELINE INSTRUCTIONS: DEBUG_WORKFLOW] message, trigger. " +
 			"If the conversation already has debug guidance covering this task, do not trigger.",
 		injectPrompt: DEBUG_WORKFLOW_PROMPT,
 		label: "advisory:debug-workflow",
 	});
 
-	// --- Continuations (agent_end, sync) ---
+	// --- Guidelines + Continuations: research-uncertainties ---
+
+	const researchUncertaintiesTrigger =
+		"Does the most recent assistant response contain explicit, unresolved questions or " +
+		"uncertainties that have NOT yet been investigated? " +
+		"Look for either: " +
+		"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) in the " +
+		"most recent assistant message, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
+		"(2) The most recent assistant message explicitly enumerates questions or knowledge " +
+		"gaps it needs to resolve before proceeding (e.g. numbered open items, " +
+		"'I need to verify X before implementing', or an ⚠️ IMPLEMENTATION UNCERTAINTIES block). " +
+		"Do NOT trigger if any of these are true: " +
+		"- The researchConversationQuestion tool was already called after the uncertainties appeared. " +
+		"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES] or " +
+		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES] message already follows the uncertainties. " +
+		"- The questions were answered by the user or resolved through direct context. " +
+		"- The assistant ended its turn proceeding confidently without flagged open items.";
+
+	pi.registerGuideline({
+		id: "research-uncertainties",
+		triggerPrompt: researchUncertaintiesTrigger,
+		injectPrompt: RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT,
+		label: "advisory:research-uncertainties",
+	});
 
 	pi.registerContinuation({
-		id: "suggest-research",
-		triggerPrompt:
-			"Does the most recent assistant response contain explicit, unresolved questions or " +
-			"uncertainties that have NOT yet been investigated? " +
-			"Look for either: " +
-			"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) in the " +
-			"most recent assistant message, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
-			"(2) The most recent assistant message explicitly enumerates questions or knowledge " +
-			"gaps it needs to resolve before proceeding (e.g. numbered open items, " +
-			"'I need to verify X before implementing', or an ⚠️ IMPLEMENTATION UNCERTAINTIES block). " +
-			"Do NOT trigger if any of these are true: " +
-			"- The research tool was already called after the uncertainties appeared. " +
-			"- A [SYSTEM INSTRUCTION: RESEARCH_SUGGESTED] message already follows the uncertainties. " +
-			"- The questions were answered by the user or resolved through direct context. " +
-			"- The assistant ended its turn proceeding confidently without flagged open items.",
-		injectPrompt: RESEARCH_SUGGESTED_PROMPT,
-		label: "advisory:suggest-research",
+		id: "research-uncertainties",
+		triggerPrompt: researchUncertaintiesTrigger,
+		injectPrompt: RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT,
+		label: "advisory:research-uncertainties",
 	});
+
+	// --- Continuations (agent_end, sync) ---
 
 	pi.registerContinuation({
 		id: "review-after-commit",
 		triggerPrompt:
 			"Was a git commit made during this agent run that has not yet been followed by a code review? " +
 			"Find the most recent successful git commit in the tool call results. " +
-			"Then check whether a [SYSTEM INSTRUCTION: CODE_REVIEW] review checklist has appeared in the " +
+			"Then check whether a [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] review checklist has appeared in the " +
 			"conversation AFTER that specific commit. " +
 			"Use your judgment: if the commit is recent and no review has followed it yet, trigger. " +
 			"If a review has already been conducted for this specific commit, do not trigger.",
