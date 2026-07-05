@@ -328,6 +328,9 @@ async function createSessionManager(
 		initTheme(settingsManager.getTheme(), true);
 		try {
 			const learned = await readLearnedSet();
+			if (learned.size > 0) {
+				console.log(chalk.dim(`${learned.size} session(s) already marked as learned — showing the rest.`));
+			}
 			const selectedPath = await selectSession(
 				async (onProgress) => {
 					const sessions = await SessionManager.list(cwd, sessionDir, onProgress);
@@ -342,6 +345,9 @@ async function createSessionManager(
 				console.log(chalk.dim("No session selected"));
 				process.exit(0);
 			}
+			// Prepend the analysis prompt so buildInitialMessage() picks it up via
+			// shift() as initialMessage, which is sent to the LLM when the resumed
+			// session starts — triggering automatic history analysis without user input.
 			parsed.messages.unshift(LEARN_ANALYSIS_PROMPT);
 			return SessionManager.open(selectedPath, sessionDir);
 		} finally {

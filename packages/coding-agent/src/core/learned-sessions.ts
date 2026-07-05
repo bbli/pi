@@ -10,7 +10,6 @@
  * slash command to mark the current session as reviewed.
  */
 
-import { existsSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
 import { getSessionsDir } from "../config.ts";
@@ -25,10 +24,8 @@ function learnedFilePath(): string {
 
 /** Read the set of learned session IDs. Returns an empty set if the file doesn't exist. */
 export async function readLearnedSet(): Promise<Set<string>> {
-	const path = learnedFilePath();
-	if (!existsSync(path)) return new Set();
 	try {
-		const raw = await readFile(path, "utf8");
+		const raw = await readFile(learnedFilePath(), "utf8");
 		const data = JSON.parse(raw) as LearnedData;
 		return new Set(Array.isArray(data.learned) ? data.learned : []);
 	} catch {
