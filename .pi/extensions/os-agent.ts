@@ -10,7 +10,8 @@
  * Continuations (evaluated at agent_end, sync):
  *   - code-workflow: inject coding workflow instructions when code implementation is the next step
  *   - research-uncertainties: same trigger as guideline, evaluated after the agent turn ends
- *   - review-after-commit: inject a review checklist after a git commit
+ *   - flesh-out-after-implementation: inject a flesh-out diagnostic prompt after an implementation appears done
+ *   - review-after-implementation: inject a review checklist after an implementation appears done
  *
  * The advisory system can be toggled at runtime via /advisor [on|off].
  * Pass --advisor on the CLI to enable it on startup.
@@ -421,6 +422,147 @@ Conclude with a SUMMARY section using:
 - **ALWAYS include caller compatibility analysis in the summary - breaking changes to callers are a critical risk**
 - **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**`;
 
+const FLESH_OUT_PROMPT = `\
+[SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT — Run the Implementation Fleshing-Out Prompt \
+for the recently committed code. Skip only if a FLESH_OUT analysis has already been \
+completed for this specific CODE_WORKFLOW run.]
+
+# Implementation Fleshing-Out Prompt
+
+This is a DIAGNOSTIC / RECOMMENDATION prompt. Analyze the implementation, surface candidate \
+NEW BEHAVIORS and EXISTING-SCOPE EDGE CASES, make recommendations on what to address, then \
+stop. Do NOT implement anything in this prompt — no code changes, no commits. The Code \
+Implementation Workflow will re-trigger automatically once you have presented your findings.
+
+BEHAVIORS vs EDGE CASES — keep these strictly separate:
+- BEHAVIORS = candidate new/extra functionality the current implementation does not attempt \
+at all. Optional extensions to scope. Ask: "Does this require the system to do something it \
+currently doesn't attempt at all?" → BEHAVIOR.
+- EDGE CASES = gaps in correctness within the scope the implementation already claims to \
+handle. Ask: "Does this only concern how the current logic reacts to an input/state it \
+wasn't built for?" → EDGE CASE.
+
+---
+
+## STEP 1: Locate and Understand the Implementation
+
+- Check the conversation first. If implementation history from a Code Implementation Workflow \
+run is already present, reuse that context — do not re-derive it.
+- If no such context exists, locate the implementation: identify the diff/changeset \
+(e.g. git diff, git log -p on recent commits). If no diff is available, read the \
+relevant files directly.
+- Also search ~/Documents/WorkVault/AI_Knowledge for related design notes if relevant.
+- Static analysis only — read the code by inspection. Do not generate or run tests, and \
+do not fan out into broad exploratory search beyond understanding this implementation \
+and its immediate callers/dependents.
+
+---
+
+## STEP 2: Summarize the Implementation
+
+- Prose Summary: a concise description of what the implementation does today — entry points, \
+main logic, inputs, outputs/side-effects, and what it explicitly does not attempt.
+- Convey enough of the as-built execution flow in prose so per-candidate diagrams in \
+Steps 3 and 4 have a shared frame of reference.
+- Do NOT produce a callpath diagram here. Diagrams are produced per-candidate in Steps 3 \
+and 4 only.
+
+---
+
+## Per-Candidate Diagram Convention (Steps 3 and 4)
+
+Every candidate gets its own focused ASCII diagram — a scoped excerpt of the as-built \
+execution flow highlighting only the function(s) and node(s) directly relevant to that \
+one candidate:
+- For a BEHAVIOR: show where in the existing flow the new capability would attach.
+- For an EDGE CASE: pinpoint the specific node where the gap lives and the flow reaching it.
+
+Use standard ASCII callpath conventions (├─, └─, ← sync point, ← shared writer, \
+──fire-and-forget──). Keep each diagram small and scoped to the relevant slice only.
+
+---
+
+## STEP 3: Generate Candidate BEHAVIORS (New Functionality)
+
+Using static analysis, identify functionality the implementation could reasonably support \
+but currently does not attempt at all. Ground candidates in what you actually observe: an \
+unhandled but adjacent use case, a parameter accepted but unused, a natural next capability \
+suggested by the code's shape, functionality present in sibling code but absent here.
+
+For each candidate:
+- New capability: what it would add (one sentence)
+- Why plausible: what in the code suggests this is a reasonable extension
+- Scope signal: small addition vs. significant new surface area
+- Focused diagram (REQUIRED): scoped ASCII diagram showing where the capability attaches
+
+Keep this to highest-signal candidates only — not a brainstorming dump.
+
+---
+
+## STEP 4: Generate Candidate EDGE CASES (Existing-Scope Gaps)
+
+Using static analysis, identify places where the current implementation's own logic has \
+undefined, unhandled, or likely-unintentional behavior on non-happy-path input or state.
+
+Look for: missing guards on empty/null/undefined/zero/negative input; unbounded loops or \
+retries with no max/backoff; unhandled failure branches; concurrency hazards; assumptions \
+about ordering, uniqueness, or size not enforced anywhere; silent failure paths.
+
+For each candidate:
+- Location: function/file and relevant flow node
+- Gap: what input/state isn't handled
+- Why plausible: why this scenario could realistically occur
+- Current behavior if triggered (e.g. "throws uncaught exception", "silently no-ops")
+- Focused diagram (REQUIRED): scoped ASCII diagram pinpointing where the gap lives
+
+Do not propose fixes — surface the gap and ask what behavior is wanted.
+
+---
+
+## STEP 5: Present Findings and Recommendations
+
+Present Steps 2–4 in a single message, then close with a RECOMMENDATIONS section:
+
+~~~
+## 🆕 CANDIDATE BEHAVIORS (New Functionality)
+Summary: N candidates identified
+
+1. [Behavior name]
+   - New capability: ...
+   - Why plausible: ...
+   - Scope signal: ...
+   - Diagram: <focused ASCII diagram>
+
+## ⚠️ CANDIDATE EDGE CASES (Existing-Scope Gaps)
+Summary: N candidates identified
+
+1. [Edge case name]
+   - Location: [file/function, flow node]
+   - Gap: ...
+   - Why plausible: ...
+   - Current behavior if triggered: ...
+   - Diagram: <focused ASCII diagram>
+
+## 📝 RECOMMENDATIONS
+- BEHAVIORS to implement: [list by name, or "none"]
+- EDGE CASES to address: [list by name with brief intended resolution, or "none"]
+~~~
+
+Keep BEHAVIORS and EDGE CASES in two clearly separate sections in that order.
+
+Once you have presented your findings and recommendations, your job in this prompt is done. \
+Do not implement anything. The Code Implementation Workflow will re-trigger automatically.
+
+---
+
+CRITICAL REMINDERS:
+- Reuse in-conversation implementation context; only re-derive from disk/repo when \
+genuinely missing.
+- Static analysis only — no test generation or execution, no broad exploratory search.
+- Never blend BEHAVIORS with EDGE CASES. Keep them in separate, clearly labeled sections.
+- Step 2 is prose only — one focused diagram per candidate in Steps 3 and 4 only.
+- Every candidate must be traceable to something specific observed in the code.`;
+
 
 
 // ---------------------------------------------------------------------------
@@ -551,37 +693,59 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- The agent would need to discover callers, data flows, or cross-file impacts before acting. " +
 			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] has recently appeared with findings " +
 			"  or suggestions to implement. " +
-			"- The most recent assistant message is a Fleshing Out response containing " +
-			"  ## 🆕 CANDIDATE BEHAVIORS or ## ⚠️ CANDIDATE EDGE CASES sections. " +
+			"- The most recent assistant message is a Flesh Out response containing " +
+			"  ## 🆕 CANDIDATE BEHAVIORS / ## ⚠️ CANDIDATE EDGE CASES and a ## 📝 RECOMMENDATIONS " +
+			"  section — implement the recommended items. " +
 			"Strong signals that this does NOT apply: " +
 			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW] has already been injected for " +
 			"  this task — do not re-trigger for work already in progress or committed. " +
 			"- The most recent assistant output contains only questions, an uncertainty report " +
 			"  (⚠️ IMPLEMENTATION UNCERTAINTIES), or research points — without an accompanying code " +
-			"  directive or Fleshing Out candidates. Questions and uncertainties are handled by " +
+			"  directive or Flesh Out recommendations. Questions and uncertainties are handled by " +
 			"  RESEARCH_POINTS, not CODE_WORKFLOW. " +
 			"- The agent's immediate task is to search, read, or explain code — not implement it. " +
 			"- The user expresses future intent without directing the agent to act now " +
 			"  (e.g., 'we should probably...', 'this might need to change', 'I think X should do Y'). " +
 			"- Purely mechanical git operations with no new file edits. " +
 			"Judgment heuristic: is code implementation the concrete next step, not just a future " +
-			"possibility? Features, review fixes, and Fleshing Out candidates all qualify. " +
+			"possibility? Features, review fixes, and Flesh Out recommendations all qualify. " +
 			"Questions, uncertainty reports, and research points alone do not.",
 		injectPrompt: CODE_WORKFLOW_PROMPT,
 		label: "advisory:code-workflow",
 	});
 
 	pi.registerContinuation({
-		id: "review-after-commit",
+		id: "review-after-implementation",
 		triggerPrompt:
-			"Was a git commit made during this agent run that has not yet been followed by a code review? " +
-			"Find the most recent successful git commit in the tool call results. " +
-			"Then check whether a [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] review checklist has appeared in the " +
-			"conversation AFTER that specific commit. " +
-			"Use your judgment: if the commit is recent and no review has followed it yet, trigger. " +
-			"If a review has already been conducted for this specific commit, do not trigger.",
+			"Does this conversation show a recently completed implementation pass that has not yet " +
+			"been followed by a code review? " +
+			"Strong signals that implementation is done: the agent wrote or modified code across " +
+			"one or more files, the work appears substantively complete (not mid-slice), git commits " +
+			"were made, or the agent's last action was finalizing or wrapping up code changes. " +
+			"Strong signals that review is NOT needed yet: the agent is still actively implementing " +
+			"(mid-slice, uncommitted changes), no code was written (search/read/explain only), " +
+			"or only mechanical non-code changes were made (changelog, docs, config). " +
+			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] has " +
+			"already appeared in the conversation after the most recent implementation.",
 		injectPrompt: REVIEW_PROMPT,
 		label: "advisory:review",
+	});
+
+	pi.registerContinuation({
+		id: "flesh-out-after-implementation",
+		triggerPrompt:
+			"Does this conversation show a recently completed implementation pass that has not yet " +
+			"been through a flesh-out analysis? " +
+			"Strong signals that implementation is done: the agent wrote or modified code across " +
+			"one or more files, the work appears substantively complete (not mid-slice), git commits " +
+			"were made, or the agent's last action was finalizing or wrapping up code changes. " +
+			"Strong signals that flesh-out is NOT needed yet: the agent is still actively implementing " +
+			"(mid-slice, uncommitted changes), no code was written (search/read/explain only), " +
+			"or only mechanical non-code changes were made (changelog, docs, config). " +
+			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] has " +
+			"already appeared in the conversation after the most recent implementation.",
+		injectPrompt: FLESH_OUT_PROMPT,
+		label: "advisory:flesh-out",
 	});
 
 	// --- /advisor command ---
