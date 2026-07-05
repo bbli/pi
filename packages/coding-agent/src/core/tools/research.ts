@@ -39,31 +39,41 @@ and any gaps you could not resolve that may be relevant (omit if none).`;
 
 export function makeResearchTool(session: AgentSession, manager: AgentManager): ToolDefinition {
 	return defineTool({
-		name: "researchConversationQuestion",
+		name: "researchConversationPoint",
 		label: "Research",
 		description:
-			"Spawn a subagent to investigate a question about the codebase using read, grep, find, ls, " +
-			"and bash. Returns structured findings: relevant file paths, key code snippets, and a conclusion. " +
-			"Only invoke this when an injected advisory or guideline explicitly requests it.",
+			"Spawn a subagent to investigate a question, implementation uncertainty, or candidate behavior/edge case " +
+			"about the codebase using read, grep, find, ls, and bash. " +
+			"Returns structured findings: relevant file paths, key code snippets, and a conclusion. " +
+			"Invoke when: (1) an injected advisory or guideline requests it, " +
+			"(2) an uncertainty is rated 🔴 CRITICAL or 🟠 LOW in the Code Workflow Prompt, or " +
+			"(3) a candidate behavior or edge case from the System Fleshing Out Prompt needs codebase investigation.",
 		promptSnippet:
-			"researchConversationQuestion(question): investigate a codebase question and return structured findings",
+			"researchConversationPoint(question): investigate a codebase question, uncertainty, or candidate behavior/edge case and return structured findings",
 		promptGuidelines: [
-			"Only invoke researchConversationQuestion when an injected advisory or guideline explicitly requests it. " +
-				"Do not invoke it on your own initiative — explore the codebase directly in the main " +
-				"session using read, bash, grep, and find instead.",
-			"When you have multiple distinct questions to research, call researchConversationQuestion for ALL of " +
+			"Invoke researchConversationPoint in three situations: " +
+				"(1) when an injected advisory or guideline explicitly requests it; " +
+				"(2) to resolve an implementation uncertainty rated 🔴 CRITICAL or 🟠 LOW in the " +
+				"Code Workflow Prompt's ⚠️ IMPLEMENTATION UNCERTAINTIES table — the Code Workflow Prompt " +
+				"instructs you to resolve those before implementing, and this tool is the mechanism; " +
+				"(3) to investigate a specific candidate behavior or edge case surfaced by the " +
+				"System Fleshing Out Prompt when concrete codebase evidence is needed to assess " +
+				"its scope, feasibility, or risk. " +
+				"Do not invoke it on your own initiative beyond these three triggers — " +
+				"explore the codebase directly in the main session using read, bash, grep, and find instead.",
+			"When you have multiple distinct points to research, call researchConversationPoint for ALL of " +
 				"them in a single turn — do not call it sequentially across multiple turns. " +
-				"Tool calls within one turn run in parallel, so batching all questions into one turn is faster " +
+				"Tool calls within one turn run in parallel, so batching all points into one turn is faster " +
 				"than issuing them one at a time.",
-			"After researchConversationQuestion returns findings, apply them to the task at hand and bias " +
+			"After researchConversationPoint returns findings, apply them to the task at hand and bias " +
 				"toward acting. Also reflect on any uncertainties or gaps the subagent flagged — " +
 				"they may not apply directly but can surface new angles or inform your approach. " +
-				"Only invoke researchConversationQuestion again if a specific remaining gap would cause a concrete " +
+				"Only invoke researchConversationPoint again if a specific remaining gap would cause a concrete " +
 				"mistake — not for exploratory or derivative follow-on questions.",
 		],
 		parameters: Type.Object({
 			question: Type.String({
-				description: "The question or topic to research.",
+				description: "The question, uncertainty, or candidate behavior/edge case to investigate.",
 			}),
 		}),
 		execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {

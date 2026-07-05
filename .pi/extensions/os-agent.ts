@@ -124,29 +124,29 @@ For each slice:
 After all slices are committed, briefly note what was done and return to the original task.`;
 
 
-const RESEARCH_UNCERTAINTIES_PROMPT_BODY = `You have unresolved questions or uncertainties \
-in this conversation. Use the researchConversationQuestion tool to investigate each distinct \
-question in its own focused subagent before proceeding — this surfaces answers without \
-polluting the main context window with exploratory reads.
+const RESEARCH_POINTS_PROMPT_BODY = `You have unresolved points (questions, implementation uncertainties, \
+or candidate behaviors/edge cases) in this conversation. Use the researchConversationPoint tool to \
+investigate each distinct point in its own focused subagent before proceeding — this surfaces \
+answers without polluting the main context window with exploratory reads.
 
-For each unresolved question or uncertainty:
-1. Call researchConversationQuestion(question) with a precise, self-contained question.
+For each unresolved point:
+1. Call researchConversationPoint(question) with a precise, self-contained question or investigation target.
 2. Read the returned findings.
-3. Repeat for each remaining question.
+3. Repeat for each remaining point.
 4. Once you have the findings, apply them to the current task before continuing. \
-Consider whether the answers resolve your uncertainties sufficiently to proceed. \
+Consider whether the answers resolve your uncertainties or clarify the candidate sufficiently to proceed. \
 Also reflect on any gaps or uncertainties the research itself surfaced — they may not \
 require further investigation, but they can surface new angles or reveal assumptions \
 worth revisiting before acting.
 
-If your questions are already answered or you have sufficient context to proceed, \
+If your points are already answered or you have sufficient context to proceed, \
 skip this instruction.`;
 
-const RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES — ${RESEARCH_UNCERTAINTIES_PROMPT_BODY}`;
+const RESEARCH_POINTS_GUIDELINE_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_POINTS — ${RESEARCH_POINTS_PROMPT_BODY}`;
 
-const RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT = `\
-[SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES — ${RESEARCH_UNCERTAINTIES_PROMPT_BODY}`;
+const RESEARCH_POINTS_CONTINUATION_PROMPT = `\
+[SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_POINTS — ${RESEARCH_POINTS_PROMPT_BODY}`;
 
 const DEBUG_WORKFLOW_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: DEBUG_WORKFLOW — You must follow this workflow before proceeding. \
@@ -537,36 +537,38 @@ export default function osAgent(pi: ExtensionAPI): void {
 		label: "advisory:debug-workflow",
 	});
 
-	// --- Guidelines + Continuations: research-uncertainties ---
+	// --- Guidelines + Continuations: research-points ---
 
-	const researchUncertaintiesTrigger =
-		"Does the most recent assistant response contain explicit, unresolved questions or " +
-		"uncertainties that have NOT yet been investigated? " +
-		"Look for either: " +
+	const researchPointsTrigger =
+		"Does the most recent assistant response contain unresolved points that have NOT yet been investigated? " +
+		"Look for any of: " +
 		"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) in the " +
 		"most recent assistant message, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
 		"(2) The most recent assistant message explicitly enumerates questions or knowledge " +
 		"gaps it needs to resolve before proceeding (e.g. numbered open items, " +
 		"'I need to verify X before implementing', or an ⚠️ IMPLEMENTATION UNCERTAINTIES block). " +
+		"(3) The most recent assistant message is a System Fleshing Out response that contains " +
+		"## 🆕 CANDIDATE BEHAVIORS or ## ⚠️ CANDIDATE EDGE CASES sections where individual candidates " +
+		"need codebase investigation to assess scope, feasibility, or risk. " +
 		"Do NOT trigger if any of these are true: " +
-		"- The researchConversationQuestion tool was already called after the uncertainties appeared. " +
-		"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES] or " +
-		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES] message already follows the uncertainties. " +
-		"- The questions were answered by the user or resolved through direct context. " +
+		"- The researchConversationPoint tool was already called after these points appeared. " +
+		"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_POINTS] or " +
+		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_POINTS] message already follows the points. " +
+		"- The points were answered by the user or resolved through direct context. " +
 		"- The assistant ended its turn proceeding confidently without flagged open items.";
 
 	pi.registerGuideline({
-		id: "research-uncertainties",
-		triggerPrompt: researchUncertaintiesTrigger,
-		injectPrompt: RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT,
-		label: "advisory:research-uncertainties",
+		id: "research-points",
+		triggerPrompt: researchPointsTrigger,
+		injectPrompt: RESEARCH_POINTS_GUIDELINE_PROMPT,
+		label: "advisory:research-points",
 	});
 
 	pi.registerContinuation({
-		id: "research-uncertainties",
-		triggerPrompt: researchUncertaintiesTrigger,
-		injectPrompt: RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT,
-		label: "advisory:research-uncertainties",
+		id: "research-points",
+		triggerPrompt: researchPointsTrigger,
+		injectPrompt: RESEARCH_POINTS_CONTINUATION_PROMPT,
+		label: "advisory:research-points",
 	});
 
 	// --- Continuations (agent_end, sync) ---

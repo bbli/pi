@@ -1018,7 +1018,7 @@ describe("ExtensionRunner", () => {
 			const tool = options.customTools?.find((t) => t.name === "injectGuideline");
 			if (!tool) return;
 			for (const id of ids) {
-				await tool.execute("call-" + id, { id, reason: "test reason" }, undefined, undefined, {} as never);
+				await tool.execute(`call-${id}`, { id, reason: "test reason" }, undefined, undefined, {} as never);
 			}
 		};
 
