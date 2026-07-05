@@ -83,8 +83,7 @@ wiring to confirm end-to-end connectivity. For each slice state:
 - Files to modify or create
 - Observable behavior after this slice: what to run and exactly what to see
 
-**⚠️ Implementation uncertainties**: list unknowns with confidence levels. \
-Use the research tool to resolve 🔴 CRITICAL and 🟠 LOW items before implementing.
+**⚠️ Implementation uncertainties**: list unknowns with confidence levels.
 
 \`\`\`
 ⚠️ IMPLEMENTATION UNCERTAINTIES
@@ -95,6 +94,11 @@ Summary: X 🔴 CRITICAL | X 🟠 LOW | X 🟡 MEDIUM | X 🟢 HIGH
    Assumption: [what you are assuming]
    Impact if wrong: [what breaks]
 \`\`\`
+
+If there are any 🔴 CRITICAL or 🟠 LOW items: call \`researchConversationQuestion(question)\` \
+for each one before moving to Step 3 — one call per item, with a precise self-contained \
+question. Read the findings, then update or confirm the plan. \
+🟡 MEDIUM and 🟢 HIGH items may proceed without research.
 
 ---
 
