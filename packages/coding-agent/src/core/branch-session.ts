@@ -76,11 +76,15 @@ async function createBranchAgentSession(
 		cwd: mainSession.cwd,
 	});
 
+	// NOTE: installed after createAgentSession — _installAgentToolHooks already set
+	// agent.beforeToolCall to the extension-runner delegate; we chain on top here.
+	// If _installAgentToolHooks is called again on this session the guard is lost.
 	if (options.blockedTools && options.blockedTools.length > 0) {
 		const blocked = new Set(options.blockedTools);
 		const existing = session.agent.beforeToolCall;
 		session.agent.beforeToolCall = async (context, signal) => {
 			if (blocked.has(context.toolCall.name)) {
+				debugLog(`[branch:${options.label ?? "branch"}] blocked tool call: "${context.toolCall.name}"`);
 				return { block: true, reason: `Tool "${context.toolCall.name}" is not available in this session.` };
 			}
 			return existing?.(context, signal);
@@ -185,6 +189,9 @@ export async function runBranchSession(
 		// options.systemPrompt contains caller-specific role instructions; they go into
 		// the first user-turn message (not the system prompt) so the system prompt prefix
 		// stays identical to the root session for KV cache reuse.
+		if (options.systemPrompt) {
+			debugLog(`[branch:${label}] systemPrompt prepended (${options.systemPrompt.length} chars)`);
+		}
 		const fullPrompt = options.systemPrompt ? `${options.systemPrompt}\n\n${prompt}` : prompt;
 		await branchSession.prompt(fullPrompt, { source: "extension" });
 
