@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
@@ -41,9 +41,7 @@ describe("learned-sessions", () => {
 		});
 
 		test("returns empty Set when learned.json contains malformed JSON", async () => {
-			// Simulate a corrupted file
 			mkdirSync(join(tempDir, "sessions"), { recursive: true });
-			const { writeFileSync } = await import("node:fs");
 			writeFileSync(join(tempDir, "sessions", "learned.json"), "not json");
 			const result = await readLearnedSet();
 			expect(result.size).toBe(0);
@@ -58,10 +56,11 @@ describe("learned-sessions", () => {
 		});
 
 		test("creates the sessions directory if it does not exist", async () => {
-			// tempDir exists but sessions/ does not
+			const sessionsDir = join(tempDir, "sessions");
+			expect(existsSync(sessionsDir)).toBe(false);
 			await addLearnedSession("session-xyz");
-			const result = await readLearnedSet();
-			expect(result.has("session-xyz")).toBe(true);
+			expect(existsSync(sessionsDir)).toBe(true);
+			expect((await readLearnedSet()).has("session-xyz")).toBe(true);
 		});
 
 		test("is idempotent — adding the same ID twice does not duplicate it", async () => {
