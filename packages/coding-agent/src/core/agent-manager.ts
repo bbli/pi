@@ -158,7 +158,7 @@ export class AgentManager {
 	focus(record: SubagentRecord | undefined): void {
 		const prev = this._focused;
 		this._focused = record;
-		if (prev?.completed) {
+		if (prev?.completed && prev.id !== record?.id) {
 			debugLog(`[AgentManager] focus flush: removing completed id=${prev.id} label=${prev.label}`);
 			this.remove(prev.id);
 		}

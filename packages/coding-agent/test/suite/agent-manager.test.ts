@@ -398,6 +398,42 @@ describe("AgentManager", () => {
 		expect(removed).toEqual(["r1"]);
 	});
 
+	it("focus() does not flush a completed record when called with the same record already focused", () => {
+		// Regression guard: kill() pre-sets _focused to nextRecord before handleKillCommand
+		// calls focus(nextRecord). Without the prev.id !== record?.id guard, focus()
+		// would see prev === record and incorrectly dispose the session being navigated to.
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		manager.onDone("r1"); // focused → deferred
+		// Call focus() with the same record (mirrors kill() pre-setting _focused
+		// before the TUI calls focus(nextRecord) in handleKillCommand)
+		manager.focus(manager.get("r1"));
+		expect(manager.get("r1")).toBeDefined(); // must not have been flushed
+		expect(dispose).not.toHaveBeenCalled();
+	});
+
+	it("kill() on a completed branch session disposes it via remove()", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		manager.onDone("r1"); // deferred
+		expect(manager.get("r1")?.completed).toBe(true);
+		manager.kill("r1");
+		expect(manager.get("r1")).toBeUndefined();
+		expect(dispose).toHaveBeenCalled();
+	});
+
+	it("clearAll() disposes a deferred completed record", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		manager.onDone("r1"); // deferred
+		manager.clearAll();
+		expect(manager.getAll()).toHaveLength(0);
+		expect(dispose).toHaveBeenCalled();
+	});
+
 	// ── startTTL ─────────────────────────────────────────────────────────────
 
 	it("startTTL fires the callback after the specified delay", () => {
