@@ -4,11 +4,11 @@
  * Registers the built-in advisory guidelines and continuations.
  *
  * Guidelines (evaluated at turn_start, async):
- *   - code-workflow: inject coding workflow instructions when a feature is requested
  *   - debug-workflow: inject debugging workflow instructions when a bug fix is requested
  *   - research-uncertainties: inject research prompt when the agent has unresolved uncertainties
  *
  * Continuations (evaluated at agent_end, sync):
+ *   - code-workflow: inject coding workflow instructions when code implementation is the next step
  *   - research-uncertainties: same trigger as guideline, evaluated after the agent turn ends
  *   - review-after-commit: inject a review checklist after a git commit
  *
@@ -34,13 +34,10 @@ import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tu
 // ---------------------------------------------------------------------------
 
 const CODE_WORKFLOW_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: CODE_WORKFLOW — You must follow this workflow before proceeding. \
+[SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW — You must follow this workflow before proceeding. \
 Before starting, briefly note what you were in the middle of and outline the steps \
 you will need to return to once this workflow is complete. \
-Skip if: (a) you are already actively working through these steps, or (b) the change \
-you are about to make directly implements a specific fix identified in a recent \
-[SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] — in that case the review already serves as the \
-plan for Steps 1 and 2.]
+Skip only if you are already actively working through these steps.]
 
 # Code Implementation Workflow
 
@@ -493,39 +490,6 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- Guidelines (turn_start, async) ---
 
 	pi.registerGuideline({
-		id: "code-workflow",
-		triggerPrompt:
-			"Is the user giving the agent a directive to write or modify code in a way that requires " +
-			"planning — specifically, where the agent would benefit from researching context, " +
-			"identifying callers, or thinking through a multi-step implementation before writing files? " +
-			"Strong signals that this APPLIES: " +
-			"- A new feature, refactor, or architectural change where the approach is not yet determined. " +
-			"- The change touches multiple files or components without a clear pre-existing plan. " +
-			"- The agent would need to discover callers, data flows, or cross-file impacts before acting. " +
-			"Strong signals that this does NOT apply: " +
-			"- The code change is directly implementing a specific fix or suggestion from a " +
-			"  [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] that appeared recently in the conversation. " +
-			"  A code review already provides the plan — what to change, where, and why. " +
-			"  Look for the user saying 'apply the fix', 'implement the suggestion', 'address the " +
-			"  review comment', or a reference to a specific finding from the review. " +
-			"- The change is fully specified: specific lines, functions, or patterns are identified " +
-			"  and no design decisions remain open. " +
-			"- The agent's immediate next action is to search, read, or explain code, even if the user " +
-			"  mentions potential future changes in the same message (e.g., 'what are the upstream " +
-			"  fields? we should probably remove some of them' — the question is analytical, not a code directive). " +
-			"- The user expresses future intent without directing the agent to act now " +
-			"  (e.g., 'we should probably...', 'this might need to change', 'I think X should do Y'). " +
-			"- A CODE_WORKFLOW has already run and the work it covered has been committed — confirmed " +
-			"  by a completed workflow, a commit, and the user now asking a question or giving feedback. " +
-			"- Purely mechanical git operations with no new file edits. " +
-			"Judgment heuristic: would a reasonable engineer need to research this or make a design " +
-			"decision before writing the code? If not — because a CODE_REVIEW or explicit user spec " +
-			"already provides the full plan — do not trigger.",
-		injectPrompt: CODE_WORKFLOW_PROMPT,
-		label: "advisory:code-workflow",
-	});
-
-	pi.registerGuideline({
 		id: "debug-workflow",
 		triggerPrompt:
 			"Is the user starting a new debugging or bug-fix task that hasn't already received " +
@@ -572,6 +536,38 @@ export default function osAgent(pi: ExtensionAPI): void {
 	});
 
 	// --- Continuations (agent_end, sync) ---
+
+	pi.registerContinuation({
+		id: "code-workflow",
+		triggerPrompt:
+			"Does the current conversation call for code implementation as the next step — either " +
+			"from a user directive to write or modify code, a completed code review with findings " +
+			"to act on, or a Fleshing Out response with implementation candidates? " +
+			"Strong signals that this APPLIES: " +
+			"- A new feature, refactor, or architectural change where the approach is not yet determined. " +
+			"- The change touches multiple files or components without a clear pre-existing plan. " +
+			"- The agent would need to discover callers, data flows, or cross-file impacts before acting. " +
+			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] has recently appeared with findings " +
+			"  or suggestions to implement. " +
+			"- The most recent assistant message is a Fleshing Out response containing " +
+			"  ## 🆕 CANDIDATE BEHAVIORS or ## ⚠️ CANDIDATE EDGE CASES sections. " +
+			"Strong signals that this does NOT apply: " +
+			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW] has already been injected for " +
+			"  this task — do not re-trigger for work already in progress or committed. " +
+			"- The most recent assistant output contains only questions, an uncertainty report " +
+			"  (⚠️ IMPLEMENTATION UNCERTAINTIES), or research points — without an accompanying code " +
+			"  directive or Fleshing Out candidates. Questions and uncertainties are handled by " +
+			"  RESEARCH_POINTS, not CODE_WORKFLOW. " +
+			"- The agent's immediate task is to search, read, or explain code — not implement it. " +
+			"- The user expresses future intent without directing the agent to act now " +
+			"  (e.g., 'we should probably...', 'this might need to change', 'I think X should do Y'). " +
+			"- Purely mechanical git operations with no new file edits. " +
+			"Judgment heuristic: is code implementation the concrete next step, not just a future " +
+			"possibility? Features, review fixes, and Fleshing Out candidates all qualify. " +
+			"Questions, uncertainty reports, and research points alone do not.",
+		injectPrompt: CODE_WORKFLOW_PROMPT,
+		label: "advisory:code-workflow",
+	});
 
 	pi.registerContinuation({
 		id: "review-after-commit",
