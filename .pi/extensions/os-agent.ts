@@ -493,17 +493,17 @@ class AdvisoryStatusComponent extends Container {
 export default function osAgent(pi: ExtensionAPI): void {
 	// --- Guidelines (turn_start, async) ---
 
-	pi.registerGuideline({
-		id: "debug-workflow",
-		triggerPrompt:
-			"Is the user starting a new debugging or bug-fix task that hasn't already received " +
-			"debugging workflow guidance in the recent conversation? " +
-			"Use your judgment: if this looks like a fresh debugging request that hasn't " +
-			"been covered by a recent [SYSTEM GUIDELINE INSTRUCTIONS: DEBUG_WORKFLOW] message, trigger. " +
-			"If the conversation already has debug guidance covering this task, do not trigger.",
-		injectPrompt: DEBUG_WORKFLOW_PROMPT,
-		label: "advisory:debug-workflow",
-	});
+	// pi.registerGuideline({
+	// 	id: "debug-workflow",
+	// 	triggerPrompt:
+	// 		"Is the user starting a new debugging or bug-fix task that hasn't already received " +
+	// 		"debugging workflow guidance in the recent conversation? " +
+	// 		"Use your judgment: if this looks like a fresh debugging request that hasn't " +
+	// 		"been covered by a recent [SYSTEM GUIDELINE INSTRUCTIONS: DEBUG_WORKFLOW] message, trigger. " +
+	// 		"If the conversation already has debug guidance covering this task, do not trigger.",
+	// 	injectPrompt: DEBUG_WORKFLOW_PROMPT,
+	// 	label: "advisory:debug-workflow",
+	// });
 
 	// --- Guidelines + Continuations: research-uncertainties ---
 
