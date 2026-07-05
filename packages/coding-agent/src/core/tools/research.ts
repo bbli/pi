@@ -3,7 +3,7 @@
  *
  * Spawns a branch session with all standard file/shell tools (read, grep,
  * find, ls, bash) to investigate a question and return structured findings.
- * The branch session is registered in SubagentRegistry while running, making
+ * The branch session is registered in AgentManager while running, making
  * it visible in the TUI footer and switchable via /agent.
  *
  * The branch session receives the full main session history (seedContext: true
@@ -11,11 +11,11 @@
  */
 
 import { Type } from "typebox";
+import type { AgentManager } from "../agent-manager.ts";
 import type { AgentSession } from "../agent-session.ts";
 import { runBranchSession } from "../branch-session.ts";
 import { debugLog } from "../debug.ts";
 import { defineTool, type ToolDefinition } from "../extensions/types.ts";
-import type { SubagentRegistry } from "../subagent-registry.ts";
 
 const RESEARCH_SYSTEM_PROMPT = `\
 # SYSTEM RESEARCH PLAN
@@ -37,7 +37,7 @@ write your findings. Do not over-investigate.
 - Close your report with your confidence in the completeness of the findings \
 and any gaps you could not resolve that may be relevant (omit if none).`;
 
-export function makeResearchTool(session: AgentSession, registry: SubagentRegistry): ToolDefinition {
+export function makeResearchTool(session: AgentSession, manager: AgentManager): ToolDefinition {
 	return defineTool({
 		name: "researchConversationQuestion",
 		label: "Research",
@@ -81,7 +81,7 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 						abortSignal: signal,
 					},
 					session,
-					registry,
+					manager,
 				);
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);

@@ -1,14 +1,14 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import type { SubagentRecord } from "../../../core/agent-manager.ts";
 import type { AgentSession } from "../../../core/agent-session.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
-import type { SubagentRecord } from "../../../core/subagent-registry.ts";
 import { theme } from "../theme/theme.ts";
 
-/** Minimal orchestrator surface that FooterComponent needs. Satisfied structurally by AgentOrchestrator. */
+/** Minimal orchestrator surface that FooterComponent needs. Satisfied structurally by AgentManager. */
 export interface FooterOrchestratorState {
 	readonly focusedRecord: SubagentRecord | undefined;
-	readonly registry: { getAll(): readonly SubagentRecord[] };
+	getAll(): readonly SubagentRecord[];
 	readonly rootSession: { isStreaming: boolean };
 }
 
@@ -70,7 +70,7 @@ export class FooterComponent implements Component {
 		this.footerData = footerData;
 		this.orchestrator = orchestrator ?? {
 			focusedRecord: undefined,
-			registry: { getAll: () => [] },
+			getAll: () => [],
 			rootSession: { isStreaming: false },
 		};
 	}
@@ -104,7 +104,7 @@ export class FooterComponent implements Component {
 
 		// Agent strip — always shown
 		const focusedRecord = this.orchestrator.focusedRecord;
-		const subagents = this.orchestrator.registry.getAll();
+		const subagents = this.orchestrator.getAll();
 		const rootSession = this.orchestrator.rootSession;
 
 		const rootLabel = focusedRecord === undefined ? "[main]" : "main";

@@ -59,7 +59,7 @@ import {
 	getShareViewerUrl,
 	VERSION,
 } from "../../config.ts";
-import type { AgentOrchestrator } from "../../core/agent-orchestrator.ts";
+import type { AgentManager, SubagentRecord } from "../../core/agent-manager.ts";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
 import { SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
 import { debugLog } from "../../core/debug.ts";
@@ -85,7 +85,6 @@ import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../cor
 import { type SessionContext, SessionManager, type SessionTreeNode } from "../../core/session-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
-import type { SubagentRecord } from "../../core/subagent-registry.ts";
 import { isInstallTelemetryEnabled } from "../../core/telemetry.ts";
 import type { TruncationResult } from "../../core/tools/truncate.ts";
 import { getChangelogPath, getNewEntries, parseChangelog } from "../../utils/changelog.ts";
@@ -261,7 +260,7 @@ export interface InteractiveModeOptions {
 }
 
 export class InteractiveMode {
-	private orchestrator: AgentOrchestrator;
+	private manager: AgentManager;
 
 	// ── Session pane registry ────────────────────────────────────────────────
 	// Every interactive AgentSession (root, user subagent, branch session) owns
@@ -387,32 +386,32 @@ export class InteractiveMode {
 		return this.resources.settingsManager;
 	}
 
-	constructor(orchestrator: AgentOrchestrator, options: InteractiveModeOptions = {}) {
-		this.orchestrator = orchestrator;
+	constructor(manager: AgentManager, options: InteractiveModeOptions = {}) {
+		this.manager = manager;
 		this.options = options;
 
 		// Create the root pane — always id="root".
-		const rootPane = new AgentPane(orchestrator.rootSession, "root", "Main");
+		const rootPane = new AgentPane(manager.rootSession, "root", "Main");
 		this.panes.set("root", rootPane);
 
-		// Wire onRegister: every new AgentSession registered in the SubagentRegistry
+		// Wire onRegister: every new AgentSession registered in the AgentManager
 		// (user subagents via spawn(), branch sessions via runBranchSession(), advisory
 		// evaluators, extension pi.runBranchSession()) automatically gets an AgentPane.
-		this.orchestrator.registry.onRegister = (record) => {
+		this.manager.onRegister = (record) => {
 			const pane = new AgentPane(record.session, record.id, record.label);
 			this.wirePaneEditor(pane);
 			this.panes.set(record.id, pane);
 			debugLog(`[AgentPane] pane ready id=${record.id}, total=${this.panes.size}`);
 		};
 		// Mirror registry removals (auto-terminated branch sessions) into panes map.
-		this.orchestrator.registry.onRemove = (id) => {
+		this.manager.onRemove = (id) => {
 			this.panes.delete(id);
 			debugLog(`[AgentPane] pane removed id=${id}, remaining=${this.panes.size}`);
 		};
 
 		// When the root session is replaced (/new, /fork, /resume), clear all
 		// non-root panes and reset focus to root.
-		this.orchestrator.setBeforeSessionInvalidate(() => {
+		this.manager.setBeforeSessionInvalidate(() => {
 			this.resetExtensionUI();
 			// Tear down all subagent panes (registry.clearAll already aborted sessions).
 			for (const [id] of this.panes) {
@@ -420,10 +419,10 @@ export class InteractiveMode {
 			}
 			this.focusedId = "root";
 		});
-		this.orchestrator.setRebindSession(async () => {
+		this.manager.setRebindSession(async () => {
 			// After session replacement the runtime created a new root AgentSession.
 			// Update the root pane's session reference; preserve its editor.
-			this.panes.get("root")!.session = orchestrator.rootSession;
+			this.panes.get("root")!.session = manager.rootSession;
 			await this.rebindCurrentSession();
 		});
 		this.version = VERSION;
@@ -451,8 +450,8 @@ export class InteractiveMode {
 		// Mount root pane's pending messages container into the layout slot.
 		this.pendingMessagesContainer.addChild(this.active.pendingMessages);
 		this.footerDataProvider = new FooterDataProvider(this.sessionManager.getCwd());
-		this.footer = new FooterComponent(this.resources, this.footerDataProvider, this.orchestrator);
-		this.orchestrator.registry.onStatusChange = () => {
+		this.footer = new FooterComponent(this.resources, this.footerDataProvider, this.manager);
+		this.manager.onStatusChange = () => {
 			this.footer.invalidate();
 			this.ui.requestRender();
 		};
@@ -1564,7 +1563,7 @@ export class InteractiveMode {
 					}
 					this.statusContainer.clear();
 					try {
-						const result = await this.orchestrator.newSession(options);
+						const result = await this.manager.newSession(options);
 						if (!result.cancelled) {
 							this.renderCurrentSessionState();
 							this.ui.requestRender();
@@ -1576,7 +1575,7 @@ export class InteractiveMode {
 				},
 				fork: async (entryId, options) => {
 					try {
-						const result = await this.orchestrator.fork(entryId, options);
+						const result = await this.manager.fork(entryId, options);
 						if (!result.cancelled) {
 							this.renderCurrentSessionState();
 							this.editor.setText(result.selectedText ?? "");
@@ -2928,8 +2927,8 @@ export class InteractiveMode {
 			this.ui.terminal.setProgress(false);
 		}
 		this.focusedId = id;
-		// Keep orchestrator._focused in sync so FooterComponent.focusedRecord is correct.
-		this.orchestrator.focus(id === "root" ? undefined : this.orchestrator.registry.get(id));
+		// Keep manager._focused in sync so FooterComponent.focusedRecord is correct.
+		this.manager.focus(id === "root" ? undefined : this.manager.get(id));
 		// Swap editor into the editor slot.
 		this.editor = this.active.editor;
 		this.editorContainer.clear();
@@ -3576,7 +3575,7 @@ export class InteractiveMode {
 			// terminal. If the terminal is gone, the restore writes below emit EIO,
 			// which the stdout/stderr error handler turns into emergencyTerminalExit;
 			// the render loop is already idle, so this cannot hot-spin (see #4144).
-			await this.orchestrator.dispose();
+			await this.manager.dispose();
 			await this.ui.terminal.drainInput(1000);
 			this.stop();
 			process.exit(0);
@@ -3590,7 +3589,7 @@ export class InteractiveMode {
 		await this.ui.terminal.drainInput(1000);
 
 		this.stop();
-		await this.orchestrator.dispose();
+		await this.manager.dispose();
 
 		const resumeCommand = formatResumeCommand(this.sessionManager);
 		if (resumeCommand) {
@@ -4596,7 +4595,7 @@ export class InteractiveMode {
 				userMessages.map((m) => ({ id: m.entryId, text: m.text })),
 				async (entryId) => {
 					try {
-						const result = await this.orchestrator.fork(entryId);
+						const result = await this.manager.fork(entryId);
 						if (result.cancelled) {
 							done();
 							this.ui.requestRender();
@@ -4630,7 +4629,7 @@ export class InteractiveMode {
 		}
 
 		try {
-			const result = await this.orchestrator.fork(leafId, { position: "at" });
+			const result = await this.manager.fork(leafId, { position: "at" });
 			if (result.cancelled) {
 				this.ui.requestRender();
 				return;
@@ -4786,7 +4785,7 @@ export class InteractiveMode {
 			let record: SubagentRecord;
 			try {
 				// spawn() calls registry.register() which fires onRegister and creates the pane.
-				record = await this.orchestrator.spawn();
+				record = await this.manager.spawn();
 			} catch (error: unknown) {
 				this.showError(error instanceof Error ? error.message : "Failed to spawn agent");
 				return;
@@ -4796,7 +4795,7 @@ export class InteractiveMode {
 			return;
 		}
 
-		const records = Array.from(this.orchestrator.registry.getAll());
+		const records = Array.from(this.manager.getAll());
 		const currentId = this.focusedId;
 
 		const options = [
@@ -4833,15 +4832,15 @@ export class InteractiveMode {
 		}
 		// Remove pane for the killed session. Editor history is on the pane's editor — no separate cleanup.
 		this.panes.delete(killedId);
-		// orchestrator.kill aborts and disposes the session, removes from registry.
-		this.orchestrator.kill(killedId);
+		// manager.kill aborts and disposes the session, removes from registry.
+		this.manager.kill(killedId);
 		// Pick the next focus: last remaining non-root pane, or root.
 		const remaining = Array.from(this.panes.keys()).filter((id) => id !== killedId);
 		const nextId = remaining.length > 0 ? (remaining[remaining.length - 1] ?? "root") : "root";
 		this.focusedId = nextId;
-		// Keep orchestrator._focused in sync (kill() may have set a different value).
-		const nextRecord = nextId === "root" ? undefined : this.orchestrator.registry.get(nextId);
-		this.orchestrator.focus(nextRecord);
+		// Keep manager._focused in sync (kill() may have set a different value).
+		const nextRecord = nextId === "root" ? undefined : this.manager.get(nextId);
+		this.manager.focus(nextRecord);
 		// Swap in the new pane's editor and pending messages.
 		this.editor = this.active.editor;
 		this.editorContainer.clear();
@@ -4906,7 +4905,7 @@ export class InteractiveMode {
 		}
 		this.statusContainer.clear();
 		try {
-			const result = await this.orchestrator.switchSession(sessionPath, {
+			const result = await this.manager.switchSession(sessionPath, {
 				withSession: options?.withSession,
 			});
 			if (result.cancelled) {
@@ -4922,7 +4921,7 @@ export class InteractiveMode {
 					this.showStatus("Resume cancelled");
 					return { cancelled: true };
 				}
-				const result = await this.orchestrator.switchSession(sessionPath, {
+				const result = await this.manager.switchSession(sessionPath, {
 					cwdOverride: selectedCwd,
 					withSession: options?.withSession,
 				});
@@ -5491,7 +5490,7 @@ export class InteractiveMode {
 				this.loadingAnimation = undefined;
 			}
 			this.statusContainer.clear();
-			const result = await this.orchestrator.importFromJsonl(inputPath);
+			const result = await this.manager.importFromJsonl(inputPath);
 			if (result.cancelled) {
 				this.showStatus("Import cancelled");
 				return;
@@ -5505,7 +5504,7 @@ export class InteractiveMode {
 					this.showStatus("Import cancelled");
 					return;
 				}
-				const result = await this.orchestrator.importFromJsonl(inputPath, selectedCwd);
+				const result = await this.manager.importFromJsonl(inputPath, selectedCwd);
 				if (result.cancelled) {
 					this.showStatus("Import cancelled");
 					return;
@@ -5845,7 +5844,7 @@ export class InteractiveMode {
 		}
 		this.statusContainer.clear();
 		try {
-			const result = await this.orchestrator.newSession();
+			const result = await this.manager.newSession();
 			if (result.cancelled) {
 				return;
 			}

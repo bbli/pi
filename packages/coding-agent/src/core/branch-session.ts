@@ -16,6 +16,7 @@
  */
 
 import * as crypto from "node:crypto";
+import type { AgentManager } from "./agent-manager.ts";
 import type { AgentSession } from "./agent-session.ts";
 import { debugLog } from "./debug.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
@@ -23,7 +24,6 @@ import type { BranchSessionOptions } from "./extensions/types.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
-import type { SubagentRegistry } from "./subagent-registry.ts";
 
 // ---------------------------------------------------------------------------
 // Step helpers
@@ -117,7 +117,7 @@ function seedBranchContext(branchSession: AgentSession, mainSession: AgentSessio
  */
 async function cleanupBranchSession(
 	branchSession: AgentSession,
-	registry: SubagentRegistry | undefined,
+	manager: AgentManager | undefined,
 	registeredId: string | undefined,
 	keepAlive: boolean,
 ): Promise<void> {
@@ -129,9 +129,9 @@ async function cleanupBranchSession(
 		}
 		return;
 	}
-	if (registry && registeredId) {
-		// registry.remove() handles abort + dispose
-		registry.remove(registeredId);
+	if (manager && registeredId) {
+		// manager.remove() handles abort + dispose
+		manager.remove(registeredId);
 	} else {
 		try {
 			await branchSession.abort();
@@ -155,7 +155,7 @@ export async function runBranchSession(
 	prompt: string,
 	options: BranchSessionOptions,
 	mainSession: AgentSession,
-	registry?: SubagentRegistry,
+	manager?: AgentManager,
 ): Promise<string | undefined> {
 	if (!prompt.trim()) return undefined;
 	if (!mainSession.model) return undefined;
@@ -173,9 +173,9 @@ export async function runBranchSession(
 			seedBranchContext(branchSession, mainSession);
 		}
 
-		if (registry) {
+		if (manager) {
 			registeredId = crypto.randomUUID();
-			registry.register({ id: registeredId, label, kind: "branch", session: branchSession });
+			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
 		}
 
 		// Step 3a: wire abort signal — if the caller cancels, abort the branch session too.
@@ -209,7 +209,7 @@ export async function runBranchSession(
 		debugLog(`[branch:${label}] session complete, text.length=${text?.length ?? 0}`);
 	} finally {
 		// Step 5: cleanup
-		await cleanupBranchSession(branchSession, registry, registeredId, options.keepAlive ?? false);
+		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
 	}
 	return text;
 }

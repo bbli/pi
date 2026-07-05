@@ -1,40 +1,130 @@
+/**
+ * AgentManager — unified subagent registry and session orchestration.
+ *
+ * Merges the former SubagentRegistry (record storage, TTL, status callbacks)
+ * and AgentOrchestrator (focus management, spawn, runtime lifecycle) into a
+ * single class. AgentSession holds a reference to this via setAgentManager()
+ * so branch-session.ts can register/remove sessions without a separate
+ * registry handle.
+ */
+
 import { randomUUID } from "node:crypto";
-import type { AgentSession } from "./agent-session.ts";
+import type { AgentSession, AgentSessionEvent } from "./agent-session.ts";
 import type { AgentSessionRuntime } from "./agent-session-runtime.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
-import { type SubagentRecord, SubagentRegistry } from "./subagent-registry.ts";
 import { makeResearchTool } from "./tools/research.ts";
 
-/**
- * Sits above AgentSessionRuntime and manages multi-session concerns:
- * which session is focused (rendered + receives input), and the registry
- * of live subagent sessions.
- *
- * AgentSessionRuntime remains responsible only for replacing the root session
- * (fork, new, switch). AgentOrchestrator is responsible for everything else.
- */
-export class AgentOrchestrator {
-	readonly registry: SubagentRegistry;
+// ============================================================================
+// Types
+// ============================================================================
+
+export type SubagentKind = "user" | "branch";
+
+export interface SubagentRecord {
+	readonly id: string;
+	readonly label: string;
+	readonly kind: SubagentKind;
+	readonly session: AgentSession;
+	ttlTimer: ReturnType<typeof setTimeout> | undefined;
+	unsubscribeStatus: (() => void) | undefined;
+}
+
+// ============================================================================
+// AgentManager
+// ============================================================================
+
+export class AgentManager {
+	// ── Registry state ───────────────────────────────────────────────────────
+	private readonly _records = new Map<string, SubagentRecord>();
+
+	/** Fired when any registered session emits agent_start or agent_end. */
+	onStatusChange: (() => void) | undefined = undefined;
+	/** Fired after a new record is added. */
+	onRegister: ((record: SubagentRecord) => void) | undefined = undefined;
+	/** Fired after a record is removed (session aborted and disposed). */
+	onRemove: ((id: string) => void) | undefined = undefined;
+
+	// ── Orchestrator state ───────────────────────────────────────────────────
 	private _focused: SubagentRecord | undefined = undefined;
 	private readonly _runtime: AgentSessionRuntime;
 
 	constructor(runtime: AgentSessionRuntime) {
 		this._runtime = runtime;
-		this.registry = new SubagentRegistry();
-		runtime.session.setSubagentRegistry(this.registry);
-		runtime.session.addBuiltinTool(makeResearchTool(runtime.session, this.registry));
-		// Branch sessions are removed immediately on completion — no TTL needed.
+		runtime.session.setAgentManager(this);
+		runtime.session.addBuiltinTool(makeResearchTool(runtime.session, this));
 	}
 
 	// =========================================================================
-	// Session accessors
+	// Registry — record storage
 	// =========================================================================
 
-	/** The root session — always the one managed by AgentSessionRuntime.
-	 *  Used for all infrastructure access (settingsManager, modelRegistry, etc.). */
+	register(record: Pick<SubagentRecord, "id" | "label" | "kind" | "session">): void {
+		const unsubscribeStatus = record.session.subscribe((event: AgentSessionEvent) => {
+			if (event.type === "agent_start" || event.type === "agent_end") {
+				this.onStatusChange?.();
+			}
+		});
+		const stored: SubagentRecord = { ...record, ttlTimer: undefined, unsubscribeStatus };
+		this._records.set(record.id, stored);
+		this.onRegister?.(stored);
+		this.onStatusChange?.();
+	}
+
+	remove(id: string): void {
+		const record = this._records.get(id);
+		if (!record) return;
+		if (record.ttlTimer !== undefined) {
+			clearTimeout(record.ttlTimer);
+		}
+		record.unsubscribeStatus?.();
+		void record.session.abort().catch(() => {});
+		record.session.dispose();
+		this._records.delete(id);
+		this.onRemove?.(id);
+		this.onStatusChange?.();
+	}
+
+	get(id: string): SubagentRecord | undefined {
+		return this._records.get(id);
+	}
+
+	getAll(): readonly SubagentRecord[] {
+		return Array.from(this._records.values());
+	}
+
+	startTTL(id: string, ms: number, onExpire: () => void): void {
+		const record = this._records.get(id);
+		if (!record) return;
+		const timer = setTimeout(onExpire, ms);
+		timer.unref?.();
+		record.ttlTimer = timer;
+	}
+
+	refreshTTL(id: string, ms: number, onExpire: () => void): void {
+		const record = this._records.get(id);
+		if (!record) return;
+		if (record.ttlTimer !== undefined) {
+			clearTimeout(record.ttlTimer);
+		}
+		const timer = setTimeout(onExpire, ms);
+		timer.unref?.();
+		record.ttlTimer = timer;
+	}
+
+	clearAll(): void {
+		for (const id of Array.from(this._records.keys())) {
+			this.remove(id);
+		}
+	}
+
+	// =========================================================================
+	// Orchestrator — session accessors
+	// =========================================================================
+
+	/** The root session — always the one managed by AgentSessionRuntime. */
 	get rootSession(): AgentSession {
 		return this._runtime.session;
 	}
@@ -51,7 +141,7 @@ export class AgentOrchestrator {
 	}
 
 	// =========================================================================
-	// Focus management
+	// Orchestrator — focus management
 	// =========================================================================
 
 	/** Switch focus to a subagent record, or pass undefined to return to root. */
@@ -60,20 +150,20 @@ export class AgentOrchestrator {
 	}
 
 	// =========================================================================
-	// Kill
+	// Orchestrator — kill
 	// =========================================================================
 
 	/** Kill a registered subagent by id. Focuses the next live session or root. */
 	kill(id: string): void {
 		if (this._focused?.id === id) {
-			const remaining = this.registry.getAll().filter((r) => r.id !== id);
+			const remaining = this.getAll().filter((r) => r.id !== id);
 			this._focused = remaining.length > 0 ? remaining[remaining.length - 1] : undefined;
 		}
-		this.registry.remove(id);
+		this.remove(id);
 	}
 
 	// =========================================================================
-	// Spawn (implemented in a later step)
+	// Orchestrator — spawn
 	// =========================================================================
 
 	/**
@@ -113,52 +203,45 @@ export class AgentOrchestrator {
 		});
 
 		// Seed the subagent with root's conversation history so it has full context.
-		// Same mechanism as runBranchSession's seedBranchContext — reads persisted
-		// entries so compaction boundaries and branching are respected.
 		const context = buildSessionContext(root.sessionManager.getEntries(), root.sessionManager.getLeafId());
 		if (context.messages.length > 0) {
 			session.agent.state.messages = [...context.messages];
 		}
 
-		const userCount = this.registry.getAll().filter((r) => r.kind === "user").length;
+		const userCount = this.getAll().filter((r) => r.kind === "user").length;
 		const label = `agent-${userCount + 1}`;
 		const id = randomUUID();
-		this.registry.register({ id, label, kind: "user", session });
-		return this.registry.get(id)!;
+		this.register({ id, label, kind: "user", session });
+		return this.get(id)!;
 	}
 
 	// =========================================================================
-	// Runtime lifecycle delegation
+	// Orchestrator — runtime lifecycle
 	// =========================================================================
 
 	/**
 	 * Chain session-replacement callbacks so that when the root session is
-	 * replaced the orchestrator clears subagents before the TUI rebinds.
-	 *
-	 * beforeSessionInvalidate: clear focused + registry, then run the TUI's
-	 * own beforeSessionInvalidate (e.g. resetExtensionUI).
-	 *
-	 * rebindSession: just delegate to the TUI's rebind callback.
+	 * replaced the manager clears subagents before the TUI rebinds.
 	 */
 	setBeforeSessionInvalidate(cb: () => void): void {
 		this._runtime.setBeforeSessionInvalidate(() => {
 			this._focused = undefined;
-			this.registry.clearAll();
+			this.clearAll();
 			cb();
 		});
 	}
 
 	setRebindSession(cb: () => Promise<void>): void {
 		this._runtime.setRebindSession(async () => {
-			// Wire the registry and built-in tools into the newly created root session.
-			this._runtime.session.setSubagentRegistry(this.registry);
-			this._runtime.session.addBuiltinTool(makeResearchTool(this._runtime.session, this.registry));
+			// Wire the manager and built-in tools into the newly created root session.
+			this._runtime.session.setAgentManager(this);
+			this._runtime.session.addBuiltinTool(makeResearchTool(this._runtime.session, this));
 			await cb();
 		});
 	}
 
 	async dispose(): Promise<void> {
-		this.registry.dispose();
+		this.clearAll();
 		await this._runtime.dispose();
 	}
 

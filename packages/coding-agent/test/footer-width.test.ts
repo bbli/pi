@@ -12,7 +12,7 @@ import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 function createMockOrchestrator(): FooterOrchestratorState {
 	return {
 		focusedRecord: undefined,
-		registry: { getAll: () => [] },
+		getAll: () => [],
 		rootSession: { isStreaming: false },
 	};
 }

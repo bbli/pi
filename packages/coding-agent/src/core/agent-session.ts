@@ -37,6 +37,7 @@ import { theme } from "../modes/interactive/theme/theme.ts";
 import { stripFrontmatter } from "../utils/frontmatter.ts";
 import { resolvePath } from "../utils/paths.ts";
 import { sleep } from "../utils/sleep.ts";
+import type { AgentManager } from "./agent-manager.ts";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.ts";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.ts";
 import { runBranchSession } from "./branch-session.ts";
@@ -90,7 +91,6 @@ import { CURRENT_SESSION_VERSION, getLatestCompactionEntry, type SessionHeader }
 import type { SettingsManager } from "./settings-manager.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
-import type { SubagentRegistry } from "./subagent-registry.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
@@ -266,7 +266,7 @@ export class AgentSession {
 	// Event subscription state
 	private _unsubscribeAgent?: () => void;
 	private _eventListeners: AgentSessionEventListener[] = [];
-	private _subagentRegistry?: SubagentRegistry;
+	private _agentManager?: AgentManager;
 
 	/** Tracks pending steering messages for UI display. Removed when delivered. */
 	private _steeringMessages: string[] = [];
@@ -721,11 +721,11 @@ export class AgentSession {
 	}
 
 	/**
-	 * Set the registry that runTurnEndInjection will publish reviewer sessions into.
-	 * Called by AgentOrchestrator after construction and after session replacement.
+	 * Set the AgentManager that runBranchSession will register subagent sessions into.
+	 * Called by AgentManager after construction and after session replacement.
 	 */
-	setSubagentRegistry(registry: SubagentRegistry | undefined): void {
-		this._subagentRegistry = registry;
+	setAgentManager(manager: AgentManager | undefined): void {
+		this._agentManager = manager;
 	}
 
 	/**
@@ -857,7 +857,7 @@ export class AgentSession {
 	/**
 	 * Register an additional tool in this session at runtime.
 	 * Idempotent: calling with the same tool name twice is a no-op.
-	 * Used by AgentOrchestrator to wire built-in tools (e.g. research) after
+	 * Used by AgentManager to wire built-in tools (e.g. research) after
 	 * session construction, and on every session rebind.
 	 */
 	addBuiltinTool(tool: ToolDefinition): void {
@@ -2320,7 +2320,7 @@ export class AgentSession {
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
 				runBranchSession: (prompt, options) => {
 					const keepAlive = options.keepAlive ?? runner.getFlagValues().get("keep-branch-sessions") === true;
-					return runBranchSession(prompt, { ...options, keepAlive }, this, this._subagentRegistry);
+					return runBranchSession(prompt, { ...options, keepAlive }, this, this._agentManager);
 				},
 				getGuidelines: () => this._extensionRunner.getAllGuidelines(),
 				getContinuations: () => this._extensionRunner.getAllContinuations(),
