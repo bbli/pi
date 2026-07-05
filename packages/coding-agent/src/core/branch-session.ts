@@ -29,16 +29,21 @@ import type { SubagentRegistry } from "./subagent-registry.ts";
 // Step helpers
 // ---------------------------------------------------------------------------
 
-function createBranchResourceLoader(systemPrompt: string): ResourceLoader {
+/**
+ * Build a resource loader for a branch session that inherits static resources
+ * (skills, AGENTS.md, system prompt) from the root session's loader while keeping
+ * its own empty ExtensionRuntime so no extensions, guidelines, or continuations run.
+ */
+function createBranchResourceLoader(rootLoader: ResourceLoader): ResourceLoader {
 	const extensionsResult = { extensions: [], errors: [], runtime: createExtensionRuntime() };
 	return {
 		getExtensions: () => extensionsResult,
-		getSkills: () => ({ skills: [], diagnostics: [] }),
+		getSkills: () => rootLoader.getSkills(),
 		getPrompts: () => ({ prompts: [], diagnostics: [] }),
 		getThemes: () => ({ themes: [], diagnostics: [] }),
-		getAgentsFiles: () => ({ agentsFiles: [] }),
-		getSystemPrompt: () => undefined,
-		getAppendSystemPrompt: () => [systemPrompt],
+		getAgentsFiles: () => rootLoader.getAgentsFiles(),
+		getSystemPrompt: () => rootLoader.getSystemPrompt(),
+		getAppendSystemPrompt: () => rootLoader.getAppendSystemPrompt(),
 		extendResources: () => {},
 		reload: async () => {},
 	};
@@ -52,7 +57,10 @@ async function createBranchAgentSession(
 	options: BranchSessionOptions,
 	mainSession: AgentSession,
 ): Promise<AgentSession> {
-	const builtinTools = options.tools ?? ["read", "grep", "find", "ls", "bash"];
+	// Default to the same built-in tool set as the root session so the
+	// "Available tools:" section of the system prompt is identical, maximising
+	// KV cache reuse. Callers that need a restricted set pass an explicit list.
+	const builtinTools = options.tools ?? ["read", "bash", "edit", "write"];
 	// sdk.ts uses the `tools` array as an allow-list (allowedToolNames) that every tool
 	// must pass through isAllowedTool() to reach agent.state.tools. Custom tools are not
 	// in that list by default, so they get filtered before the agent loop can call them.
@@ -64,7 +72,7 @@ async function createBranchAgentSession(
 		thinkingLevel: options.thinkingLevel ?? "off",
 		tools: [...builtinTools, ...customToolNames],
 		customTools: options.customTools,
-		resourceLoader: createBranchResourceLoader(options.systemPrompt),
+		resourceLoader: createBranchResourceLoader(mainSession.resourceLoader),
 		cwd: mainSession.cwd,
 	});
 	return session;
@@ -161,8 +169,12 @@ export async function runBranchSession(
 			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
 		}
 
-		// Step 3b: run the prompt
-		await branchSession.prompt(prompt, { source: "extension" });
+		// Step 3b: run the prompt.
+		// options.systemPrompt contains caller-specific role instructions; they go into
+		// the first user-turn message (not the system prompt) so the system prompt prefix
+		// stays identical to the root session for KV cache reuse.
+		const fullPrompt = options.systemPrompt ? `${options.systemPrompt}\n\n${prompt}` : prompt;
+		await branchSession.prompt(fullPrompt, { source: "extension" });
 
 		// Step 4: capture last assistant text
 		text = branchSession.lastAssistantText;

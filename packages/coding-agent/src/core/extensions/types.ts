@@ -1096,8 +1096,13 @@ export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContex
  * Options for pi.runBranchSession().
  */
 export interface BranchSessionOptions {
-	/** System prompt appended to the branch session. */
-	systemPrompt: string;
+	/**
+	 * Instructions prepended to the first user-turn prompt message.
+	 * Branch sessions inherit the root session's system prompt (same resource loader,
+	 * skills, and AGENTS.md). Caller-specific instructions belong here, not in
+	 * the system prompt, so the system prompt prefix stays stable for KV caching.
+	 */
+	systemPrompt?: string;
 	/**
 	 * Built-in tool names to enable.
 	 * Defaults to ["read", "grep", "find", "ls", "bash"] — note bash can perform writes.
