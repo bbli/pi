@@ -11,6 +11,7 @@ import * as branchSessionModule from "../src/core/branch-session.ts";
 import { createExtensionRuntime, discoverAndLoadExtensions } from "../src/core/extensions/loader.ts";
 import { ExtensionRunner, makeInjectGuidelineTool } from "../src/core/extensions/runner.ts";
 import type {
+	BranchSessionOptions,
 	ExtensionActions,
 	ExtensionContextActions,
 	ExtensionUIContext,
@@ -1008,6 +1009,174 @@ describe("ExtensionRunner", () => {
 
 			expect(runner.hasHandlers("tool_call")).toBe(true);
 			expect(runner.hasHandlers("agent_end")).toBe(false);
+		});
+	});
+
+	describe("continuation task queue", () => {
+		/** Helper: find the injectGuideline tool in branch session options and call it for given ids. */
+		const fireInjectTool = async (options: BranchSessionOptions, ids: string[]): Promise<void> => {
+			const tool = options.customTools?.find((t) => t.name === "injectGuideline");
+			if (!tool) return;
+			for (const id of ids) {
+				await tool.execute("call-" + id, { id, reason: "test reason" }, undefined, undefined, {} as never);
+			}
+		};
+
+		it("queues multiple tasks in one branch session pass and injects them one per emitAgentEnd", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "t1", injectPrompt: "inject-c1" });
+					pi.registerContinuation({ id: "c2", triggerPrompt: "t2", injectPrompt: "inject-c2" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			const injected: string[] = [];
+			let branchSessionCalls = 0;
+
+			runner.bindCore(
+				{
+					...extensionActions,
+					injectUserMessage: (text) => injected.push(text),
+					runBranchSession: async (_prompt, options) => {
+						branchSessionCalls++;
+						await fireInjectTool(options, ["c1", "c2"]);
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+
+			// First agent_end: branch session fires c1+c2, first task (c1) is immediately injected.
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(branchSessionCalls).toBe(1);
+			expect(injected).toEqual(["inject-c1"]);
+
+			// Second agent_end: task c2 still pending — branch session must NOT run.
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(branchSessionCalls).toBe(1);
+			expect(injected).toEqual(["inject-c1", "inject-c2"]);
+		});
+
+		it("skips the branch session while tasks are pending", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "t1", injectPrompt: "inject-c1" });
+					pi.registerContinuation({ id: "c2", triggerPrompt: "t2", injectPrompt: "inject-c2" });
+					pi.registerContinuation({ id: "c3", triggerPrompt: "t3", injectPrompt: "inject-c3" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			const injected: string[] = [];
+			let branchSessionCalls = 0;
+
+			runner.bindCore(
+				{
+					...extensionActions,
+					injectUserMessage: (text) => injected.push(text),
+					runBranchSession: async (_prompt, options) => {
+						branchSessionCalls++;
+						await fireInjectTool(options, ["c1", "c2", "c3"]);
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+
+			// First agent_end: branch session fires all three, injects c1.
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(branchSessionCalls).toBe(1);
+			expect(injected).toEqual(["inject-c1"]);
+
+			// Second agent_end: c2 and c3 still pending — branch session skipped, c2 injected.
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(branchSessionCalls).toBe(1);
+			expect(injected).toEqual(["inject-c1", "inject-c2"]);
+
+			// Third agent_end: c3 still pending — branch session skipped, c3 injected.
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(branchSessionCalls).toBe(1);
+			expect(injected).toEqual(["inject-c1", "inject-c2", "inject-c3"]);
+		});
+
+		it("re-evaluates after tasks are drained", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "t1", injectPrompt: "inject-c1" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			const injected: string[] = [];
+			let branchSessionCalls = 0;
+
+			runner.bindCore(
+				{
+					...extensionActions,
+					injectUserMessage: (text) => injected.push(text),
+					runBranchSession: async (_prompt, options) => {
+						branchSessionCalls++;
+						await fireInjectTool(options, ["c1"]);
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+
+			// First agent_end: branch session fires c1 (queued + injected immediately).
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(branchSessionCalls).toBe(1);
+			expect(injected).toEqual(["inject-c1"]);
+
+			// Second agent_end: task list empty, branch session re-evaluates.
+			// Advance past the 30s cooldown so c1 is eligible again.
+			vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31_000);
+			try {
+				await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+				expect(branchSessionCalls).toBe(2);
+			} finally {
+				vi.restoreAllMocks();
+			}
+		});
+
+		it("does not inject when the branch session fires nothing", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "t1", injectPrompt: "inject-c1" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			const injected: string[] = [];
+
+			runner.bindCore(
+				{
+					...extensionActions,
+					injectUserMessage: (text) => injected.push(text),
+					runBranchSession: async () => undefined, // LLM fires nothing
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toEqual([]);
 		});
 	});
 });
