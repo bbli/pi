@@ -152,6 +152,17 @@ describe("AgentManager", () => {
 		expect(manager.get("r1")?.label).toBe("r1");
 	});
 
+	it("fires onRegister with the stored record when a session is registered", () => {
+		const { session } = makeMockSession();
+		const received: SubagentRecord[] = [];
+		manager.onRegister = (r) => received.push(r);
+		manager.register(makeRecord("r1", session, "branch"));
+		expect(received).toHaveLength(1);
+		expect(received[0]?.id).toBe("r1");
+		expect(received[0]?.kind).toBe("branch");
+		expect(received[0]?.session).toBe(session);
+	});
+
 	it("stores multiple records", () => {
 		const { session: s1 } = makeMockSession();
 		const { session: s2 } = makeMockSession();
@@ -217,6 +228,15 @@ describe("AgentManager", () => {
 		manager.onStatusChange = cb;
 		manager.remove("r1");
 		expect(cb).toHaveBeenCalledTimes(1);
+	});
+
+	it("fires onRemove with the id after remove()", () => {
+		const { session } = makeMockSession();
+		const removed: string[] = [];
+		manager.onRemove = (id) => removed.push(id);
+		manager.register(makeRecord("r1", session));
+		manager.remove("r1");
+		expect(removed).toEqual(["r1"]);
 	});
 
 	it("remove with unknown id is a no-op", () => {
@@ -343,6 +363,18 @@ describe("AgentManager", () => {
 
 	// ── clearAll / dispose ───────────────────────────────────────────────────
 
+	it("clearAll fires onRemove for each record", () => {
+		const { session: s1 } = makeMockSession();
+		const { session: s2 } = makeMockSession();
+		manager.register(makeRecord("r1", s1));
+		manager.register(makeRecord("r2", s2));
+		const removed: string[] = [];
+		manager.onRemove = (id) => removed.push(id);
+		manager.clearAll();
+		expect(removed).toContain("r1");
+		expect(removed).toContain("r2");
+	});
+
 	it("clearAll removes all records and disposes each session", () => {
 		const m1 = makeMockSession();
 		const m2 = makeMockSession();
@@ -410,6 +442,12 @@ describe("AgentManager", () => {
 	});
 
 	// ── pass-throughs ────────────────────────────────────────────────────────
+
+	it("calls setAgentManager on the root session during construction", () => {
+		// setAgentManager is called in the constructor — rootMock was the session
+		// at construction time so its spy should already have been called once.
+		expect(rootMock.session.setAgentManager).toHaveBeenCalledWith(manager);
+	});
 
 	it("delegates newSession to the runtime", async () => {
 		await manager.newSession();

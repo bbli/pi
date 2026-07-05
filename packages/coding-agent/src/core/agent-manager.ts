@@ -11,6 +11,7 @@
 import { randomUUID } from "node:crypto";
 import type { AgentSession, AgentSessionEvent } from "./agent-session.ts";
 import type { AgentSessionRuntime } from "./agent-session-runtime.ts";
+import { debugLog } from "./debug.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
@@ -62,6 +63,7 @@ export class AgentManager {
 	// =========================================================================
 
 	register(record: Pick<SubagentRecord, "id" | "label" | "kind" | "session">): void {
+		debugLog(`[AgentManager] register id=${record.id} label=${record.label} kind=${record.kind}`);
 		const unsubscribeStatus = record.session.subscribe((event: AgentSessionEvent) => {
 			if (event.type === "agent_start" || event.type === "agent_end") {
 				this.onStatusChange?.();
@@ -76,6 +78,7 @@ export class AgentManager {
 	remove(id: string): void {
 		const record = this._records.get(id);
 		if (!record) return;
+		debugLog(`[AgentManager] remove id=${id} label=${record.label}`);
 		if (record.ttlTimer !== undefined) {
 			clearTimeout(record.ttlTimer);
 		}

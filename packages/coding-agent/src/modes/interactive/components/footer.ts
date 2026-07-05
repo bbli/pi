@@ -63,12 +63,12 @@ export class FooterComponent implements Component {
 	private autoCompactEnabled = true;
 	private session: AgentSession;
 	private footerData: ReadonlyFooterDataProvider;
-	private orchestrator: FooterOrchestratorState;
+	private manager: FooterOrchestratorState;
 
-	constructor(session: AgentSession, footerData: ReadonlyFooterDataProvider, orchestrator?: FooterOrchestratorState) {
+	constructor(session: AgentSession, footerData: ReadonlyFooterDataProvider, manager?: FooterOrchestratorState) {
 		this.session = session;
 		this.footerData = footerData;
-		this.orchestrator = orchestrator ?? {
+		this.manager = manager ?? {
 			focusedRecord: undefined,
 			getAll: () => [],
 			rootSession: { isStreaming: false },
@@ -103,9 +103,9 @@ export class FooterComponent implements Component {
 		const lines: string[] = [];
 
 		// Agent strip — always shown
-		const focusedRecord = this.orchestrator.focusedRecord;
-		const subagents = this.orchestrator.getAll();
-		const rootSession = this.orchestrator.rootSession;
+		const focusedRecord = this.manager.focusedRecord;
+		const subagents = this.manager.getAll();
+		const rootSession = this.manager.rootSession;
 
 		const rootLabel = focusedRecord === undefined ? "[main]" : "main";
 		const rootEntry = `${sessionIcon(rootSession.isStreaming)} ${rootLabel}`;

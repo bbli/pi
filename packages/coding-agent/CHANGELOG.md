@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- `FooterOrchestratorState` (exported from `@earendil-works/pi-coding-agent`): the nested `registry: { getAll(): readonly SubagentRecord[] }` property was replaced with a top-level `getAll(): readonly SubagentRecord[]` method. Any code that constructs an object satisfying this interface must remove the `registry` wrapper.
+
+### Changed
+
+- Merged `SubagentRegistry` and `AgentOrchestrator` internal classes into a single `AgentManager` class. No change to public extension API.
+
 ### Added
 
 - Added `registerConsideration`, `removeConsideration`, and `getConsiderations` to `ExtensionAPI` for managing per-run considerations. Considerations are stored as `Consideration` objects (`{ text, removalCondition? }`) and support upsert-by-text semantics.

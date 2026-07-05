@@ -4784,7 +4784,7 @@ export class InteractiveMode {
 		if (arg) {
 			let record: SubagentRecord;
 			try {
-				// spawn() calls registry.register() which fires onRegister and creates the pane.
+				// spawn() calls manager.register() which fires onRegister and creates the pane.
 				record = await this.manager.spawn();
 			} catch (error: unknown) {
 				this.showError(error instanceof Error ? error.message : "Failed to spawn agent");
