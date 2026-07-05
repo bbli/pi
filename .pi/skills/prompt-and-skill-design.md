@@ -66,7 +66,9 @@ Collect these verbatim or as close paraphrases. If the conversation is thin on e
 > - Note any prior advisory that covers similar ground — over-advising is a real failure mode.
 > - Identify the **idempotency anchor**: what specific event state will the skip condition reference?
 
-If there are existing prompts in the codebase, read them in full before drafting. Do not guess at their structure.
+> **You must read the existing prompts before drafting. Do not skip this.**
+>
+> Scan `.pi/prompts/` (slash-command prompts) and `.pi/skills/` (skill files). Read every file in full — no skimming, no guessing at structure, naming conventions, or frontmatter format. The draft must be consistent with what is already there. Note any that cover similar ground; duplication and overlap cause conflicting behavior and are a hard design error.
 
 ---
 

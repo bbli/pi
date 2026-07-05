@@ -1141,15 +1141,9 @@ describe("ExtensionRunner", () => {
 			expect(branchSessionCalls).toBe(1);
 			expect(injected).toEqual(["inject-c1"]);
 
-			// Second agent_end: task list empty, branch session re-evaluates.
-			// Advance past the 30s cooldown so c1 is eligible again.
-			vi.spyOn(Date, "now").mockReturnValue(Date.now() + 31_000);
-			try {
-				await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-				expect(branchSessionCalls).toBe(2);
-			} finally {
-				vi.restoreAllMocks();
-			}
+			// Second agent_end: task list empty, branch session re-evaluates immediately.
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(branchSessionCalls).toBe(2);
 		});
 
 		it("does not inject when the branch session fires nothing", async () => {
