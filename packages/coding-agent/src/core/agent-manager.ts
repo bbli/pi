@@ -78,7 +78,7 @@ export class AgentManager {
 	remove(id: string): void {
 		const record = this._records.get(id);
 		if (!record) return;
-		debugLog(`[AgentManager] remove id=${id} label=${record.label}`);
+		debugLog(`[AgentManager] remove id=${id} label=${record.label} kind=${record.kind}`);
 		if (record.ttlTimer !== undefined) {
 			clearTimeout(record.ttlTimer);
 		}

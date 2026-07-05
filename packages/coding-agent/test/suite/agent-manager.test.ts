@@ -444,9 +444,10 @@ describe("AgentManager", () => {
 	// ── pass-throughs ────────────────────────────────────────────────────────
 
 	it("calls setAgentManager on the root session during construction", () => {
-		// setAgentManager is called in the constructor — rootMock was the session
-		// at construction time so its spy should already have been called once.
-		expect(rootMock.session.setAgentManager).toHaveBeenCalledWith(manager);
+		// setAgentManager is a vi.fn() on the mock but typed as AgentSession.
+		// Cast explicitly so the mock assertion fails clearly if the factory changes.
+		const spy = rootMock.session.setAgentManager as ReturnType<typeof vi.fn>;
+		expect(spy).toHaveBeenCalledWith(manager);
 	});
 
 	it("delegates newSession to the runtime", async () => {
