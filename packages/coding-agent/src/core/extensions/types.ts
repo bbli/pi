@@ -1097,12 +1097,24 @@ export type ExtensionHandler<E, R = undefined> = (event: E, ctx: ExtensionContex
  */
 export interface BranchSessionOptions {
 	/**
-	 * Instructions prepended to the first user-turn prompt message.
-	 * Branch sessions inherit the root session's system prompt (same resource loader,
-	 * skills, and AGENTS.md). Caller-specific instructions belong here, not in
-	 * the system prompt, so the system prompt prefix stays stable for KV caching.
+	 * Caller-specific instructions for this branch session.
+	 *
+	 * Default behaviour (systemPromptOverride: false): prepended to the first
+	 * user-turn message so the system prompt prefix stays identical to root for
+	 * KV cache consistency.
+	 *
+	 * Override behaviour (systemPromptOverride: true): used as the branch
+	 * session's actual system prompt, replacing root's prompt entirely. Use this
+	 * for role-override sessions (e.g. advisory evaluators) where the instructions
+	 * must carry system-prompt authority to establish a clear role boundary.
 	 */
 	systemPrompt?: string;
+	/**
+	 * When true, systemPrompt is placed in the branch session's actual system
+	 * prompt rather than prepended to the user-turn message.
+	 * Default: false.
+	 */
+	systemPromptOverride?: boolean;
 	/**
 	 * Built-in tool names to enable.
 	 * Defaults to ["read", "bash", "edit", "write"] — the same set as the root session

@@ -566,6 +566,8 @@ export class ExtensionRunner {
 		const systemPrompt = buildAdvisoryEvalSystemPrompt("[SYSTEM GUIDELINE INSTRUCTIONS:");
 		try {
 			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(eligible, systemPrompt), {
+				systemPrompt,
+				systemPromptOverride: true,
 				tools: ["read", "grep", "find", "ls"],
 				customTools: [
 					makeInjectGuidelineTool(
@@ -612,6 +614,8 @@ export class ExtensionRunner {
 		const systemPrompt = buildAdvisoryEvalSystemPrompt("[SYSTEM CONTINUATION INSTRUCTIONS:");
 		try {
 			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(eligible, systemPrompt), {
+				systemPrompt,
+				systemPromptOverride: true,
 				tools: ["read", "grep", "find", "ls"],
 				customTools: [
 					makeInjectGuidelineTool(

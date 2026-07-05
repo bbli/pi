@@ -30,11 +30,16 @@ import type { SubagentRegistry } from "./subagent-registry.ts";
 // ---------------------------------------------------------------------------
 
 /**
- * Build a resource loader for a branch session that inherits static resources
- * (skills, AGENTS.md, system prompt) from the root session's loader while keeping
- * its own empty ExtensionRuntime so no extensions, guidelines, or continuations run.
+ * Build a resource loader for a branch session.
+ *
+ * By default delegates skills, AGENTS.md, and system prompt to the root loader
+ * so the branch session's system prompt is identical to root's (KV cache stable).
+ *
+ * When overrideSystemPrompt is provided the branch session gets that string as
+ * its custom system prompt instead of inheriting root's — use this for
+ * role-override sessions (advisory evaluators) that need system-level authority.
  */
-function createBranchResourceLoader(rootLoader: ResourceLoader): ResourceLoader {
+function createBranchResourceLoader(rootLoader: ResourceLoader, overrideSystemPrompt?: string): ResourceLoader {
 	const extensionsResult = { extensions: [], errors: [], runtime: createExtensionRuntime() };
 	return {
 		getExtensions: () => extensionsResult,
@@ -42,8 +47,8 @@ function createBranchResourceLoader(rootLoader: ResourceLoader): ResourceLoader 
 		getPrompts: () => ({ prompts: [], diagnostics: [] }),
 		getThemes: () => ({ themes: [], diagnostics: [] }),
 		getAgentsFiles: () => rootLoader.getAgentsFiles(),
-		getSystemPrompt: () => rootLoader.getSystemPrompt(),
-		getAppendSystemPrompt: () => rootLoader.getAppendSystemPrompt(),
+		getSystemPrompt: () => overrideSystemPrompt ?? rootLoader.getSystemPrompt(),
+		getAppendSystemPrompt: () => (overrideSystemPrompt ? [] : rootLoader.getAppendSystemPrompt()),
 		extendResources: () => {},
 		reload: async () => {},
 	};
@@ -65,6 +70,7 @@ async function createBranchAgentSession(
 	// must pass through isAllowedTool() to reach agent.state.tools. Custom tools are not
 	// in that list by default, so they get filtered before the agent loop can call them.
 	const customToolNames = (options.customTools ?? []).map((t) => t.name);
+	const overrideSystemPrompt = options.systemPromptOverride ? options.systemPrompt : undefined;
 	const { session } = await createAgentSession({
 		sessionManager: SessionManager.inMemory(),
 		model: options.model ?? mainSession.model!,
@@ -72,7 +78,7 @@ async function createBranchAgentSession(
 		thinkingLevel: options.thinkingLevel ?? "off",
 		tools: [...builtinTools, ...customToolNames],
 		customTools: options.customTools,
-		resourceLoader: createBranchResourceLoader(mainSession.resourceLoader),
+		resourceLoader: createBranchResourceLoader(mainSession.resourceLoader, overrideSystemPrompt),
 		cwd: mainSession.cwd,
 	});
 
@@ -186,13 +192,16 @@ export async function runBranchSession(
 		}
 
 		// Step 3b: run the prompt.
-		// options.systemPrompt contains caller-specific role instructions; they go into
-		// the first user-turn message (not the system prompt) so the system prompt prefix
-		// stays identical to the root session for KV cache reuse.
-		if (options.systemPrompt) {
-			debugLog(`[branch:${label}] systemPrompt prepended (${options.systemPrompt.length} chars)`);
+		// When systemPromptOverride is false (default): options.systemPrompt is prepended
+		// to the first user-turn message so the system prompt stays identical to root's
+		// for KV cache consistency.
+		// When systemPromptOverride is true: options.systemPrompt was already baked into
+		// the session system prompt by createBranchResourceLoader — do not prepend here.
+		const prependText = options.systemPrompt && !options.systemPromptOverride ? options.systemPrompt : undefined;
+		if (prependText) {
+			debugLog(`[branch:${label}] systemPrompt prepended (${prependText.length} chars)`);
 		}
-		const fullPrompt = options.systemPrompt ? `${options.systemPrompt}\n\n${prompt}` : prompt;
+		const fullPrompt = prependText ? `${prependText}\n\n${prompt}` : prompt;
 		await branchSession.prompt(fullPrompt, { source: "extension" });
 
 		// Step 4: capture last assistant text
