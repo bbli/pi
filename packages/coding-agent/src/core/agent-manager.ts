@@ -31,6 +31,12 @@ export interface SubagentRecord {
 	readonly session: AgentSession;
 	ttlTimer: ReturnType<typeof setTimeout> | undefined;
 	unsubscribeStatus: (() => void) | undefined;
+	/**
+	 * Set to true by onDone() when a branch session finishes while focused.
+	 * The session stays alive until focus moves away; focus() calls remove()
+	 * on the previously focused record when this flag is set.
+	 */
+	completed: boolean;
 }
 
 // ============================================================================
@@ -69,7 +75,7 @@ export class AgentManager {
 				this.onStatusChange?.();
 			}
 		});
-		const stored: SubagentRecord = { ...record, ttlTimer: undefined, unsubscribeStatus };
+		const stored: SubagentRecord = { ...record, ttlTimer: undefined, unsubscribeStatus, completed: false };
 		this._records.set(record.id, stored);
 		this.onRegister?.(stored);
 		this.onStatusChange?.();
@@ -147,9 +153,35 @@ export class AgentManager {
 	// Orchestrator — focus management
 	// =========================================================================
 
-	/** Switch focus to a subagent record, or pass undefined to return to root. */
+	/** Switch focus to a subagent record, or pass undefined to return to root.
+	 *  If the previously focused record was a completed branch session, disposes it now. */
 	focus(record: SubagentRecord | undefined): void {
+		const prev = this._focused;
 		this._focused = record;
+		if (prev?.completed) {
+			debugLog(`[AgentManager] focus flush: removing completed id=${prev.id} label=${prev.label}`);
+			this.remove(prev.id);
+		}
+	}
+
+	/**
+	 * Called by runBranchSession when a branch prompt completes.
+	 * Defers disposal if the session is currently focused so the user can read
+	 * the output; disposes immediately otherwise.
+	 * Long-lived user sessions (kind === "user") are never auto-disposed here.
+	 */
+	onDone(id: string): void {
+		const record = this._records.get(id);
+		if (!record) return;
+		if (record.kind !== "branch") return;
+		const isFocused = this._focused?.id === id;
+		if (isFocused) {
+			debugLog(`[AgentManager] onDone id=${id} label=${record.label} — focused, deferring disposal`);
+			record.completed = true;
+		} else {
+			debugLog(`[AgentManager] onDone id=${id} label=${record.label} — not focused, removing now`);
+			this.remove(id);
+		}
 	}
 
 	// =========================================================================

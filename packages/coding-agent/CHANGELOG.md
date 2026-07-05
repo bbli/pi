@@ -12,6 +12,10 @@
 
 ### Added
 
+- Branch sessions (`runBranchSession`, `researchConversationQuestion`) that complete while the user is focused on them in the TUI are now kept alive until the user navigates away, instead of being disposed immediately on turn completion.
+
+- Added `completed` field to `SubagentRecord` (exported). Set to `true` by `AgentManager.onDone()` when a branch session finishes while focused; cleared automatically when focus moves away.
+
 - Added `registerConsideration`, `removeConsideration`, and `getConsiderations` to `ExtensionAPI` for managing per-run considerations. Considerations are stored as `Consideration` objects (`{ text, removalCondition? }`) and support upsert-by-text semantics.
 - Added `runBranchSession(prompt, options)` to `ExtensionAPI`. Spawns a separate in-memory agent session seeded with the full main session history. Returns the last assistant text produced or `undefined`. Options include `systemPrompt`, `tools`, `customTools`, and `label`.
 - Added `BranchSessionOptions` type to the public package exports.

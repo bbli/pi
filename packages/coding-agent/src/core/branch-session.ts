@@ -130,8 +130,8 @@ async function cleanupBranchSession(
 		return;
 	}
 	if (manager && registeredId) {
-		// manager.remove() handles abort + dispose
-		manager.remove(registeredId);
+		// onDone() defers disposal when the session is focused; removes immediately otherwise.
+		manager.onDone(registeredId);
 	} else {
 		try {
 			await branchSession.abort();

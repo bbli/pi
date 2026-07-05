@@ -321,6 +321,83 @@ describe("AgentManager", () => {
 		expect(manager.focusedSession).toBe(s2);
 	});
 
+	// ── onDone ──────────────────────────────────────────────────────────────
+
+	it("onDone removes a branch session immediately when it is not focused", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.onDone("r1");
+		expect(manager.get("r1")).toBeUndefined();
+		expect(dispose).toHaveBeenCalled();
+	});
+
+	it("onDone defers disposal when the session is focused", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		manager.onDone("r1");
+		// session must still be alive
+		expect(manager.get("r1")).toBeDefined();
+		expect(dispose).not.toHaveBeenCalled();
+		// completed flag must be set
+		expect(manager.get("r1")?.completed).toBe(true);
+	});
+
+	it("focus() disposes a completed branch session when leaving it", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		manager.onDone("r1"); // deferred — session still alive
+		// navigate away
+		manager.focus(undefined);
+		expect(manager.get("r1")).toBeUndefined();
+		expect(dispose).toHaveBeenCalled();
+	});
+
+	it("onDone is a no-op for user-kind sessions", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("u1", session, "user"));
+		manager.focus(manager.get("u1"));
+		manager.onDone("u1");
+		expect(manager.get("u1")).toBeDefined();
+		expect(dispose).not.toHaveBeenCalled();
+		expect(manager.get("u1")?.completed).toBe(false);
+	});
+
+	it("onDone with an unknown id is a no-op", () => {
+		expect(() => manager.onDone("nonexistent")).not.toThrow();
+	});
+
+	it("onDone fires onRemove when removing immediately", () => {
+		const { session } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		const removed: string[] = [];
+		manager.onRemove = (id) => removed.push(id);
+		manager.onDone("r1");
+		expect(removed).toEqual(["r1"]);
+	});
+
+	it("onDone does NOT fire onRemove when deferring", () => {
+		const { session } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		const removed: string[] = [];
+		manager.onRemove = (id) => removed.push(id);
+		manager.onDone("r1");
+		expect(removed).toHaveLength(0);
+	});
+
+	it("focus() fires onRemove when flushing a completed record", () => {
+		const { session } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		manager.onDone("r1");
+		const removed: string[] = [];
+		manager.onRemove = (id) => removed.push(id);
+		manager.focus(undefined);
+		expect(removed).toEqual(["r1"]);
+	});
+
 	// ── startTTL ─────────────────────────────────────────────────────────────
 
 	it("startTTL fires the callback after the specified delay", () => {
