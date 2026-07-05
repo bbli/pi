@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Args } from "../src/cli/args.ts";
 import { buildInitialMessage } from "../src/cli/initial-message.ts";
+import { LEARN_ANALYSIS_PROMPT } from "../src/core/learned-sessions.ts";
 
 function createArgs(messages: string[] = []): Args {
 	return {
@@ -32,6 +33,18 @@ describe("buildInitialMessage", () => {
 
 		expect(result.initialMessage).toBe("README contents");
 		expect(parsed.messages).toEqual([]);
+	});
+
+	test("LEARN_ANALYSIS_PROMPT injected via unshift is consumed as initialMessage, not left in initialMessages", () => {
+		// The --learn flow calls parsed.messages.unshift(LEARN_ANALYSIS_PROMPT).
+		// buildInitialMessage shifts parsed.messages[0] into initialMessage, so the
+		// analysis prompt lands in initialMessage (sent first in interactive mode)
+		// rather than in initialMessages (sent later). This test locks in that coupling.
+		const parsed = createArgs([]);
+		parsed.messages.unshift(LEARN_ANALYSIS_PROMPT);
+		const result = buildInitialMessage({ parsed });
+		expect(result.initialMessage).toBe(LEARN_ANALYSIS_PROMPT);
+		expect(parsed.messages).toHaveLength(0);
 	});
 
 	test("combines stdin, file text, and first CLI message in one prompt", () => {

@@ -10,8 +10,8 @@
  * slash command to mark the current session as reviewed.
  */
 
-import { readFile, writeFile } from "fs/promises";
-import { join } from "path";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { dirname, join } from "path";
 import { getSessionsDir } from "../config.ts";
 
 interface LearnedData {
@@ -42,6 +42,7 @@ export async function addLearnedSession(id: string): Promise<void> {
 	const set = await readLearnedSet();
 	if (set.has(id)) return;
 	set.add(id);
+	await mkdir(dirname(path), { recursive: true });
 	await writeFile(path, JSON.stringify({ learned: [...set] }, null, 2), "utf8");
 }
 
