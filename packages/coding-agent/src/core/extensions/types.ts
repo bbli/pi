@@ -1170,7 +1170,7 @@ export interface BranchSessionOptions {
 	abortSignal?: AbortSignal;
 }
 
-/** A guideline registered via registerGuideline(). Evaluated at turn_start. */
+/** A guideline registered via registerGuideline(). Evaluated at turn_end. */
 export interface GuidelineDefinition {
 	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
 	id: string;
@@ -1304,7 +1304,7 @@ export interface ExtensionAPI {
 	// =========================================================================
 
 	/**
-	 * Register a guideline. At turn_start a single advisory branch session evaluates all
+	 * Register a guideline. At turn_end a single advisory branch session evaluates all
 	 * registered guidelines' triggerPrompts and steers injectPrompt into the main session
 	 * for each that fires. Runs asynchronously — does not block the LLM call.
 	 * Returns an unsubscriber.

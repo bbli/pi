@@ -59,6 +59,7 @@ import type {
 	ToolCallEventResult,
 	ToolResultEvent,
 	ToolResultEventResult,
+	TurnEndEvent,
 	TurnStartEvent,
 	UserBashEvent,
 	UserBashEventResult,
@@ -388,7 +389,7 @@ export class ExtensionRunner {
 	 */
 	private _continuationTasks: string[] = [];
 	/**
-	 * True while a guideline branch session is in-flight at turn_start.
+	 * True while a guideline branch session is in-flight at turn_end.
 	 * Guards against re-entrant advisory runs when turns fire rapidly.
 	 */
 	private _advisoryRunning = false;
@@ -553,10 +554,17 @@ export class ExtensionRunner {
 	}
 
 	/**
-	 * Emit turn_start to extension handlers and, on each turn when advisory is
-	 * enabled and not already running, fire guideline evaluation asynchronously.
+	 * Emit turn_start to extension handlers.
 	 */
 	async emitTurnStart(event: TurnStartEvent): Promise<void> {
+		await this.emit(event);
+	}
+
+	/**
+	 * Emit turn_end to extension handlers and, on each turn when advisory is
+	 * enabled and not already running, fire guideline evaluation asynchronously.
+	 */
+	async emitTurnEnd(event: TurnEndEvent): Promise<void> {
 		if (this._advisoryEnabled && !this._advisoryRunning) {
 			const guidelines = this.getAllGuidelines();
 			if (guidelines.length > 0) {
@@ -568,7 +576,7 @@ export class ExtensionRunner {
 
 	/**
 	 * Evaluate all guidelines in one branch session. The LLM calls injectUserMessage
-	 * directly for each condition it deems met. Detached from emitTurnStart.
+	 * directly for each condition it deems met. Detached from emitTurnEnd.
 	 */
 	private async _runGuidelinesAsync(guidelines: GuidelineDefinition[]): Promise<void> {
 		this._advisoryRunning = true;

@@ -650,7 +650,7 @@ export class AgentSession {
 				message: event.message,
 				toolResults: event.toolResults,
 			};
-			await this._extensionRunner.emit(extensionEvent);
+			await this._extensionRunner.emitTurnEnd(extensionEvent);
 			this._turnIndex++;
 		} else if (event.type === "message_start") {
 			const extensionEvent: MessageStartEvent = {
