@@ -422,6 +422,63 @@ Conclude with a SUMMARY section using:
 - **ALWAYS include caller compatibility analysis in the summary - breaking changes to callers are a critical risk**
 - **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**`;
 
+const COMPLEX_TASK_RESEARCH_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: COMPLEX_TASK_RESEARCH — Before proceeding with this task, \
+gather relevant codebase context using researchConversationQuestion. \
+Skip only if researchConversationQuestion has already been called for this specific request.]
+
+A background monitor has identified the current request as likely complex — \
+abstract or open-ended enough that proceeding without first exploring the \
+codebase risks working from incomplete or incorrect assumptions.
+
+Before proceeding, consider what you need to understand about the codebase \
+to approach this task confidently. Identify your open questions, then call \
+\`researchConversationQuestion\` for each — all in a single turn so they run \
+in parallel.
+
+This tends to apply when:
+- The failure origin, component boundary, or approach is not yet clear
+- The task spans multiple subsystems you have not yet explored
+- Understanding non-obvious interactions is a prerequisite to forming a plan
+
+It is less applicable when:
+- The task is a direct lookup (what does X do, where is Y defined)
+- The change location is already known and bounded
+- A single bash command resolves the request
+
+Once findings return, apply them with judgment to decide your next action. \
+Reflect on any gaps or uncertainties the research surfaces — they may \
+reframe the problem or suggest a different approach even if they are not \
+directly actionable.`;
+
+const ASSUMPTION_CHALLENGED_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED — The user has presented \
+information that contradicts your current understanding. Return to first principles \
+and rebuild your hypothesis before continuing. \
+Skip only if this specific contradiction has already been acknowledged and your \
+working hypothesis explicitly revised in response.]
+
+A background monitor has detected that the user's last message contradicts \
+or undermines something you previously stated or assumed. Your current \
+hypothesis should be treated as invalidated.
+
+Before collecting any further evidence or continuing the investigation:
+
+1. State explicitly what you now know for certain, what you were assuming, \
+and which assumptions the new evidence has invalidated.
+2. From that foundation, form a revised hypothesis about what is happening — \
+grounded in what is known, not inferred backward from evidence already \
+collected.
+3. Present a callpath diagram of your revised understanding, marking \
+confirmed steps, assumed steps, and the point where your previous model \
+broke down.
+
+Only then proceed — investigating the revised hypothesis, not searching for \
+evidence and fitting a hypothesis to it afterward.
+
+A good debugging session always moves from hypothesis to evidence, not from \
+evidence to hypothesis.`;
+
 const FLESH_OUT_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT — Run the Implementation Fleshing-Out Prompt \
 for the recently committed code. Skip only if a FLESH_OUT analysis has already been \
@@ -664,6 +721,53 @@ export default function osAgent(pi: ExtensionAPI): void {
 		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES] message already follows the uncertainties. " +
 		"- The questions were answered by the user or resolved through direct context. " +
 		"- The assistant ended its turn proceeding confidently without flagged open items.";
+
+	pi.registerGuideline({
+		id: "complex-task-research",
+		triggerPrompt:
+			"Has the user just issued a request that is abstract or open-ended enough that " +
+			"proceeding without exploring the codebase first risks working from incomplete or " +
+			"incorrect assumptions? " +
+			"Strong signals this APPLIES: " +
+			"- Debugging a failure with unclear origin or multiple potential components involved. " +
+			"- Implementing a feature that spans subsystems not yet explored in this conversation. " +
+			"- Investigating a regression or behavior change where the cause is not yet known. " +
+			"- Any request where the correct approach depends on understanding non-obvious " +
+			"  interactions between components. " +
+			"Strong signals this does NOT apply: " +
+			"- The request is a direct lookup (what does X do, where is Y defined). " +
+			"- The change location or answer is already known and bounded. " +
+			"- A single bash command or file read would fully resolve the request. " +
+			"- researchConversationQuestion has already been called for this specific request. " +
+			"- A [SYSTEM GUIDELINE INSTRUCTIONS: COMPLEX_TASK_RESEARCH] message already appears " +
+			"  in the conversation for this request.",
+		injectPrompt: COMPLEX_TASK_RESEARCH_PROMPT,
+		label: "advisory:complex-task-research",
+	});
+
+	pi.registerGuideline({
+		id: "assumption-challenged",
+		triggerPrompt:
+			"Has the user's most recent message presented information, evidence, or an argument " +
+			"that contradicts or undermines a position, hypothesis, or assumption the agent " +
+			"stated earlier in the conversation? " +
+			"Strong signals this APPLIES: " +
+			"- The user says the agent's diagnosis or hypothesis is wrong and explains why. " +
+			"- The user provides log lines, test results, or code that contradict the agent's " +
+			"  stated understanding. " +
+			"- The user corrects a factual claim about system behavior, architecture, or " +
+			"  component interactions. " +
+			"- The agent predicted X would happen and the user reports Y happened instead. " +
+			"Strong signals this does NOT apply: " +
+			"- The user corrects a minor detail (typo, wrong port, filename) that does not " +
+			"  affect the agent's overall model. " +
+			"- The user asks a clarifying question without asserting a contradiction. " +
+			"- The user expresses uncertainty without providing contradicting evidence. " +
+			"- A [SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED] message already appears " +
+			"  in the conversation after the most recent contradicting message.",
+		injectPrompt: ASSUMPTION_CHALLENGED_PROMPT,
+		label: "advisory:assumption-challenged",
+	});
 
 	pi.registerGuideline({
 		id: "research-uncertainties",
