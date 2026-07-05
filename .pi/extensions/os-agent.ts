@@ -22,8 +22,11 @@
  * skip condition.
  */
 
+import { existsSync } from "node:fs";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, getAgentDir, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
 
 // ---------------------------------------------------------------------------
@@ -871,6 +874,31 @@ export default function osAgent(pi: ExtensionAPI): void {
 				return;
 			}
 			await ctx.ui.custom<void>((_tui, _theme, _kb, done) => new AdvisoryStatusComponent(pi, done));
+		},
+	});
+
+	// --- /learned command ---
+
+	pi.registerCommand("learned", {
+		description: "Mark the current session as learned (excludes it from pi --learn)",
+		handler: async (_args, ctx) => {
+			const id = ctx.sessionManager.getSessionId();
+			const learnedPath = join(getAgentDir(), "sessions", "learned.json");
+			let ids: string[] = [];
+			if (existsSync(learnedPath)) {
+				try {
+					const raw = await readFile(learnedPath, "utf8");
+					const data = JSON.parse(raw) as { learned?: string[] };
+					ids = Array.isArray(data.learned) ? data.learned : [];
+				} catch {
+					ids = [];
+				}
+			}
+			if (!ids.includes(id)) {
+				ids.push(id);
+				await writeFile(learnedPath, JSON.stringify({ learned: ids }, null, 2), "utf8");
+			}
+			ctx.ui.notify(`Session ${id.slice(0, 8)}… marked as learned`, "info");
 		},
 	});
 
