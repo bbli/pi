@@ -74,6 +74,7 @@ export function makeResearchTool(session: AgentSession, registry: SubagentRegist
 					params.question,
 					{
 						systemPrompt: RESEARCH_SYSTEM_PROMPT,
+						blockedTools: ["edit", "write"],
 						label: "research",
 						seedContext: true,
 						abortSignal: signal,

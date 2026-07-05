@@ -75,6 +75,18 @@ async function createBranchAgentSession(
 		resourceLoader: createBranchResourceLoader(mainSession.resourceLoader),
 		cwd: mainSession.cwd,
 	});
+
+	if (options.blockedTools && options.blockedTools.length > 0) {
+		const blocked = new Set(options.blockedTools);
+		const existing = session.agent.beforeToolCall;
+		session.agent.beforeToolCall = async (context, signal) => {
+			if (blocked.has(context.toolCall.name)) {
+				return { block: true, reason: `Tool "${context.toolCall.name}" is not available in this session.` };
+			}
+			return existing?.(context, signal);
+		};
+	}
+
 	return session;
 }
 

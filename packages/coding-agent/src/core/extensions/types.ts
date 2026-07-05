@@ -1105,10 +1105,21 @@ export interface BranchSessionOptions {
 	systemPrompt?: string;
 	/**
 	 * Built-in tool names to enable.
-	 * Defaults to ["read", "grep", "find", "ls", "bash"] — note bash can perform writes.
+	 * Defaults to ["read", "bash", "edit", "write"] — the same set as the root session
+	 * baseline, so the system prompt "Available tools:" section stays identical.
+	 * Pass an explicit list to restrict (advisory sessions) or expand the set.
 	 * Pass an empty array for a tools-free session.
 	 */
 	tools?: string[];
+	/**
+	 * Tool names to block at runtime via beforeToolCall.
+	 * Blocked tools return an error result to the LLM without executing.
+	 * Use this instead of omitting tools from the `tools` list when you want
+	 * the tool to appear in the system prompt (for KV cache consistency) but
+	 * must not be callable — e.g. blocking "edit" and "write" in a read-only
+	 * research session.
+	 */
+	blockedTools?: string[];
 	/** Custom tool definitions injected directly into the branch session. */
 	customTools?: ToolDefinition[];
 	/** Human-readable label shown in the TUI footer while the session runs. */
