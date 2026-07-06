@@ -941,6 +941,27 @@ export class SessionManager {
 		this._persist(entry);
 	}
 
+	/**
+	 * Bulk-import entries from another session into this in-memory session.
+	 * Used by spawn() and seedBranchContext() to pre-populate the tree so that
+	 * /tree works correctly on subagents that inherit the root session history.
+	 * Only valid on non-persisted sessions.
+	 *
+	 * _buildIndex() sets leafId to the last appended entry, which is wrong for
+	 * branched sessions; the caller-supplied leafId is applied after.
+	 */
+	seedEntries(entries: SessionEntry[], leafId: string | null): void {
+		if (this.persist) throw new Error("seedEntries() is only valid on in-memory sessions");
+		const header = this.fileEntries.find((e): e is SessionHeader => e.type === "session");
+		this.fileEntries = header ? [header, ...entries] : [...entries];
+		this._buildIndex();
+		// Override the leafId set by _buildIndex (last-entry heuristic) with the
+		// actual active leaf from the source session.
+		if (leafId !== null && this.byId.has(leafId)) {
+			this.leafId = leafId;
+		}
+	}
+
 	/** Append a message as child of current leaf, then advance leaf. Returns entry id.
 	 * Does not allow writing CompactionSummaryMessage and BranchSummaryMessage directly.
 	 * Reason: we want these to be top-level entries in the session, not message session entries,

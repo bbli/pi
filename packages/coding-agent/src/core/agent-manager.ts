@@ -238,7 +238,14 @@ export class AgentManager {
 		});
 
 		// Seed the subagent with root's conversation history so it has full context.
-		const context = buildSessionContext(root.sessionManager.getEntries(), root.sessionManager.getLeafId());
+		// seedEntries populates the SessionManager so /tree works on the subagent;
+		// agent.state.messages is the separate LLM inference path.
+		const rootEntries = root.sessionManager.getEntries();
+		const rootLeafId = root.sessionManager.getLeafId();
+		if (rootEntries.length > 0) {
+			session.sessionManager.seedEntries(rootEntries, rootLeafId);
+		}
+		const context = buildSessionContext(rootEntries, rootLeafId);
 		if (context.messages.length > 0) {
 			session.agent.state.messages = [...context.messages];
 		}

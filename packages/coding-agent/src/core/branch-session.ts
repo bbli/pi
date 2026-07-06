@@ -105,7 +105,12 @@ async function createBranchAgentSession(
  * Returns the number of messages seeded (for logging).
  */
 function seedBranchContext(branchSession: AgentSession, mainSession: AgentSession): number {
-	const context = buildSessionContext(mainSession.sessionManager.getEntries(), mainSession.sessionManager.getLeafId());
+	const entries = mainSession.sessionManager.getEntries();
+	const leafId = mainSession.sessionManager.getLeafId();
+	if (entries.length > 0) {
+		branchSession.sessionManager.seedEntries(entries, leafId);
+	}
+	const context = buildSessionContext(entries, leafId);
 	branchSession.agent.state.messages = context.messages;
 	return context.messages.length;
 }
