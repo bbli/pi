@@ -501,8 +501,12 @@ evidence to hypothesis.`;
 
 const FLESH_OUT_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT — Run the Implementation Fleshing-Out Prompt \
-for the recently committed code. Skip only if a FLESH_OUT analysis has already been \
-completed for this specific CODE_WORKFLOW run.]
+for the recently committed new feature or significant change. \
+Skip if any of these apply: \
+(1) A FLESH_OUT analysis has already been completed for this implementation. \
+(2) A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] message appeared in the conversation \
+before the most recent implementation — those findings produce targeted fixes, not new scope. \
+(3) The user asked for a specific, bounded change: a bug fix, refactor, rename, or targeted edit.]
 
 # Implementation Fleshing-Out Prompt
 
@@ -860,14 +864,21 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerContinuation({
 		id: "flesh-out-after-implementation",
 		triggerPrompt:
-			"Does this conversation show a recently completed implementation pass that has not yet " +
-			"been through a flesh-out analysis? " +
-			"Strong signals that implementation is done: the agent wrote or modified code across " +
-			"one or more files, the work appears substantively complete (not mid-slice), git commits " +
-			"were made, or the agent's last action was finalizing or wrapping up code changes. " +
-			"Strong signals that flesh-out is NOT needed yet: the agent is still actively implementing " +
-			"(mid-slice, uncommitted changes), no code was written (search/read/explain only), " +
-			"or only mechanical non-code changes were made (changelog, docs, config). " +
+			"Does this conversation show a recently completed NEW FEATURE implementation that has not " +
+			"yet been through a flesh-out analysis? " +
+			"These are representative signals — use them to calibrate your judgment. " +
+			"Signals that flesh-out APPLIES: " +
+			"- The agent implemented a new feature, new capability, significant architectural change, " +
+			"  or meaningful new scope (not just fixing something existing). " +
+			"- The user asked for something to be built or added that didn't exist before. " +
+			"- The implementation is substantively complete (not mid-slice), with commits made. " +
+			"Signals that flesh-out does NOT apply: " +
+			"- The implementation was done in response to [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] " +
+			"  findings — those are targeted fixes to existing scope, not new features. " +
+			"- The user asked for a specific, bounded change: a bug fix, refactor, rename, or targeted edit. " +
+			"- The agent is still actively implementing (mid-slice, uncommitted changes). " +
+			"- No code was written (search/read/explain only). " +
+			"- Only mechanical non-code changes were made (changelog, docs, config). " +
 			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] has " +
 			"already appeared in the conversation after the most recent implementation.",
 		injectPrompt: FLESH_OUT_PROMPT,

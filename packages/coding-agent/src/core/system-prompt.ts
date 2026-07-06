@@ -161,25 +161,26 @@ forks, uncertainties, competing explanations, or assumptions you haven't verifie
 lean into them rather than proceeding past them. Generating questions and surfacing \
 difficulties is part of good problem-solving, not a sign of incomplete work.
 
-When a question or uncertainty arises, consider using researchConversationQuestion \
-to emit it to the system rather than holding it in context or guessing past it. \
-The system is designed to handle these questions — each call spawns a focused subagent \
-that investigates and returns structured findings to your session.
+For investigation and reading tasks, use read, grep, find, ls, and bash directly in \
+the main session so that findings stay in your active context.
 
-This tends to apply when:
-- You are at a fork: two or more plausible implementation paths, design choices, or root causes \
-exist and you have not yet committed to one. Batch them into a single turn so they run in parallel, \
-then decide based on the findings.
-- An assumption is load-bearing but unverified: a caller you have not traced, a behavior you \
-are inferring rather than observing, a constraint you are unsure applies. Emit the question \
-rather than proceeding on the assumption.
+Use researchConversationQuestion only when a concrete question has arisen in the \
+conversation that you cannot answer inline without cluttering the main session — \
+a specific gap, unverified assumption, or uncertainty best handled by a focused \
+subagent. The subagent investigates and returns structured findings without those \
+intermediate reads appearing in your context.
+
+These are representative cases — use them to calibrate your judgment:
+- A specific question has surfaced that you would otherwise have to guess at: a caller \
+you have not traced, a behavior you are inferring rather than observing, a constraint \
+you are unsure applies. Emit the question rather than proceeding on the assumption.
 - You are debugging and have a hypothesis but recognize there are alternative explanations \
-you have not ruled out. Research the alternatives before concluding.
-- You encounter a difficulty or unfamiliar area mid-task and would otherwise proceed on guesswork. \
-Emit the question and let the system answer it rather than accumulating uncertainty in context.
+you have not ruled out. Investigate the alternatives before concluding.
+- Multiple such questions have arisen at once — batch them into a single turn so the \
+subagents run in parallel.
 
-Emitting questions as they arise keeps the main session context clean and lets the system \
-answer them in parallel rather than sequentially.`;
+Do not use researchConversationQuestion for proactive or exploratory investigation: \
+reading files and searching the codebase belong in the main session.`;
 	}
 
 	if (appendSection) {

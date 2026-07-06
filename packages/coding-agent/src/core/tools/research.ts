@@ -42,23 +42,25 @@ export function makeResearchTool(session: AgentSession, manager: AgentManager): 
 		name: "researchConversationQuestion",
 		label: "Research",
 		description:
-			"Spawn a subagent to investigate a question about the codebase using read, grep, find, ls, " +
-			"and bash. Returns structured findings: relevant file paths, key code snippets, and a conclusion. " +
-			"Use to explore multiple implementation paths or design options in parallel, to verify " +
-			"load-bearing assumptions before acting on them, or to investigate unfamiliar areas without " +
-			"polluting the main session with exploratory reads.",
+			"Spawn a subagent to investigate a specific question that has arisen in the conversation — " +
+			"a gap, uncertainty, or unverified assumption that needs a focused lookup. " +
+			"The subagent uses read, grep, find, ls, and bash and returns structured findings: " +
+			"relevant file paths, key code snippets, and a conclusion. " +
+			"Do not use this for general investigation or reading tasks that naturally belong in the main session " +
+			"— those should be done directly so their context stays in scope.",
 		promptSnippet:
 			"researchConversationQuestion(question): investigate a codebase question and return structured findings",
 		promptGuidelines: [
-			"When you have multiple distinct questions to research, call researchConversationQuestion for ALL of " +
-				"them in a single turn — do not call it sequentially across multiple turns. " +
-				"Tool calls within one turn run in parallel, so batching all questions into one turn is faster " +
-				"than issuing them one at a time.",
-			"After researchConversationQuestion returns findings, apply them to the task at hand and bias " +
-				"toward acting. Also reflect on any uncertainties or gaps the subagent flagged — " +
-				"they may not apply directly but can surface new angles or inform your approach. " +
-				"Only invoke researchConversationQuestion again if a specific remaining gap would cause a concrete " +
-				"mistake — not for exploratory or derivative follow-on questions.",
+			"Call researchConversationQuestion only when a concrete question has surfaced in the conversation — " +
+				"a specific gap, unverified assumption, or uncertainty that blocks or risks the current task. " +
+				"Do not use it for proactive or exploratory investigation: read, grep, find, ls, and bash " +
+				"are available directly in the main session and should be used there so findings stay in context.",
+			"When multiple distinct questions have arisen at once, call researchConversationQuestion for ALL of " +
+				"them in a single turn — tool calls within one turn run in parallel.",
+			"After findings return, apply them and bias toward acting. Reflect on any uncertainties or gaps " +
+				"the subagent flagged — they may not require further research but can surface new angles or " +
+				"inform your approach. Only call researchConversationQuestion again if a new specific question " +
+				"has surfaced — not for follow-on exploration.",
 		],
 		parameters: Type.Object({
 			question: Type.String({
