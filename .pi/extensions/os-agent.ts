@@ -501,18 +501,22 @@ evidence to hypothesis.`;
 
 const RESUME_TASK_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK — An advisory workflow has completed \
-and there appears to be a prior task that was interrupted. Return to it now. \
-Skip if: (1) you have already resumed the original task after this advisory completed, \
-or (2) the advisory was the full scope of the user's request and no prior task existed.]
+and there appears to be a prior task that was interrupted. \
+Skip if: (1) a [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK] message already appears \
+in this conversation and was acted on, (2) the advisory was the full scope of the \
+user's request and no prior task existed, or (3) a [SYSTEM CONTINUATION INSTRUCTIONS: \
+FLESH_OUT] or [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] is also present in this \
+turn and has not yet been completed — complete those first, then return here.]
 
 A background monitor detected that an advisory workflow — CODE_WORKFLOW, FLESH_OUT, \
 or CODE_REVIEW — has completed, and there may be earlier work from before the \
 interruption that has not yet been resumed.
 
-Look back in the conversation to identify what you were working on before the advisory \
-fired. If a CODE_WORKFLOW was triggered, you may have noted the original task at the \
-start of that workflow. Resume from where you left off, applying any relevant findings \
-from the advisory if they inform the original task.
+If this applies to your situation, you may want to look back in the conversation to \
+identify what you were working on before the advisory fired. If a CODE_WORKFLOW was \
+triggered, you likely noted the original task at the start of that workflow. Resuming \
+from where you left off — and applying any relevant findings from the advisory — would \
+be the natural next step.
 
 If nothing was interrupted — the advisory was the full scope of the request — \
 skip this and wait for the user.`;
@@ -906,25 +910,27 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerContinuation({
 		id: "resume-task",
 		triggerPrompt:
-			"Does the conversation show an advisory workflow (CODE_WORKFLOW, FLESH_OUT, or CODE_REVIEW) " +
-			"that has recently completed, where there was prior work from before the interruption " +
-			"that has not yet been resumed? " +
+			"Does the conversation show a completed advisory workflow (CODE_WORKFLOW, FLESH_OUT, or " +
+			"CODE_REVIEW) where the agent's response to that advisory explicitly noted a prior task " +
+			"to return to, and that task has not yet been resumed? " +
 			"These are representative signals — use them to calibrate your judgment. " +
 			"Signals this APPLIES: " +
 			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW], [FLESH_OUT], or [CODE_REVIEW] " +
-			"  appears in the conversation, the advisory appears to have completed (code committed, " +
-			"  review done, or findings presented), AND the agent's response to that advisory " +
-			"  explicitly noted something it was working on before (e.g. 'I was in the middle of X, " +
-			"  I will return to it after this workflow'). " +
-			"- The advisory completed AND the user's request that preceded the advisory injection " +
-			"  was not fully addressed by the advisory itself. " +
+			"  appears in the conversation, AND the agent's response to it explicitly noted something " +
+			"  it was working on before the interruption (e.g. 'I was in the middle of X, I will " +
+			"  return after this workflow'), AND that prior task has not been resumed. " +
 			"Signals this does NOT apply: " +
 			"- The agent is still mid-workflow (uncommitted changes, mid-review, mid-flesh-out). " +
-			"- The advisory was triggered directly by the user's own request — it IS the full task. " +
-			"- The agent has already resumed the original task after the advisory. " +
+			"- A [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] or [SYSTEM CONTINUATION INSTRUCTIONS: " +
+			"  CODE_REVIEW] appears in the conversation for the current implementation but has not " +
+			"  yet been completed — RESUME_TASK should fire after those settle, not alongside them. " +
+			"- The agent did not note any prior task when the advisory fired (the advisory was the " +
+			"  full scope of the request). " +
+			"- The agent has already resumed the prior task after the advisory. " +
 			"- No advisory injection appears in the conversation. " +
-			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK] has " +
-			"already appeared in the conversation after the most recent advisory completion.",
+			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK] already " +
+			"appears in the conversation after the last [SYSTEM CONTINUATION INSTRUCTIONS: " +
+			"CODE_WORKFLOW], [FLESH_OUT], or [CODE_REVIEW] message.",
 		injectPrompt: RESUME_TASK_PROMPT,
 		label: "advisory:resume-task",
 	});
