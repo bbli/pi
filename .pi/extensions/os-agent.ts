@@ -716,13 +716,13 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- Guidelines + Continuations: research-uncertainties ---
 
 	const researchUncertaintiesTrigger =
-		"Does the most recent assistant response contain explicit, unresolved questions or " +
+		"Does anything recent in the conversation contain explicit, unresolved questions or " +
 		"uncertainties that have NOT yet been investigated? " +
 		"Look for either: " +
 		"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) in the " +
-		"most recent assistant message, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
-		"(2) The most recent assistant message explicitly enumerates questions or knowledge " +
-		"gaps it needs to resolve before proceeding (e.g. numbered open items, " +
+		"recent conversation, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
+		"(2) Anything recent in the conversation explicitly enumerates questions or knowledge " +
+		"gaps that need to be resolved before proceeding (e.g. numbered open items, " +
 		"'I need to verify X before implementing', or an ⚠️ IMPLEMENTATION UNCERTAINTIES block). " +
 		"Do NOT trigger if any of these are true: " +
 		"- The researchConversationQuestion tool was already called after the uncertainties appeared. " +
