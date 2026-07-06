@@ -72,7 +72,7 @@ export function makeResearchTool(session: AgentSession, manager: AgentManager): 
 			let text: string | undefined;
 			try {
 				text = await runBranchSession(
-					params.question,
+					`# RESEARCH QUESTION\n${params.question}`,
 					{
 						systemPrompt: RESEARCH_SYSTEM_PROMPT,
 						tools: ["read", "grep", "find", "ls", "bash"],
