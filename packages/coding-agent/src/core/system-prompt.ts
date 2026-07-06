@@ -151,6 +151,37 @@ Pi documentation (read only when the user asks about pi itself, its SDK, extensi
 - When working on pi topics, read the docs and examples, and follow .md cross-references before implementing
 - Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)`;
 
+	if (toolSnippets?.["researchConversationQuestion"]) {
+		prompt += `
+
+## Analytical problem-solving approach
+
+Approach problems as an analytical and creative problem solver. When you encounter \
+forks, uncertainties, competing explanations, or assumptions you haven't verified — \
+lean into them rather than proceeding past them. Generating questions and surfacing \
+difficulties is part of good problem-solving, not a sign of incomplete work.
+
+When a question or uncertainty arises, consider using researchConversationQuestion \
+to emit it to the system rather than holding it in context or guessing past it. \
+The system is designed to handle these questions — each call spawns a focused subagent \
+that investigates and returns structured findings to your session.
+
+This tends to apply when:
+- You are at a fork: two or more plausible implementation paths, design choices, or root causes \
+exist and you have not yet committed to one. Batch them into a single turn so they run in parallel, \
+then decide based on the findings.
+- An assumption is load-bearing but unverified: a caller you have not traced, a behavior you \
+are inferring rather than observing, a constraint you are unsure applies. Emit the question \
+rather than proceeding on the assumption.
+- You are debugging and have a hypothesis but recognize there are alternative explanations \
+you have not ruled out. Research the alternatives before concluding.
+- You encounter a difficulty or unfamiliar area mid-task and would otherwise proceed on guesswork. \
+Emit the question and let the system answer it rather than accumulating uncertainty in context.
+
+Emitting questions as they arise keeps the main session context clean and lets the system \
+answer them in parallel rather than sequentially.`;
+	}
+
 	if (appendSection) {
 		prompt += appendSection;
 	}

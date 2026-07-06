@@ -44,7 +44,9 @@ export function makeResearchTool(session: AgentSession, manager: AgentManager): 
 		description:
 			"Spawn a subagent to investigate a question about the codebase using read, grep, find, ls, " +
 			"and bash. Returns structured findings: relevant file paths, key code snippets, and a conclusion. " +
-			"Only invoke this when an injected advisory or guideline explicitly requests it.",
+			"Use to explore multiple implementation paths or design options in parallel, to verify " +
+			"load-bearing assumptions before acting on them, or to investigate unfamiliar areas without " +
+			"polluting the main session with exploratory reads.",
 		promptSnippet:
 			"researchConversationQuestion(question): investigate a codebase question and return structured findings",
 		promptGuidelines: [
