@@ -76,6 +76,7 @@ import type {
 import { FooterDataProvider, type ReadonlyFooterDataProvider } from "../../core/footer-data-provider.ts";
 import { configureHttpDispatcher, formatHttpIdleTimeoutMs } from "../../core/http-dispatcher.ts";
 import { type AppKeybinding, KeybindingsManager } from "../../core/keybindings.ts";
+import { LEARN_ANALYSIS_PROMPT } from "../../core/learned-sessions.ts";
 import { createCompactionSummaryMessage } from "../../core/messages.ts";
 import { defaultModelPerProvider, findExactModelReferenceMatch, resolveModelScope } from "../../core/model-resolver.ts";
 import { DefaultPackageManager } from "../../core/package-manager.ts";
@@ -2639,6 +2640,16 @@ export class InteractiveMode {
 			if (text === "/reload") {
 				this.editor.setText("");
 				await this.handleReloadCommand();
+				return;
+			}
+			if (text === "/learn") {
+				this.editor.addToHistory?.(text);
+				this.editor.setText("");
+				if (this.active.isStreaming) {
+					await this.active.session.prompt(LEARN_ANALYSIS_PROMPT, { streamingBehavior: "steer" });
+				} else {
+					await this.active.session.prompt(LEARN_ANALYSIS_PROMPT);
+				}
 				return;
 			}
 			if (text === "/debug") {
