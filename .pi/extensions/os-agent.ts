@@ -452,14 +452,14 @@ reframe the problem or suggest a different approach even if they are not \
 directly actionable.`;
 
 const ASSUMPTION_CHALLENGED_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED — The user has presented \
-information that contradicts your current understanding. Return to first principles \
+[SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED — Something in this conversation \
+contradicts your current understanding. Return to first principles \
 and rebuild your hypothesis before continuing. \
 Skip only if this specific contradiction has already been acknowledged and your \
 working hypothesis explicitly revised in response.]
 
-A background monitor has detected that the user's last message contradicts \
-or undermines something you previously stated or assumed. Your current \
+A background monitor has detected that something in this conversation \
+contradicts or undermines a position or assumption you previously stated. Your current \
 hypothesis should be treated as invalidated.
 
 Before collecting any further evidence or continuing the investigation:
@@ -748,7 +748,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerGuideline({
 		id: "assumption-challenged",
 		triggerPrompt:
-			"Has the user's most recent message presented information, evidence, or an argument " +
+			"Has anything in the conversation presented information, evidence, or an argument " +
 			"that contradicts or undermines a position, hypothesis, or assumption the agent " +
 			"stated earlier in the conversation? " +
 			"Strong signals this APPLIES: " +
