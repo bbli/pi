@@ -48,9 +48,6 @@ export function makeResearchTool(session: AgentSession, manager: AgentManager): 
 		promptSnippet:
 			"researchConversationQuestion(question): investigate a codebase question and return structured findings",
 		promptGuidelines: [
-			"Only invoke researchConversationQuestion when an injected advisory or guideline explicitly requests it. " +
-				"Do not invoke it on your own initiative — explore the codebase directly in the main " +
-				"session using read, bash, grep, and find instead.",
 			"When you have multiple distinct questions to research, call researchConversationQuestion for ALL of " +
 				"them in a single turn — do not call it sequentially across multiple turns. " +
 				"Tool calls within one turn run in parallel, so batching all questions into one turn is faster " +

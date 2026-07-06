@@ -431,34 +431,45 @@ Conclude with a SUMMARY section using:
 - **ALWAYS include caller compatibility analysis in the summary - breaking changes to callers are a critical risk**
 - **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**`;
 
-const COMPLEX_TASK_RESEARCH_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: COMPLEX_TASK_RESEARCH — Before proceeding with this task, \
-gather relevant codebase context using researchConversationQuestion. \
-Skip only if researchConversationQuestion has already been called for this specific request.]
+const RESEARCH_BEFORE_ACTION_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION — Before taking the next action, \
+read the relevant source code first. \
+Skip only if you have already read the relevant source files for the current \
+investigation in this conversation, or if a [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION] \
+message already appears in the conversation for the current investigation.]
 
-A background monitor has identified the current request as likely complex — \
-abstract or open-ended enough that proceeding without first exploring the \
-codebase risks working from incomplete or incorrect assumptions.
+A background monitor has detected that you appear to be about to take an action — \
+editing code, grepping logs, or running diagnostic commands — without first reading \
+the relevant source code.
 
-Before proceeding, consider what you need to understand about the codebase \
-to approach this task confidently. Identify your open questions, then call \
-\`researchConversationQuestion\` for each — all in a single turn so they run \
-in parallel.
+Acting without grounding yourself in the code produces wasted effort: log searches \
+find nothing useful because you did not know what to look for; code edits miss callers \
+or side effects; diagnostic commands return results you cannot interpret.
+
+Before taking the next action, consider:
+- Read the relevant source files to understand the structure and behavior of the code involved.
+- Form a specific hypothesis about what you expect to find before searching logs or running commands.
+- For unfamiliar areas, call \`researchConversationQuestion\` to explore efficiently without \
+  polluting the main context with exploratory reads.
+- After each round of log searching or diagnostic output, re-read the relevant code to \
+  revise your hypothesis before searching again — do not iterate on evidence alone.
 
 This tends to apply when:
-- The failure origin, component boundary, or approach is not yet clear
-- The task spans multiple subsystems you have not yet explored
-- Understanding non-obvious interactions is a prerequisite to forming a plan
+- You are about to grep logs or search output without having read the code that produces them
+- You are debugging a failure and moving directly to evidence collection without a code-grounded hypothesis
+- You are about to edit code in an area you have not yet explored in this conversation
+- You have received log output or command results and are about to run more commands \
+  without revisiting the source to revise your hypothesis
 
 It is less applicable when:
-- The task is a direct lookup (what does X do, where is Y defined)
-- The change location is already known and bounded
-- A single bash command resolves the request
+- You have already read the relevant source files in this conversation before taking this action
+- The action itself is the research (reading files, calling researchConversationQuestion)
+- The change is a simple, already-understood, bounded edit
+- A single bash command fully resolves the request without needing code context
 
-Once findings return, apply them with judgment to decide your next action. \
-Reflect on any gaps or uncertainties the research surfaces — they may \
-reframe the problem or suggest a different approach even if they are not \
-directly actionable.`;
+Once you have read the relevant code and formed a grounded hypothesis, apply that \
+understanding to decide your next action. Reflect on any gaps the code reveals — \
+they may reframe the problem or suggest a different approach.`;
 
 const ASSUMPTION_CHALLENGED_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED — Something in this conversation \
@@ -732,26 +743,28 @@ export default function osAgent(pi: ExtensionAPI): void {
 		"- The assistant ended its turn proceeding confidently without flagged open items.";
 
 	pi.registerGuideline({
-		id: "complex-task-research",
+		id: "research-before-action",
 		triggerPrompt:
-			"Has the user just issued a request that is abstract or open-ended enough that " +
-			"proceeding without exploring the codebase first risks working from incomplete or " +
-			"incorrect assumptions? " +
+			"Is the agent about to take a concrete action — such as editing code, grepping logs, " +
+			"or running diagnostic bash commands — without having first read the relevant source " +
+			"code to form a grounded hypothesis? " +
 			"Strong signals this APPLIES: " +
-			"- Debugging a failure with unclear origin or multiple potential components involved. " +
-			"- Implementing a feature that spans subsystems not yet explored in this conversation. " +
-			"- Investigating a regression or behavior change where the cause is not yet known. " +
-			"- Any request where the correct approach depends on understanding non-obvious " +
-			"  interactions between components. " +
+			"- The agent's apparent next step is to grep logs, search output, or run diagnostic " +
+			"  commands without having read the source files that produce those logs. " +
+			"- The agent is debugging a failure and moving directly to evidence collection " +
+			"  (log searches, command runs) without first reading the relevant code. " +
+			"- The agent has received log output or command results and is about to take another " +
+			"  action round without revisiting the source code to revise its hypothesis. " +
+			"- The agent is about to edit code in an area not yet explored in this conversation. " +
 			"Strong signals this does NOT apply: " +
-			"- The request is a direct lookup (what does X do, where is Y defined). " +
-			"- The change location or answer is already known and bounded. " +
-			"- A single bash command or file read would fully resolve the request. " +
-			"- researchConversationQuestion has already been called for this specific request. " +
-			"- A [SYSTEM GUIDELINE INSTRUCTIONS: COMPLEX_TASK_RESEARCH] message already appears " +
-			"  in the conversation for this request.",
-		injectPrompt: COMPLEX_TASK_RESEARCH_PROMPT,
-		label: "advisory:complex-task-research",
+			"- The agent has already read the relevant source files in this conversation before " +
+			"  taking the current action. " +
+			"- The agent is currently doing research (reading files, calling researchConversationQuestion). " +
+			"- The action is a simple, bounded lookup where no code context is needed. " +
+			"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION] message already appears " +
+			"  in the conversation for the current investigation.",
+		injectPrompt: RESEARCH_BEFORE_ACTION_PROMPT,
+		label: "advisory:research-before-action",
 	});
 
 	pi.registerGuideline({
