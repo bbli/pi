@@ -252,6 +252,15 @@ Using the context established in Phase 1, structure your review using Markdown h
       - Assess if the new behavior could break existing assumptions
       - Check for callers in unexpected locations (tests, scripts, configuration)
     - **List all affected callers and their compatibility status**
+  - **State Synchronization and Dual Representations (CRITICAL)**:
+    - For each mutation (write, initialization, seeding, or cache update) in the diff, identify all other data structures that represent the same logical state — caches, indexes, secondary stores, parallel in-memory views, or derived representations
+    - Verify that every representation is kept in sync by the change. A write that updates one view but leaves another stale is a correctness bug even if both views are individually valid
+    - Specifically flag:
+      - **Parallel representations**: two or more objects that hold the same data in different forms (e.g. a flat message array for inference + an entry graph for UI/persistence; a write-through cache + a DB row; an in-memory index + a persisted store). Ask: when one is written, is the other written too?
+      - **Seeding / initialization paths**: operations that pre-populate a session, context, or component. Ask: does the seeding reach every downstream consumer that reads from this component, or does it only cover the consumers the author had in mind?
+      - **Lazy vs. eager population**: if a structure is populated on-demand in one path and eagerly in another, verify both paths agree on contents after the same logical operation
+    - For each gap found, name the trigger condition (the call path or state combination that exposes the inconsistency) and the observable symptom (what a caller of the stale representation will see)
+
   - **Concurrency and Race Conditions (CRITICAL)**:
     - Identify shared mutable state (caches, counters, collections, static/instance fields, files) accessed from more than one thread, request, coroutine, or async task
     - Flag check-then-act / read-modify-write sequences (TOCTOU) that aren't atomic — e.g. "if not exists → create", get-then-increment, balance checks before debits
