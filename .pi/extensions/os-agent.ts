@@ -499,6 +499,24 @@ evidence and fitting a hypothesis to it afterward.
 A good debugging session always moves from hypothesis to evidence, not from \
 evidence to hypothesis.`;
 
+const RESUME_TASK_PROMPT = `\
+[SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK — An advisory workflow has completed \
+and there appears to be a prior task that was interrupted. Return to it now. \
+Skip if: (1) you have already resumed the original task after this advisory completed, \
+or (2) the advisory was the full scope of the user's request and no prior task existed.]
+
+A background monitor detected that an advisory workflow — CODE_WORKFLOW, FLESH_OUT, \
+or CODE_REVIEW — has completed, and there may be earlier work from before the \
+interruption that has not yet been resumed.
+
+Look back in the conversation to identify what you were working on before the advisory \
+fired. If a CODE_WORKFLOW was triggered, you may have noted the original task at the \
+start of that workflow. Resume from where you left off, applying any relevant findings \
+from the advisory if they inform the original task.
+
+If nothing was interrupted — the advisory was the full scope of the request — \
+skip this and wait for the user.`;
+
 const FLESH_OUT_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT — Run the Implementation Fleshing-Out Prompt \
 for the recently committed new feature or significant change. \
@@ -883,6 +901,32 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"already appeared in the conversation after the most recent implementation.",
 		injectPrompt: FLESH_OUT_PROMPT,
 		label: "advisory:flesh-out",
+	});
+
+	pi.registerContinuation({
+		id: "resume-task",
+		triggerPrompt:
+			"Does the conversation show an advisory workflow (CODE_WORKFLOW, FLESH_OUT, or CODE_REVIEW) " +
+			"that has recently completed, where there was prior work from before the interruption " +
+			"that has not yet been resumed? " +
+			"These are representative signals — use them to calibrate your judgment. " +
+			"Signals this APPLIES: " +
+			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW], [FLESH_OUT], or [CODE_REVIEW] " +
+			"  appears in the conversation, the advisory appears to have completed (code committed, " +
+			"  review done, or findings presented), AND the agent's response to that advisory " +
+			"  explicitly noted something it was working on before (e.g. 'I was in the middle of X, " +
+			"  I will return to it after this workflow'). " +
+			"- The advisory completed AND the user's request that preceded the advisory injection " +
+			"  was not fully addressed by the advisory itself. " +
+			"Signals this does NOT apply: " +
+			"- The agent is still mid-workflow (uncommitted changes, mid-review, mid-flesh-out). " +
+			"- The advisory was triggered directly by the user's own request — it IS the full task. " +
+			"- The agent has already resumed the original task after the advisory. " +
+			"- No advisory injection appears in the conversation. " +
+			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK] has " +
+			"already appeared in the conversation after the most recent advisory completion.",
+		injectPrompt: RESUME_TASK_PROMPT,
+		label: "advisory:resume-task",
 	});
 
 	// --- /advisor command ---
