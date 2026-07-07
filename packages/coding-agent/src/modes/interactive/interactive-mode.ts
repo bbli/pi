@@ -4295,9 +4295,10 @@ export class InteractiveMode {
 					onKeepBranchSessionsChange: (enabled) => {
 						this.resources.extensionRunner.setFlagValue("keep-branch-sessions", enabled);
 						if (enabled) {
-							// Retroactively protect in-flight branch sessions spawned before the toggle.
+							// Retroactively protect all visible branch sessions — including those
+							// that have completed but are still displayed (completed=true, in registry).
 							for (const record of this.manager.getAll()) {
-								if (record.kind === "branch" && !record.completed) {
+								if (record.kind === "branch") {
 									this.manager.setKept(record.id, true);
 								}
 							}
