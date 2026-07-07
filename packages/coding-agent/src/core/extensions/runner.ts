@@ -579,7 +579,7 @@ export class ExtensionRunner {
 	 * enabled and not already running, fire guideline evaluation asynchronously.
 	 */
 	async emitTurnEnd(event: TurnEndEvent): Promise<void> {
-		if (this._advisoryEnabled && !this._advisoryRunning && !event.agentEndFollows) {
+		if (this._advisoryEnabled && !this._advisoryRunning) {
 			const guidelines = this.getAllGuidelines();
 			if (guidelines.length > 0) {
 				void this._runGuidelinesAsync(guidelines);
