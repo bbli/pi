@@ -1026,12 +1026,22 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- session_before_quit: prompt to queue for learning (advisory sessions only) ---
 
 	pi.on("session_before_quit", async (_, ctx) => {
+		ctx.ui.notify("[debug] session_before_quit fired", "info");
+		await new Promise((r) => setTimeout(r, 2000));
 		// Only prompt if advisory was active at some point this session — not just
 		// the current state, so /advisor off before quitting doesn't suppress it.
-		if (!advisoryActiveThisSession) return;
+		if (!advisoryActiveThisSession) {
+			ctx.ui.notify(`[debug] session_before_quit: skipping — advisoryActiveThisSession=false, getAdvisoryEnabled()=${pi.getAdvisoryEnabled()}`, "info");
+			await new Promise((r) => setTimeout(r, 2000));
+			return;
+		}
 		const id = ctx.sessionManager.getSessionId();
 		const queue = await readLearnQueueSet();
-		if (queue.has(id)) return;
+		if (queue.has(id)) {
+			ctx.ui.notify(`[debug] session_before_quit: skipping — session ${id.slice(0, 8)}… already in queue`, "info");
+			await new Promise((r) => setTimeout(r, 2000));
+			return;
+		}
 		const choice = await ctx.ui.select(
 			"Queue this session for learning review?",
 			[QUIT_OPT_YES, QUIT_OPT_NO, QUIT_OPT_INSPECT],
