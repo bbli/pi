@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { ENV_AGENT_DIR } from "../src/config.ts";
-import { addLearnedSession, readLearnedSet } from "../src/core/learned-sessions.ts";
+import { addToLearnQueue, readLearnQueueSet, removeFromLearnQueue } from "../src/core/learned-sessions.ts";
 
 describe("learned-sessions", () => {
 	let tempDir: string;
@@ -25,16 +25,16 @@ describe("learned-sessions", () => {
 		rmSync(tempDir, { recursive: true, force: true });
 	});
 
-	describe("readLearnedSet", () => {
+	describe("readLearnQueueSet", () => {
 		test("returns empty Set when learned.json does not exist", async () => {
-			const result = await readLearnedSet();
+			const result = await readLearnQueueSet();
 			expect(result.size).toBe(0);
 		});
 
 		test("returns all IDs from an existing learned.json", async () => {
-			await addLearnedSession("id-one");
-			await addLearnedSession("id-two");
-			const result = await readLearnedSet();
+			await addToLearnQueue("id-one");
+			await addToLearnQueue("id-two");
+			const result = await readLearnQueueSet();
 			expect(result.has("id-one")).toBe(true);
 			expect(result.has("id-two")).toBe(true);
 			expect(result.size).toBe(2);
@@ -43,43 +43,69 @@ describe("learned-sessions", () => {
 		test("returns empty Set when learned.json contains malformed JSON", async () => {
 			mkdirSync(join(tempDir, "sessions"), { recursive: true });
 			writeFileSync(join(tempDir, "sessions", "learned.json"), "not json");
-			const result = await readLearnedSet();
+			const result = await readLearnQueueSet();
 			expect(result.size).toBe(0);
 		});
 	});
 
-	describe("addLearnedSession", () => {
+	describe("addToLearnQueue", () => {
 		test("creates learned.json on first write", async () => {
-			await addLearnedSession("session-abc");
-			const result = await readLearnedSet();
+			await addToLearnQueue("session-abc");
+			const result = await readLearnQueueSet();
 			expect(result.has("session-abc")).toBe(true);
 		});
 
 		test("creates the sessions directory if it does not exist", async () => {
 			const sessionsDir = join(tempDir, "sessions");
 			expect(existsSync(sessionsDir)).toBe(false);
-			await addLearnedSession("session-xyz");
+			await addToLearnQueue("session-xyz");
 			expect(existsSync(sessionsDir)).toBe(true);
-			expect((await readLearnedSet()).has("session-xyz")).toBe(true);
+			expect((await readLearnQueueSet()).has("session-xyz")).toBe(true);
 		});
 
 		test("is idempotent — adding the same ID twice does not duplicate it", async () => {
-			await addLearnedSession("dup-id");
-			await addLearnedSession("dup-id");
-			const result = await readLearnedSet();
+			await addToLearnQueue("dup-id");
+			await addToLearnQueue("dup-id");
+			const result = await readLearnQueueSet();
 			expect(result.size).toBe(1);
 			expect(result.has("dup-id")).toBe(true);
 		});
 
 		test("preserves existing IDs when adding a new one", async () => {
-			await addLearnedSession("first");
-			await addLearnedSession("second");
-			await addLearnedSession("third");
-			const result = await readLearnedSet();
+			await addToLearnQueue("first");
+			await addToLearnQueue("second");
+			await addToLearnQueue("third");
+			const result = await readLearnQueueSet();
 			expect(result.size).toBe(3);
 			expect(result.has("first")).toBe(true);
 			expect(result.has("second")).toBe(true);
 			expect(result.has("third")).toBe(true);
+		});
+	});
+
+	describe("removeFromLearnQueue", () => {
+		test("removes an existing ID from the queue", async () => {
+			await addToLearnQueue("to-remove");
+			await addToLearnQueue("to-keep");
+			await removeFromLearnQueue("to-remove");
+			const result = await readLearnQueueSet();
+			expect(result.has("to-remove")).toBe(false);
+			expect(result.has("to-keep")).toBe(true);
+			expect(result.size).toBe(1);
+		});
+
+		test("is idempotent — removing an absent ID does not error", async () => {
+			await addToLearnQueue("present");
+			await removeFromLearnQueue("absent");
+			const result = await readLearnQueueSet();
+			expect(result.size).toBe(1);
+			expect(result.has("present")).toBe(true);
+		});
+
+		test("no-ops when learned.json does not exist", async () => {
+			await removeFromLearnQueue("ghost-id");
+			const result = await readLearnQueueSet();
+			expect(result.size).toBe(0);
 		});
 	});
 });

@@ -1,49 +1,72 @@
 /**
- * Utilities for tracking which sessions have been reviewed ("learned from").
+ * Utilities for managing the learning queue — sessions explicitly opted in
+ * for review via `pi --learn`.
  *
- * Learned state is stored in a global index at:
+ * Queue state is stored in a global index at:
  *   ~/.pi/agent/sessions/learned.json
  *
- * Format: { "learned": ["session-id-1", "session-id-2", ...] }
+ * Format: { "queue": ["session-id-1", "session-id-2", ...] }
  *
- * Used by `pi --learn` to filter the session picker and by the `/learned`
- * slash command to mark the current session as reviewed.
+ * Sessions are added to the queue via the `/learned` slash command or the
+ * exit prompt (when the advisory system is enabled). `pi --learn` shows only
+ * queued sessions. After the analysis prompt runs, the session is automatically
+ * removed from the queue.
  */
 
 import { mkdir, readFile, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { getSessionsDir } from "../config.ts";
 
-interface LearnedData {
-	learned: string[];
+interface LearnQueueData {
+	queue: string[];
 }
 
 function learnedFilePath(): string {
 	return join(getSessionsDir(), "learned.json");
 }
 
-/** Read the set of learned session IDs. Returns an empty set if the file doesn't exist. */
-export async function readLearnedSet(): Promise<Set<string>> {
+async function readQueueData(): Promise<LearnQueueData> {
 	try {
 		const raw = await readFile(learnedFilePath(), "utf8");
-		const data = JSON.parse(raw) as LearnedData;
-		return new Set(Array.isArray(data.learned) ? data.learned : []);
+		const data = JSON.parse(raw) as LearnQueueData;
+		return { queue: Array.isArray(data.queue) ? data.queue : [] };
 	} catch {
-		return new Set();
+		return { queue: [] };
 	}
 }
 
+async function writeQueueData(data: LearnQueueData): Promise<void> {
+	const path = learnedFilePath();
+	await mkdir(dirname(path), { recursive: true });
+	await writeFile(path, JSON.stringify(data, null, 2), "utf8");
+}
+
+/** Read the set of session IDs queued for learning. Returns an empty set if the file doesn't exist. */
+export async function readLearnQueueSet(): Promise<Set<string>> {
+	const data = await readQueueData();
+	return new Set(data.queue);
+}
+
 /**
- * Add a session ID to the learned set.
+ * Add a session ID to the learning queue.
  * No-ops if the ID is already present. Creates the file if it doesn't exist.
  */
-export async function addLearnedSession(id: string): Promise<void> {
-	const path = learnedFilePath();
-	const set = await readLearnedSet();
-	if (set.has(id)) return;
-	set.add(id);
-	await mkdir(dirname(path), { recursive: true });
-	await writeFile(path, JSON.stringify({ learned: [...set] }, null, 2), "utf8");
+export async function addToLearnQueue(id: string): Promise<void> {
+	const data = await readQueueData();
+	if (data.queue.includes(id)) return;
+	data.queue.push(id);
+	await writeQueueData(data);
+}
+
+/**
+ * Remove a session ID from the learning queue.
+ * No-ops if the ID is not present.
+ */
+export async function removeFromLearnQueue(id: string): Promise<void> {
+	const data = await readQueueData();
+	const filtered = data.queue.filter((qid) => qid !== id);
+	if (filtered.length === data.queue.length) return;
+	await writeQueueData({ queue: filtered });
 }
 
 /**

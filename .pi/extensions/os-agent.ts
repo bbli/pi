@@ -23,7 +23,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder, addLearnedSession, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, addToLearnQueue, getSettingsListTheme, readLearnQueueSet, removeFromLearnQueue } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
 
 // ---------------------------------------------------------------------------
@@ -969,19 +969,54 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- /learned command ---
 
 	pi.registerCommand("learned", {
-		description: "Mark the current session as learned (excludes it from pi --learn)",
+		description: "Queue the current session for learning review (shows up in pi --learn)",
 		handler: async (_args, ctx) => {
 			const id = ctx.sessionManager.getSessionId();
 			try {
-				await addLearnedSession(id);
-				ctx.ui.notify(`Session ${id.slice(0, 8)}… marked as learned`, "info");
+				await addToLearnQueue(id);
+				ctx.ui.notify(`Session ${id.slice(0, 8)}… queued for learning`, "info");
 			} catch (err) {
 				ctx.ui.notify(
-					`Failed to mark session as learned: ${err instanceof Error ? err.message : String(err)}`,
+					`Failed to queue session for learning: ${err instanceof Error ? err.message : String(err)}`,
 					"error",
 				);
 			}
 		},
+	});
+
+	// --- session_before_quit: prompt to queue for learning (advisory sessions only) ---
+
+	pi.on("session_before_quit", async (_, ctx) => {
+		if (!pi.getAdvisoryEnabled()) return;
+		const id = ctx.sessionManager.getSessionId();
+		const queue = await readLearnQueueSet();
+		if (queue.has(id)) return;
+		const choice = await ctx.ui.select(
+			"Queue this session for learning review?",
+			["Yes — add to learning queue", "No — quit without marking", "Inspect first — stay in session"],
+		);
+		if (choice === "Inspect first — stay in session") {
+			return { cancel: true };
+		}
+		if (choice === "Yes — add to learning queue") {
+			try {
+				await addToLearnQueue(id);
+			} catch {
+				// best-effort; don't block quit on a write failure
+			}
+		}
+	});
+
+	// --- agent_end: auto-remove from learn queue after analysis prompt runs ---
+
+	pi.on("agent_end", async (_, ctx) => {
+		if (pi.getFlag("learn-session") !== true) return;
+		const id = ctx.sessionManager.getSessionId();
+		try {
+			await removeFromLearnQueue(id);
+		} catch {
+			// best-effort
+		}
 	});
 
 	// --- Startup logging (fires after bindCore, so advisory API is live) ---
@@ -1001,6 +1036,12 @@ export default function osAgent(pi: ExtensionAPI): void {
 
 	pi.registerFlag("advisor", {
 		description: "Enable the advisory system on startup",
+		type: "boolean",
+		default: false,
+	});
+
+	pi.registerFlag("learn-session", {
+		description: "Internal: signals that this session was opened via pi --learn for auto-removal from the learn queue",
 		type: "boolean",
 		default: false,
 	});

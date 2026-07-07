@@ -585,6 +585,11 @@ export interface SessionBeforeTreeEvent {
 	signal: AbortSignal;
 }
 
+/** Fired before quitting pi (can be cancelled). Only fires for interactive quit, not signal-triggered shutdown. */
+export interface SessionBeforeQuitEvent {
+	type: "session_before_quit";
+}
+
 /** Fired after navigating in the session tree */
 export interface SessionTreeEvent {
 	type: "session_tree";
@@ -602,7 +607,8 @@ export type SessionEvent =
 	| SessionCompactEvent
 	| SessionShutdownEvent
 	| SessionBeforeTreeEvent
-	| SessionTreeEvent;
+	| SessionTreeEvent
+	| SessionBeforeQuitEvent;
 
 // ============================================================================
 // Agent Events
@@ -1040,6 +1046,10 @@ export interface SessionBeforeCompactResult {
 	compaction?: CompactionResult;
 }
 
+export interface SessionBeforeQuitResult {
+	cancel?: boolean;
+}
+
 export interface SessionBeforeTreeResult {
 	cancel?: boolean;
 	summary?: {
@@ -1229,6 +1239,7 @@ export interface ExtensionAPI {
 	on(event: "session_compact", handler: ExtensionHandler<SessionCompactEvent>): void;
 	on(event: "session_shutdown", handler: ExtensionHandler<SessionShutdownEvent>): void;
 	on(event: "session_before_tree", handler: ExtensionHandler<SessionBeforeTreeEvent, SessionBeforeTreeResult>): void;
+	on(event: "session_before_quit", handler: ExtensionHandler<SessionBeforeQuitEvent, SessionBeforeQuitResult>): void;
 	on(event: "session_tree", handler: ExtensionHandler<SessionTreeEvent>): void;
 	on(event: "context", handler: ExtensionHandler<ContextEvent, ContextEventResult>): void;
 	on(

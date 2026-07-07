@@ -3592,6 +3592,15 @@ export class InteractiveMode {
 			process.exit(0);
 		}
 
+		// Allow extensions to intercept the quit (e.g. to prompt "mark for learning?").
+		// This runs while the TUI is still active so extension UI dialogs work.
+		const beforeQuitResult = await this.resources.extensionRunner.emit({ type: "session_before_quit" });
+		if (beforeQuitResult?.cancel) {
+			this.isShuttingDown = false;
+			this.registerSignalHandlers();
+			return;
+		}
+
 		// Interactive quit (Ctrl+D, Ctrl+C, /quit, extension shutdown()). Stop the
 		// TUI before emitting shutdown events so extension UI cleanup cannot repaint
 		// the final frame while the process is exiting.

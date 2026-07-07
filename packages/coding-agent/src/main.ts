@@ -29,7 +29,7 @@ import { exportFromFile } from "./core/export-html/index.ts";
 import type { ExtensionFactory } from "./core/extensions/types.ts";
 import { configureHttpDispatcher } from "./core/http-dispatcher.ts";
 import { KeybindingsManager } from "./core/keybindings.ts";
-import { LEARN_ANALYSIS_PROMPT, readLearnedSet } from "./core/learned-sessions.ts";
+import { LEARN_ANALYSIS_PROMPT, readLearnQueueSet } from "./core/learned-sessions.ts";
 import type { ModelRegistry } from "./core/model-registry.ts";
 import { resolveCliModel, resolveModelScope, type ScopedModel } from "./core/model-resolver.ts";
 import { restoreStdout, takeOverStdout } from "./core/output-guard.ts";
@@ -327,24 +327,29 @@ async function createSessionManager(
 	if (parsed.learn) {
 		initTheme(settingsManager.getTheme(), true);
 		try {
-			const learned = await readLearnedSet();
-			if (learned.size > 0) {
-				console.log(chalk.dim(`${learned.size} session(s) already marked as learned — showing the rest.`));
+			const learnQueue = await readLearnQueueSet();
+			if (learnQueue.size === 0) {
+				console.log(chalk.dim("No sessions queued for learning. Use /learned inside a session to add one."));
+				process.exit(0);
 			}
+			console.log(chalk.dim(`${learnQueue.size} session(s) queued for learning.`));
 			const selectedPath = await selectSession(
 				async (onProgress) => {
 					const sessions = await SessionManager.list(cwd, sessionDir, onProgress);
-					return sessions.filter((s) => !learned.has(s.id));
+					return sessions.filter((s) => learnQueue.has(s.id));
 				},
 				async (onProgress) => {
 					const sessions = await SessionManager.listAll(sessionDir, onProgress);
-					return sessions.filter((s) => !learned.has(s.id));
+					return sessions.filter((s) => learnQueue.has(s.id));
 				},
 			);
 			if (!selectedPath) {
 				console.log(chalk.dim("No session selected"));
 				process.exit(0);
 			}
+			// Signal to the extension system that this session should be auto-removed
+			// from the learn queue after the first agent turn completes.
+			parsed.unknownFlags.set("learn-session", true);
 			// Prepend the analysis prompt so buildInitialMessage() picks it up via
 			// shift() as initialMessage, which is sent to the LLM when the resumed
 			// session starts — triggering automatic history analysis without user input.
