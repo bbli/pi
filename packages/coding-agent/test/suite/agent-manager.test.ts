@@ -434,6 +434,62 @@ describe("AgentManager", () => {
 		expect(dispose).toHaveBeenCalled();
 	});
 
+	// ── setKept / kept flag ────────────────────────────────────────────────────
+
+	it("setKept marks a branch session so onDone aborts but does not dispose it", () => {
+		const { session, abort, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.setKept("r1", true);
+		manager.onDone("r1");
+		// session must remain in registry
+		expect(manager.get("r1")).toBeDefined();
+		expect(manager.get("r1")?.completed).toBe(true);
+		expect(dispose).not.toHaveBeenCalled();
+		expect(abort).toHaveBeenCalled();
+	});
+
+	it("focus() does not flush a completed+kept session on defocus", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.focus(manager.get("r1"));
+		manager.setKept("r1", true);
+		manager.onDone("r1"); // kept → abort-only, completed=true
+		manager.focus(undefined); // navigate away
+		expect(manager.get("r1")).toBeDefined(); // still in registry
+		expect(dispose).not.toHaveBeenCalled();
+	});
+
+	it("onDone for a kept session does not fire onRemove", () => {
+		const { session } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.setKept("r1", true);
+		const removed: string[] = [];
+		manager.onRemove = (id) => removed.push(id);
+		manager.onDone("r1");
+		expect(removed).toHaveLength(0);
+	});
+
+	it("kill() disposes a kept branch session despite the kept flag", () => {
+		const { session, dispose } = makeMockSession();
+		manager.register(makeRecord("r1", session, "branch"));
+		manager.setKept("r1", true);
+		manager.onDone("r1"); // abort-only, stays in registry
+		manager.kill("r1");
+		expect(manager.get("r1")).toBeUndefined();
+		expect(dispose).toHaveBeenCalled();
+	});
+
+	it("setKept is a no-op for user-kind sessions", () => {
+		const { session } = makeMockSession();
+		manager.register(makeRecord("u1", session, "user"));
+		manager.setKept("u1", true);
+		expect(manager.get("u1")?.kept).toBe(false);
+	});
+
+	it("setKept with an unknown id is a no-op", () => {
+		expect(() => manager.setKept("nonexistent", true)).not.toThrow();
+	});
+
 	// ── startTTL ─────────────────────────────────────────────────────────────
 
 	it("startTTL fires the callback after the specified delay", () => {
