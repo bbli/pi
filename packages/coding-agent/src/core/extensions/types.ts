@@ -672,21 +672,19 @@ export interface TurnEndEvent {
 	toolResults: ToolResultMessage[];
 	/**
 	 * True when `agent_end` will be emitted immediately after this `turn_end`.
+	 * Only set on paths where this is structurally certain at emit time (e.g.
+	 * error and abort exits). For the normal exit paths the value is `false`
+	 * even on the final turn.
 	 *
-	 * Extension handlers can use this to distinguish the final turn from
-	 * intermediate turns — for example, to run cleanup logic, persist state,
-	 * or update a status indicator only at the end of an agent run:
+	 * Extension handlers can use this to run teardown logic on known-final turns:
 	 *
 	 * ```ts
 	 * pi.on("turn_end", (event, ctx) => {
 	 *   if (event.agentEndFollows) {
-	 *     // last turn — safe to do teardown
+	 *     // error/abort exit — agent_end is next
 	 *   }
 	 * });
 	 * ```
-	 *
-	 * Note: when `agentEndFollows` is true, guideline evaluation is suppressed
-	 * for this turn. Continuations are evaluated at `agent_end` regardless.
 	 */
 	agentEndFollows: boolean;
 }
@@ -1199,7 +1197,7 @@ export interface BranchSessionOptions {
 	abortSignal?: AbortSignal;
 }
 
-/** A guideline registered via registerGuideline(). Evaluated at intermediate turn_end events (skipped on the final turn before agent_end). */
+/** A guideline registered via registerGuideline(). Evaluated at turn_end. */
 export interface GuidelineDefinition {
 	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
 	id: string;
@@ -1334,11 +1332,9 @@ export interface ExtensionAPI {
 	// =========================================================================
 
 	/**
-	 * Register a guideline. At each intermediate turn_end (i.e. turns where agent_end
-	 * does not immediately follow) a single advisory branch session evaluates all
+	 * Register a guideline. At turn_end a single advisory branch session evaluates all
 	 * registered guidelines' triggerPrompts and steers injectPrompt into the main session
-	 * for each that fires. Skipped on the final turn so continuations remain the sole
-	 * advisory mechanism at agent_end. Runs asynchronously — does not block the LLM call.
+	 * for each that fires. Runs asynchronously — does not block the LLM call.
 	 * Returns an unsubscriber.
 	 */
 	registerGuideline(def: GuidelineDefinition): () => void;
