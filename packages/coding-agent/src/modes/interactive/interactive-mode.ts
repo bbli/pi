@@ -4288,6 +4288,15 @@ export class InteractiveMode {
 					},
 					onKeepBranchSessionsChange: (enabled) => {
 						this.resources.extensionRunner.setFlagValue("keep-branch-sessions", enabled);
+						if (enabled) {
+							// Retroactively protect in-flight branch sessions spawned before the toggle.
+							for (const record of this.manager.getAll()) {
+								if (record.kind === "branch" && !record.completed) {
+									this.manager.setKept(record.id, true);
+								}
+							}
+						}
+						debugLog(`[settings] keep-branch-sessions toggled: ${enabled}`);
 					},
 					onShowImagesChange: (enabled) => {
 						this.settingsManager.setShowImages(enabled);

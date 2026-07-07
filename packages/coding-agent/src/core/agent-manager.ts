@@ -37,6 +37,12 @@ export interface SubagentRecord {
 	 * on the previously focused record when this flag is set.
 	 */
 	completed: boolean;
+	/**
+	 * Set to true when the user explicitly requests the session be kept.
+	 * Prevents auto-disposal in onDone() and focus() regardless of focus state.
+	 * Only cleared by an explicit kill().
+	 */
+	kept: boolean;
 }
 
 // ============================================================================
@@ -75,7 +81,13 @@ export class AgentManager {
 				this.onStatusChange?.();
 			}
 		});
-		const stored: SubagentRecord = { ...record, ttlTimer: undefined, unsubscribeStatus, completed: false };
+		const stored: SubagentRecord = {
+			...record,
+			ttlTimer: undefined,
+			unsubscribeStatus,
+			completed: false,
+			kept: false,
+		};
 		this._records.set(record.id, stored);
 		this.onRegister?.(stored);
 		this.onStatusChange?.();
@@ -154,14 +166,26 @@ export class AgentManager {
 	// =========================================================================
 
 	/** Switch focus to a subagent record, or pass undefined to return to root.
-	 *  If the previously focused record was a completed branch session, disposes it now. */
+	 *  If the previously focused record was a completed branch session, disposes it now.
+	 *  Kept sessions are never auto-disposed on focus switch. */
 	focus(record: SubagentRecord | undefined): void {
 		const prev = this._focused;
 		this._focused = record;
-		if (prev?.completed && prev.id !== record?.id) {
+		if (prev?.completed && !prev.kept && prev.id !== record?.id) {
 			debugLog(`[AgentManager] focus flush: removing completed id=${prev.id} label=${prev.label}`);
 			this.remove(prev.id);
 		}
+	}
+
+	/**
+	 * Mark a branch session as kept so it survives completion without disposal.
+	 * Has no effect on user sessions or unknown ids.
+	 */
+	setKept(id: string, kept: boolean): void {
+		const record = this._records.get(id);
+		if (!record || record.kind !== "branch") return;
+		debugLog(`[AgentManager] setKept id=${id} label=${record.label} kept=${kept}`);
+		record.kept = kept;
 	}
 
 	/**
@@ -174,6 +198,13 @@ export class AgentManager {
 		const record = this._records.get(id);
 		if (!record) return;
 		if (record.kind !== "branch") return;
+		if (record.kept) {
+			// User explicitly wants this session preserved — abort but do not dispose.
+			debugLog(`[AgentManager] onDone id=${id} label=${record.label} — kept, aborting only`);
+			record.completed = true;
+			void record.session.abort().catch(() => {});
+			return;
+		}
 		const isFocused = this._focused?.id === id;
 		if (isFocused) {
 			debugLog(`[AgentManager] onDone id=${id} label=${record.label} — focused, deferring disposal`);
