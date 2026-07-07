@@ -1007,7 +1007,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerCommand("learned", {
+	pi.registerCommand("to-learn", {
 		description: "Queue the current session for learning review (shows up in pi --learn)",
 		handler: async (_args, ctx) => {
 			const id = ctx.sessionManager.getSessionId();

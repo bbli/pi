@@ -7,7 +7,7 @@
  *
  * Format: { "queue": ["session-id-1", "session-id-2", ...] }
  *
- * Sessions are added to the queue via the `/learned` slash command or the
+ * Sessions are added to the queue via the `/to-learn` slash command or the
  * exit prompt (when the advisory system is enabled). `pi --learn` shows only
  * queued sessions. After the analysis prompt runs, the session is automatically
  * removed from the queue.

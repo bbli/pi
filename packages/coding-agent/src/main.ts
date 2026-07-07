@@ -329,7 +329,7 @@ async function createSessionManager(
 		try {
 			const learnQueue = await readLearnQueueSet();
 			if (learnQueue.size === 0) {
-				console.log(chalk.dim("No sessions queued for learning. Use /learned inside a session to add one."));
+				console.log(chalk.dim("No sessions queued for learning. Use /to-learn inside a session to add one."));
 				process.exit(0);
 			}
 			console.log(chalk.dim(`${learnQueue.size} session(s) queued for learning.`));

@@ -245,7 +245,7 @@ ${chalk.bold("Options:")}
   --print, -p                    Non-interactive mode: process prompt and exit
   --continue, -c                 Continue previous session
   --resume, -r                   Select a session to resume
-  --learn, -l                    Review unlearned sessions (use /learned to mark as done)
+  --learn, -l                    Review unlearned sessions (use /to-learn to queue sessions)
   --session <path|id>            Use specific session file or partial UUID
   --session-id <id>              Use exact project session ID, creating it if missing
   --fork <path|id>               Fork specific session file or partial UUID into a new session
