@@ -986,7 +986,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 
 	// --- /learned command ---
 
-	pi.registerCommand("unlearn", {
+	pi.registerCommand("finish-learning", {
 		description: "Remove the current session from the learning queue",
 		handler: async (_args, ctx) => {
 			const id = ctx.sessionManager.getSessionId();
