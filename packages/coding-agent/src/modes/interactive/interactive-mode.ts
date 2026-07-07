@@ -4254,6 +4254,7 @@ export class InteractiveMode {
 			const selector = new SettingsSelectorComponent(
 				{
 					autoCompact: this.resources.autoCompactionEnabled,
+					keepBranchSessions: this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
 					showImages: this.settingsManager.getShowImages(),
 					imageWidthCells: this.settingsManager.getImageWidthCells(),
 					autoResizeImages: this.settingsManager.getImageAutoResize(),
@@ -4284,6 +4285,9 @@ export class InteractiveMode {
 					onAutoCompactChange: (enabled) => {
 						this.resources.setAutoCompactionEnabled(enabled);
 						this.footer.setAutoCompactEnabled(enabled);
+					},
+					onKeepBranchSessionsChange: (enabled) => {
+						this.resources.extensionRunner.setFlagValue("keep-branch-sessions", enabled);
 					},
 					onShowImagesChange: (enabled) => {
 						this.settingsManager.setShowImages(enabled);
