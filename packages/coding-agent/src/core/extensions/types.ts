@@ -670,6 +670,8 @@ export interface TurnEndEvent {
 	turnIndex: number;
 	message: AgentMessage;
 	toolResults: ToolResultMessage[];
+	/** True when agent_end will be emitted immediately after this turn_end. */
+	agentEndFollows: boolean;
 }
 
 /** Fired when a message starts (user, assistant, or toolResult) */

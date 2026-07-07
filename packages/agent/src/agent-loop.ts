@@ -194,7 +194,7 @@ async function runLoop(
 			newMessages.push(message);
 
 			if (message.stopReason === "error" || message.stopReason === "aborted") {
-				await emit({ type: "turn_end", message, toolResults: [] });
+				await emit({ type: "turn_end", message, toolResults: [], agentEndFollows: true });
 				await emit({ type: "agent_end", messages: newMessages });
 				return;
 			}
@@ -214,8 +214,6 @@ async function runLoop(
 					newMessages.push(result);
 				}
 			}
-
-			await emit({ type: "turn_end", message, toolResults });
 
 			const nextTurnContext = {
 				message,
@@ -238,30 +236,47 @@ async function runLoop(
 				};
 			}
 
-			if (
-				await config.shouldStopAfterTurn?.({
+			// Pre-compute whether agent_end will follow this turn_end so the event can
+			// carry accurate agentEndFollows metadata.
+			// shouldStopAfterTurn and getSteeringMessages are always called (same cadence
+			// as the original loop). getFollowUpMessages is only called when there are no
+			// more tool calls and no steering messages, matching the original outer-loop
+			// semantics.
+			let agentEndFollows = false;
+			let willStop = false;
+
+			willStop =
+				(await config.shouldStopAfterTurn?.({
 					message,
 					toolResults,
 					context: currentContext,
 					newMessages,
-				})
-			) {
+				})) ?? false;
+			if (willStop) {
+				agentEndFollows = true;
+			} else {
+				pendingMessages = (await config.getSteeringMessages?.()) || [];
+				if (!hasMoreToolCalls && pendingMessages.length === 0) {
+					const followUpMessages = (await config.getFollowUpMessages?.()) || [];
+					if (followUpMessages.length > 0) {
+						// Follow-ups will be processed in the next inner-loop iteration.
+						pendingMessages = followUpMessages;
+					} else {
+						agentEndFollows = true;
+					}
+				}
+			}
+
+			await emit({ type: "turn_end", message, toolResults, agentEndFollows });
+
+			if (willStop) {
 				await emit({ type: "agent_end", messages: newMessages });
 				return;
 			}
-
-			pendingMessages = (await config.getSteeringMessages?.()) || [];
 		}
 
-		// Agent would stop here. Check for follow-up messages.
-		const followUpMessages = (await config.getFollowUpMessages?.()) || [];
-		if (followUpMessages.length > 0) {
-			// Set as pending so inner loop processes them
-			pendingMessages = followUpMessages;
-			continue;
-		}
-
-		// No more messages, exit
+		// No more messages, exit. Follow-up and steering message checks have already
+		// been folded into the inner loop above, so we always break here.
 		break;
 	}
 

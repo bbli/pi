@@ -649,6 +649,7 @@ export class AgentSession {
 				turnIndex: this._turnIndex,
 				message: event.message,
 				toolResults: event.toolResults,
+				agentEndFollows: event.agentEndFollows,
 			};
 			await this._extensionRunner.emitTurnEnd(extensionEvent);
 			this._turnIndex++;
