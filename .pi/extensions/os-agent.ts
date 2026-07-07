@@ -736,6 +736,20 @@ class AdvisoryStatusComponent extends Container {
 // Extension entry point
 // ---------------------------------------------------------------------------
 
+// Tracks whether advisory was active at any point in the current session so the
+// quit prompt fires even if the user disabled advisory before quitting.
+let advisoryActiveThisSession = false;
+
+// Tracks which session has already been auto-removed from the learn queue so the
+// agent_end handler only does the disk write once per session.
+let learnAutoMarkedSessionId: string | null = null;
+
+// Option strings for the session_before_quit select dialog — extracted to
+// constants so the guard comparisons can't silently drift from the labels.
+const QUIT_OPT_YES = "Yes — add to learning queue";
+const QUIT_OPT_NO = "No — quit without marking";
+const QUIT_OPT_INSPECT = "Inspect first — stay in session";
+
 export default function osAgent(pi: ExtensionAPI): void {
 	// --- Guidelines (turn_start, async) ---
 
@@ -987,35 +1001,48 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- session_before_quit: prompt to queue for learning (advisory sessions only) ---
 
 	pi.on("session_before_quit", async (_, ctx) => {
-		if (!pi.getAdvisoryEnabled()) return;
+		// Only prompt if advisory was active at some point this session — not just
+		// the current state, so /advisor off before quitting doesn't suppress it.
+		if (!advisoryActiveThisSession) return;
 		const id = ctx.sessionManager.getSessionId();
 		const queue = await readLearnQueueSet();
 		if (queue.has(id)) return;
 		const choice = await ctx.ui.select(
 			"Queue this session for learning review?",
-			["Yes — add to learning queue", "No — quit without marking", "Inspect first — stay in session"],
+			[QUIT_OPT_YES, QUIT_OPT_NO, QUIT_OPT_INSPECT],
 		);
-		if (choice === "Inspect first — stay in session") {
+		if (choice === QUIT_OPT_INSPECT) {
 			return { cancel: true };
 		}
-		if (choice === "Yes — add to learning queue") {
+		if (choice === QUIT_OPT_YES) {
 			try {
 				await addToLearnQueue(id);
-			} catch {
-				// best-effort; don't block quit on a write failure
+			} catch (err) {
+				ctx.ui.notify(
+					`Failed to queue session for learning: ${err instanceof Error ? err.message : String(err)}`,
+					"error",
+				);
 			}
 		}
 	});
 
-	// --- agent_end: auto-remove from learn queue after analysis prompt runs ---
+	// --- agent_end: track advisory activity + auto-remove from learn queue ---
 
 	pi.on("agent_end", async (_, ctx) => {
+		// Track advisory activity so the quit prompt fires even if advisory was
+		// disabled before the user quits.
+		if (pi.getAdvisoryEnabled()) advisoryActiveThisSession = true;
+
 		if (pi.getFlag("learn-session") !== true) return;
 		const id = ctx.sessionManager.getSessionId();
+		// Guard: only remove from queue once per session to avoid a disk read
+		// on every subsequent agent turn after the first analysis completes.
+		if (learnAutoMarkedSessionId === id) return;
+		learnAutoMarkedSessionId = id;
 		try {
 			await removeFromLearnQueue(id);
-		} catch {
-			// best-effort
+		} catch (err) {
+			console.error(`[learn] removeFromLearnQueue failed: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	});
 
@@ -1025,9 +1052,14 @@ export default function osAgent(pi: ExtensionAPI): void {
 		const guidelines = pi.getGuidelines();
 		const continuations = pi.getContinuations();
 
+		// Reset per-session tracking state for the new session.
+		advisoryActiveThisSession = false;
+		learnAutoMarkedSessionId = null;
+
 		// Apply --advisor flag if set.
 		if (pi.getFlag("advisor") === true) {
 			pi.setAdvisoryEnabled(true);
+			advisoryActiveThisSession = true;
 			if (ctx.hasUI) ctx.ui.notify("[advisory] enabled via --advisor", "info");
 		}
 	});
