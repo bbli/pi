@@ -406,7 +406,7 @@ export type AgentEvent =
 	| { type: "agent_end"; messages: AgentMessage[] }
 	// Turn lifecycle - a turn is one assistant response + any tool calls/results
 	| { type: "turn_start" }
-	/** agentEndFollows: true only on error/abort exits where agent_end is emitted in the same block. */
+	/** agentEndFollows: true when agent_end will be emitted immediately after this event. */
 	| { type: "turn_end"; message: AgentMessage; toolResults: ToolResultMessage[]; agentEndFollows: boolean }
 	// Message lifecycle - emitted for user, assistant, and toolResult messages
 	| { type: "message_start"; message: AgentMessage }
