@@ -670,7 +670,24 @@ export interface TurnEndEvent {
 	turnIndex: number;
 	message: AgentMessage;
 	toolResults: ToolResultMessage[];
-	/** True when agent_end will be emitted immediately after this turn_end. */
+	/**
+	 * True when `agent_end` will be emitted immediately after this `turn_end`.
+	 *
+	 * Extension handlers can use this to distinguish the final turn from
+	 * intermediate turns — for example, to run cleanup logic, persist state,
+	 * or update a status indicator only at the end of an agent run:
+	 *
+	 * ```ts
+	 * pi.on("turn_end", (event, ctx) => {
+	 *   if (event.agentEndFollows) {
+	 *     // last turn — safe to do teardown
+	 *   }
+	 * });
+	 * ```
+	 *
+	 * Note: when `agentEndFollows` is true, guideline evaluation is suppressed
+	 * for this turn. Continuations are evaluated at `agent_end` regardless.
+	 */
 	agentEndFollows: boolean;
 }
 
