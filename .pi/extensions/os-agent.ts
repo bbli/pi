@@ -982,6 +982,22 @@ export default function osAgent(pi: ExtensionAPI): void {
 
 	// --- /learned command ---
 
+	pi.registerCommand("unlearn", {
+		description: "Remove the current session from the learning queue",
+		handler: async (_args, ctx) => {
+			const id = ctx.sessionManager.getSessionId();
+			try {
+				await removeFromLearnQueue(id);
+				ctx.ui.notify(`Session ${id.slice(0, 8)}… removed from learning queue`, "info");
+			} catch (err) {
+				ctx.ui.notify(
+					`Failed to remove session from learning queue: ${err instanceof Error ? err.message : String(err)}`,
+					"error",
+				);
+			}
+		},
+	});
+
 	pi.registerCommand("learned", {
 		description: "Queue the current session for learning review (shows up in pi --learn)",
 		handler: async (_args, ctx) => {
