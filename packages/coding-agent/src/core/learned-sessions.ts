@@ -60,13 +60,14 @@ export async function addToLearnQueue(id: string): Promise<void> {
 
 /**
  * Remove a session ID from the learning queue.
- * No-ops if the ID is not present.
+ * Returns true if the ID was present and removed, false if it was not in the queue.
  */
-export async function removeFromLearnQueue(id: string): Promise<void> {
+export async function removeFromLearnQueue(id: string): Promise<boolean> {
 	const data = await readQueueData();
 	const filtered = data.queue.filter((qid) => qid !== id);
-	if (filtered.length === data.queue.length) return;
+	if (filtered.length === data.queue.length) return false;
 	await writeQueueData({ queue: filtered });
+	return true;
 }
 
 /**

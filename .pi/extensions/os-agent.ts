@@ -987,8 +987,13 @@ export default function osAgent(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			const id = ctx.sessionManager.getSessionId();
 			try {
-				await removeFromLearnQueue(id);
-				ctx.ui.notify(`Session ${id.slice(0, 8)}… removed from learning queue`, "info");
+				const removed = await removeFromLearnQueue(id);
+				ctx.ui.notify(
+					removed
+						? `Session ${id.slice(0, 8)}… removed from learning queue`
+						: `Session ${id.slice(0, 8)}… was not in the learning queue`,
+					"info",
+				);
 			} catch (err) {
 				ctx.ui.notify(
 					`Failed to remove session from learning queue: ${err instanceof Error ? err.message : String(err)}`,

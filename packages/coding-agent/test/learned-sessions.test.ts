@@ -107,5 +107,21 @@ describe("learned-sessions", () => {
 			const result = await readLearnQueueSet();
 			expect(result.size).toBe(0);
 		});
+
+		test("returns true when the ID was present and removed", async () => {
+			await addToLearnQueue("present-id");
+			const result = await removeFromLearnQueue("present-id");
+			expect(result).toBe(true);
+		});
+
+		test("returns false when the ID was not in the queue", async () => {
+			const result = await removeFromLearnQueue("absent-id");
+			expect(result).toBe(false);
+		});
+
+		test("returns false when learned.json does not exist", async () => {
+			const result = await removeFromLearnQueue("ghost-id");
+			expect(result).toBe(false);
+		});
 	});
 });
