@@ -1030,6 +1030,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 		if (choice === QUIT_OPT_INSPECT) {
 			return { cancel: true };
 		}
+		// QUIT_OPT_NO and undefined (dialog dismissed) both fall through — quit without marking.
 		if (choice === QUIT_OPT_YES) {
 			try {
 				await addToLearnQueue(id);
@@ -1075,9 +1076,11 @@ export default function osAgent(pi: ExtensionAPI): void {
 		// Apply --advisor flag if set.
 		if (pi.getFlag("advisor") === true) {
 			pi.setAdvisoryEnabled(true);
-			advisoryActiveThisSession = true;
 			if (ctx.hasUI) ctx.ui.notify("[advisory] enabled via --advisor", "info");
 		}
+		// Capture any pre-existing advisory state — the runner may have advisory
+		// enabled from a prior session (runner reuse) even without the --advisor flag.
+		if (pi.getAdvisoryEnabled()) advisoryActiveThisSession = true;
 	});
 
 	// --- CLI flags ---
