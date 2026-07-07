@@ -740,10 +740,6 @@ class AdvisoryStatusComponent extends Container {
 // Extension entry point
 // ---------------------------------------------------------------------------
 
-// Tracks whether advisory was active at any point in the current session so the
-// quit prompt fires even if the user disabled advisory before quitting.
-let advisoryActiveThisSession = false;
-
 // Tracks which session has already been auto-removed from the learn queue so the
 // agent_end handler only does the disk write once per session.
 let learnAutoMarkedSessionId: string | null = null;
@@ -1026,22 +1022,10 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- session_before_quit: prompt to queue for learning (advisory sessions only) ---
 
 	pi.on("session_before_quit", async (_, ctx) => {
-		ctx.ui.notify("[debug] session_before_quit fired", "info");
-		await new Promise((r) => setTimeout(r, 2000));
-		// Only prompt if advisory was active at some point this session — not just
-		// the current state, so /advisor off before quitting doesn't suppress it.
-		if (!advisoryActiveThisSession) {
-			ctx.ui.notify(`[debug] session_before_quit: skipping — advisoryActiveThisSession=false, getAdvisoryEnabled()=${pi.getAdvisoryEnabled()}`, "info");
-			await new Promise((r) => setTimeout(r, 2000));
-			return;
-		}
+		if (!pi.getAdvisoryEnabled()) return;
 		const id = ctx.sessionManager.getSessionId();
 		const queue = await readLearnQueueSet();
-		if (queue.has(id)) {
-			ctx.ui.notify(`[debug] session_before_quit: skipping — session ${id.slice(0, 8)}… already in queue`, "info");
-			await new Promise((r) => setTimeout(r, 2000));
-			return;
-		}
+		if (queue.has(id)) return;
 		const choice = await ctx.ui.select(
 			"Queue this session for learning review?",
 			[QUIT_OPT_YES, QUIT_OPT_NO, QUIT_OPT_INSPECT],
@@ -1062,13 +1046,9 @@ export default function osAgent(pi: ExtensionAPI): void {
 		}
 	});
 
-	// --- agent_end: track advisory activity + auto-remove from learn queue ---
+	// --- agent_end: auto-remove from learn queue after analysis prompt runs ---
 
 	pi.on("agent_end", async (_, ctx) => {
-		// Track advisory activity so the quit prompt fires even if advisory was
-		// disabled before the user quits.
-		if (pi.getAdvisoryEnabled()) advisoryActiveThisSession = true;
-
 		if (pi.getFlag("learn-session") !== true) return;
 		const id = ctx.sessionManager.getSessionId();
 		// Guard: only remove from queue once per session to avoid a disk read
@@ -1089,7 +1069,6 @@ export default function osAgent(pi: ExtensionAPI): void {
 		const continuations = pi.getContinuations();
 
 		// Reset per-session tracking state for the new session.
-		advisoryActiveThisSession = false;
 		learnAutoMarkedSessionId = null;
 
 		// Apply --advisor flag if set.
@@ -1097,9 +1076,6 @@ export default function osAgent(pi: ExtensionAPI): void {
 			pi.setAdvisoryEnabled(true);
 			if (ctx.hasUI) ctx.ui.notify("[advisory] enabled via --advisor", "info");
 		}
-		// Capture any pre-existing advisory state — the runner may have advisory
-		// enabled from a prior session (runner reuse) even without the --advisor flag.
-		if (pi.getAdvisoryEnabled()) advisoryActiveThisSession = true;
 	});
 
 	// --- CLI flags ---
