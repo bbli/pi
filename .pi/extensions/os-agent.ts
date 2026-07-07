@@ -486,19 +486,23 @@ hypothesis should be treated as invalidated.
 **The specific assumption or position that was invalidated:**
 {{content}}
 
-Before collecting any further evidence or continuing the investigation:
+Before collecting any further evidence or continuing the investigation, \
+consider working through this sequence:
 
-1. State explicitly what you now know for certain, what you were assuming, \
-and which assumptions the new evidence has invalidated.
-2. From that foundation, form a revised hypothesis about what is happening — \
-grounded in what is known, not inferred backward from evidence already \
-collected.
-3. Present a callpath diagram of your revised understanding, marking \
-confirmed steps, assumed steps, and the point where your previous model \
-broke down.
-
-Only then proceed — investigating the revised hypothesis, not searching for \
-evidence and fitting a hypothesis to it afterward.
+1. **Take a step back.** State explicitly what you now know for certain, what \
+you were assuming, and which assumptions the new evidence has invalidated. \
+Keep this grounded — "known" means observed or confirmed, not merely \
+plausible.
+2. **Identify what you need to look up.** From that inventory, decide which \
+questions or areas need investigation before you can form a reliable new \
+hypothesis. Call researchConversationQuestion for those — batch multiple \
+questions into one turn so they run in parallel. Do not proceed to step 3 \
+until the findings are in.
+3. **Form one or more revised hypotheses** grounded in what is now known plus \
+the research findings. For each, present a callpath diagram marking confirmed \
+steps, assumed steps, and where your previous model broke down. Only then \
+proceed — investigating the hypothesis, not fitting a hypothesis to evidence \
+collected afterward.
 
 A good debugging session always moves from hypothesis to evidence, not from \
 evidence to hypothesis.`;
