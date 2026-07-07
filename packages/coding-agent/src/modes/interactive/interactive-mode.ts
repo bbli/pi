@@ -457,6 +457,9 @@ export class InteractiveMode {
 			this.ui.requestRender();
 		};
 		this.footer.setAutoCompactEnabled(this.resources.autoCompactionEnabled);
+		this.footer.setKeepBranchSessions(
+			this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
+		);
 
 		// Load hide thinking block setting
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
@@ -1638,6 +1641,9 @@ export class InteractiveMode {
 		configureHttpDispatcher(this.settingsManager.getHttpIdleTimeoutMs());
 		this.footer.setSession(this.resources);
 		this.footer.setAutoCompactEnabled(this.resources.autoCompactionEnabled);
+		this.footer.setKeepBranchSessions(
+			this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
+		);
 		this.footerDataProvider.setCwd(this.sessionManager.getCwd());
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
 		this.ui.setShowHardwareCursor(this.settingsManager.getShowHardwareCursor());
@@ -4296,6 +4302,7 @@ export class InteractiveMode {
 								}
 							}
 						}
+						this.footer.setKeepBranchSessions(enabled);
 						debugLog(`[settings] keep-branch-sessions toggled: ${enabled}`);
 					},
 					onShowImagesChange: (enabled) => {
