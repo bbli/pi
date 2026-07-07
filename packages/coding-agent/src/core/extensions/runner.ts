@@ -575,10 +575,8 @@ export class ExtensionRunner {
 	}
 
 	/**
-	 * Emit turn_end to extension handlers and, on each intermediate turn when
-	 * advisory is enabled and not already running, fire guideline evaluation
-	 * asynchronously. Skipped when event.agentEndFollows is true so guidelines
-	 * do not race with continuations at agent_end.
+	 * Emit turn_end to extension handlers and, on each turn when advisory is
+	 * enabled and not already running, fire guideline evaluation asynchronously.
 	 */
 	async emitTurnEnd(event: TurnEndEvent): Promise<void> {
 		if (this._advisoryEnabled && !this._advisoryRunning && !event.agentEndFollows) {

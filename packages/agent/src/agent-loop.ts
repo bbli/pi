@@ -215,11 +215,6 @@ async function runLoop(
 				}
 			}
 
-			// prepareNextTurn runs before turn_end is emitted (moved here so that
-			// shouldStopAfterTurn and getFollowUpMessages can be called with the
-			// updated context before we emit). As a result, turn_end handlers observe
-			// post-prepareNextTurn session state (e.g. the next turn's model/thinkingLevel
-			// rather than the current turn's).
 			const nextTurnContext = {
 				message,
 				toolResults,
