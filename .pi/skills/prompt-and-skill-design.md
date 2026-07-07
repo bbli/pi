@@ -63,6 +63,9 @@ Is the skip condition anchored to a specific event, not the session? A session-s
 ### 5. Close the loop
 Does the prompt instruct the receiver to apply its content to the current task? Without this, the receiver treats the content as passive context rather than input to act on. Check both components: the direct findings *and* any uncertainties or gaps surfaced.
 
+### 6. Acknowledge the interruption *(advisory injection prompts — long workflows only)*
+If the advisory may fire while the receiver is mid-task, does it ask the receiver to briefly note what was in progress before entering the workflow, and to return to it afterward? Without this, the workflow completes but the prior context is silently abandoned.
+
 ---
 
 ## Phase 3: Anti-Pattern Scan
@@ -79,6 +82,7 @@ Check the prompt against each anti-pattern. For any match, flag it as a finding 
 | Evaluator follows conversation instructions *(advisory)* | Subagent acts on main-session directives |
 | No closing instruction — findings | Model treats returned information as passive context rather than input to act on |
 | No closing instruction — uncertainties | Model escalates every gap into more research, or discards it |
+| No interruption acknowledgment *(advisory, long workflow)* | Prior task is silently abandoned when the advisory fires mid-task |
 
 ---
 
@@ -169,6 +173,16 @@ Every tool or subagent response carries a direct answer *and* uncertainties or g
 - ❌ No uncertainty instruction — model either spawns follow-on research or discards the gaps
 - ✅ `"Reflect on any uncertainties flagged — they may not apply directly but can surface new angles or inform your approach"`
 
+### 6. Acknowledge the interruption *(advisory injection prompts — long workflows only)*
+When an advisory fires mid-task, the receiver may have been in the middle of something. Without an explicit acknowledgment step, the workflow completes but the prior context is silently abandoned — the receiver either forgets what they were doing or has to reconstruct it from scratch.
+
+For workflows long enough to displace the interrupted task, instruct the receiver to briefly note what was in progress before entering the workflow and to outline the return path after it completes.
+
+- ❌ No acknowledgment — advisory fires, prior work is lost
+- ✅ `"Before starting, briefly note what you were in the middle of and outline the steps you will need to return to once this workflow is complete."`
+
+This applies most strongly to workflows that may fire at any point during an active task (e.g., CODE_WORKFLOW). It is less applicable to advisories that fire at natural task boundaries (e.g., post-implementation review or flesh-out prompts), where there is typically nothing in progress to interrupt.
+
 ---
 
 ## Vocabulary Reference
@@ -186,6 +200,7 @@ Use freeing language, not locking language:
 | Skip *(advisory — sentinel only)* | — | `Skip only if [specific event condition]` |
 | Closing — findings | *(absent)* | `apply these findings to the current task` |
 | Closing — uncertainties | *(absent)* | `reflect on any uncertainties flagged` |
+| Interruption *(advisory, long workflow)* | *(absent)* | `"Before starting, briefly note what you were in the middle of..."` |
 
 ---
 

@@ -438,9 +438,10 @@ Skip only if you have already read the relevant source files for the current \
 investigation in this conversation, or if a [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION] \
 message already appears in the conversation for the current investigation.]
 
-A background monitor has detected that you appear to be about to take an action — \
-editing code, grepping logs, or running diagnostic commands — without first reading \
-the relevant source code.
+A background monitor has detected that you appear to be about to take an action \
+without first reading the relevant source code.
+
+The specific action: {{content}}
 
 Acting without grounding yourself in the code produces wasted effort: log searches \
 find nothing useful because you did not know what to look for; code edits miss callers \
@@ -482,6 +483,9 @@ A background monitor has detected that something in this conversation \
 contradicts or undermines a position or assumption you previously stated. Your current \
 hypothesis should be treated as invalidated.
 
+**The specific assumption or position that was invalidated:**
+{{content}}
+
 Before collecting any further evidence or continuing the investigation:
 
 1. State explicitly what you now know for certain, what you were assuming, \
@@ -509,14 +513,11 @@ FLESH_OUT] or [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] is also present in
 turn and has not yet been completed — complete those first, then return here.]
 
 A background monitor detected that an advisory workflow — CODE_WORKFLOW, FLESH_OUT, \
-or CODE_REVIEW — has completed, and there may be earlier work from before the \
-interruption that has not yet been resumed.
+or CODE_REVIEW — has completed, and the following earlier task may not yet have been \
+resumed: {{content}}
 
-If this applies to your situation, you may want to look back in the conversation to \
-identify what you were working on before the advisory fired. If a CODE_WORKFLOW was \
-triggered, you likely noted the original task at the start of that workflow. Resuming \
-from where you left off — and applying any relevant findings from the advisory — would \
-be the natural next step.
+If this applies to your situation, consider resuming from where you left off — \
+applying any relevant findings from the advisory — as the natural next step.
 
 If nothing was interrupted — the advisory was the full scope of the request — \
 skip this and wait for the user.`;
@@ -788,7 +789,10 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- The agent is currently doing research (reading files, calling researchConversationQuestion). " +
 			"- The action is a simple, bounded lookup where no code context is needed. " +
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION] message already appears " +
-			"  in the conversation for the current investigation.",
+			"  in the conversation for the current investigation. " +
+			"When calling injectGuideline for this condition, set the `content` argument to a brief " +
+			"description of the specific action the agent appears about to take " +
+			"(e.g. 'grep logs for error X', 'edit parser.ts', 'run diagnostic command Y').",
 		injectPrompt: RESEARCH_BEFORE_ACTION_PROMPT,
 		label: "advisory:research-before-action",
 	});
@@ -812,7 +816,9 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- The user asks a clarifying question without asserting a contradiction. " +
 			"- The user expresses uncertainty without providing contradicting evidence. " +
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED] message already appears " +
-			"  in the conversation after the most recent contradicting message.",
+			"  in the conversation after the most recent contradicting message. " +
+			"When calling injectGuideline for this condition, set the `content` argument to the " +
+			"specific assumption or position that was contradicted, quoted or paraphrased from the conversation.",
 		injectPrompt: ASSUMPTION_CHALLENGED_PROMPT,
 		label: "advisory:assumption-challenged",
 	});
@@ -930,7 +936,10 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- No advisory injection appears in the conversation. " +
 			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK] already " +
 			"appears in the conversation after the last [SYSTEM CONTINUATION INSTRUCTIONS: " +
-			"CODE_WORKFLOW], [FLESH_OUT], or [CODE_REVIEW] message.",
+			"CODE_WORKFLOW], [FLESH_OUT], or [CODE_REVIEW] message. " +
+			"When calling injectGuideline for this condition, set the `content` argument to a brief " +
+			"description of the prior task that was interrupted, quoted or paraphrased from " +
+			"the agent's note at the start of the advisory workflow.",
 		injectPrompt: RESUME_TASK_PROMPT,
 		label: "advisory:resume-task",
 	});

@@ -337,13 +337,21 @@ export function makeInjectGuidelineTool(
 				description:
 					"One concise sentence citing the specific observation in the conversation that makes this condition clearly true.",
 			}),
+			content: Type.Optional(
+				Type.String({
+					description:
+						"Optional dynamic value substituted into the guideline's inject prompt wherever {{content}} appears. " +
+						"Use when the guideline's trigger prompt instructs you to supply a specific value (e.g. the assumption that was challenged).",
+				}),
+			),
 		}),
 		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
-			const prompt = promptById.get(params.id);
-			if (prompt === undefined) {
+			const rawPrompt = promptById.get(params.id);
+			if (rawPrompt === undefined) {
 				console.error(`injectGuideline unknown id=${params.id}`);
 				return { content: [{ type: "text" as const, text: `unknown id: ${params.id}` }], details: undefined };
 			}
+			const prompt = params.content !== undefined ? rawPrompt.replaceAll("{{content}}", params.content) : rawPrompt;
 			debugLog(`injectGuideline id=${params.id} reason="${params.reason.slice(0, 120)}" chars=${prompt.length}`);
 			onInject(prompt);
 			return { content: [{ type: "text" as const, text: "injected" }], details: undefined };
