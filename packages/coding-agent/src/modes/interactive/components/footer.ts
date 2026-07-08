@@ -186,8 +186,8 @@ export class FooterComponent implements Component {
 		// Colorize context percentage based on usage
 		let contextPercentStr: string;
 		const autoIndicator = this.autoCompactEnabled ? " (auto)" : "";
-		const keepIndicator = this.keepBranchSessionsEnabled ? " (keep)" : "";
-		const advIndicator = this.advisoryEnabled ? " (adv)" : "";
+		const keepIndicator = this.keepBranchSessionsEnabled ? " (keep:on)" : " (keep:off)";
+		const advIndicator = this.advisoryEnabled ? " (adv:on)" : " (adv:off)";
 		const contextPercentDisplay =
 			contextPercent === "?"
 				? `?/${formatTokens(contextWindow)}${autoIndicator}${keepIndicator}${advIndicator}`
