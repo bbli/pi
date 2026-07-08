@@ -400,6 +400,8 @@ export class ExtensionRunner {
 	private staleMessage: string | undefined;
 	/** Whether the advisory system is enabled. Toggled via setAdvisoryEnabled(). */
 	private _advisoryEnabled = false;
+	/** Listeners notified whenever advisory enabled state changes. */
+	private _advisoryChangeListeners = new Set<(enabled: boolean) => void>();
 	/**
 	 * Continuation prompts queued for serial application across agent runs.
 	 * Populated by _runContinuationsSync; drained one entry per emitAgentEnd call.
@@ -597,11 +599,18 @@ export class ExtensionRunner {
 		if (!enabled) {
 			this._continuationTasks = [];
 		}
+		for (const cb of this._advisoryChangeListeners) cb(enabled);
 	}
 
 	/** Whether the advisory system is currently enabled. */
 	getAdvisoryEnabled(): boolean {
 		return this._advisoryEnabled;
+	}
+
+	/** Subscribe to advisory enabled state changes. Returns an unsubscribe function. */
+	onAdvisoryChange(cb: (enabled: boolean) => void): () => void {
+		this._advisoryChangeListeners.add(cb);
+		return () => this._advisoryChangeListeners.delete(cb);
 	}
 
 	/**

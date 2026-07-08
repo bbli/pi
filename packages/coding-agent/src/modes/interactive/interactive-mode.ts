@@ -460,6 +460,11 @@ export class InteractiveMode {
 		this.footer.setKeepBranchSessions(
 			this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
 		);
+		this.footer.setAdvisoryEnabled(this.resources.extensionRunner.getAdvisoryEnabled());
+		this.resources.extensionRunner.onAdvisoryChange((enabled) => {
+			this.footer.setAdvisoryEnabled(enabled);
+			this.ui.requestRender();
+		});
 
 		// Load hide thinking block setting
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
@@ -4292,6 +4297,7 @@ export class InteractiveMode {
 					clearOnShrink: this.settingsManager.getClearOnShrink(),
 					showTerminalProgress: this.settingsManager.getShowTerminalProgress(),
 					warnings: this.settingsManager.getWarnings(),
+					advisoryEnabled: this.resources.extensionRunner.getAdvisoryEnabled(),
 				},
 				{
 					onAutoCompactChange: (enabled) => {
@@ -4426,6 +4432,9 @@ export class InteractiveMode {
 					},
 					onWarningsChange: (warnings) => {
 						this.settingsManager.setWarnings(warnings);
+					},
+					onAdvisoryEnabledChange: (enabled) => {
+						this.resources.extensionRunner.setAdvisoryEnabled(enabled);
 					},
 					onCancel: () => {
 						done();
