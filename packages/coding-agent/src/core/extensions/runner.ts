@@ -563,10 +563,21 @@ export class ExtensionRunner {
 		return this.extensions.flatMap((e) => [...e.continuations.values()]);
 	}
 
+	/** Maximum characters shown in the footer status for the goal display. */
+	private static readonly _GOAL_DISPLAY_MAX = 60;
+
 	/** Set or clear the session goal. Clears footer status when undefined. */
 	setGoal(text: string | undefined): void {
 		this._goal = text;
-		this.uiContext.setStatus("goal", text ? `goal: ${text}` : undefined);
+		if (text) {
+			const display =
+				text.length > ExtensionRunner._GOAL_DISPLAY_MAX
+					? `${text.slice(0, ExtensionRunner._GOAL_DISPLAY_MAX)}\u2026`
+					: text;
+			this.uiContext.setStatus("goal", `goal: ${display}`);
+		} else {
+			this.uiContext.setStatus("goal", undefined);
+		}
 	}
 
 	/** Get the current session goal, or undefined if none is set. */
