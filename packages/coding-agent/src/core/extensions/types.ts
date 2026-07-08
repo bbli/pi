@@ -1127,8 +1127,9 @@ export interface BranchSessionOptions {
 	systemPromptOverride?: boolean;
 	/**
 	 * Built-in tool names to enable.
-	 * Defaults to ["read", "bash", "edit", "write"] — the same set as the root session
-	 * baseline, so the system prompt "Available tools:" section stays identical.
+	 * Defaults to ["read", "bash", "edit", "write"] — omitting goal_satisfied intentionally
+	 * so the advisory branch session's system prompt stays identical to root's (KV cache
+	 * stable). goal_satisfied is a main-session tool and should not be callable by branch sessions.
 	 * Pass an explicit list to restrict (advisory sessions) or expand the set.
 	 * Pass an empty array for a tools-free session.
 	 */
