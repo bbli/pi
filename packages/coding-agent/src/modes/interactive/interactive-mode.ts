@@ -286,6 +286,7 @@ export class InteractiveMode {
 	private editorContainer: Container;
 	private footer: FooterComponent;
 	private footerDataProvider: FooterDataProvider;
+	private _unsubAdvisoryChange: (() => void) | undefined;
 	// Stored so the same manager can be injected into custom editors, selectors, and extension UI.
 	private keybindings: KeybindingsManager;
 	private version: string;
@@ -461,7 +462,7 @@ export class InteractiveMode {
 			this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
 		);
 		this.footer.setAdvisoryEnabled(this.resources.extensionRunner.getAdvisoryEnabled());
-		this.resources.extensionRunner.onAdvisoryChange((enabled) => {
+		this._unsubAdvisoryChange = this.resources.extensionRunner.onAdvisoryChange((enabled) => {
 			this.footer.setAdvisoryEnabled(enabled);
 			this.ui.requestRender();
 		});
@@ -6129,6 +6130,8 @@ export class InteractiveMode {
 			this.loadingAnimation = undefined;
 		}
 		this.clearExtensionTerminalInputListeners();
+		this._unsubAdvisoryChange?.();
+		this._unsubAdvisoryChange = undefined;
 		this.footer.dispose();
 		this.footerDataProvider.dispose();
 		this.active.unsubscribe();
