@@ -198,17 +198,16 @@ export class AgentManager {
 		const record = this._records.get(id);
 		if (!record) return;
 		if (record.kind !== "branch") return;
+		record.completed = true;
 		if (record.kept) {
 			// User explicitly wants this session preserved — abort but do not dispose.
 			debugLog(`[AgentManager] onDone id=${id} label=${record.label} — kept, aborting only`);
-			record.completed = true;
 			void record.session.abort().catch(() => {});
 			return;
 		}
 		const isFocused = this._focused?.id === id;
 		if (isFocused) {
 			debugLog(`[AgentManager] onDone id=${id} label=${record.label} — focused, deferring disposal`);
-			record.completed = true;
 		} else {
 			debugLog(`[AgentManager] onDone id=${id} label=${record.label} — not focused, removing now`);
 			this.remove(id);
