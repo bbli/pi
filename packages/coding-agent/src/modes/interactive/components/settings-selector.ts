@@ -59,6 +59,7 @@ export interface SettingsConfig {
 	clearOnShrink: boolean;
 	showTerminalProgress: boolean;
 	warnings: WarningSettings;
+	advisoryEnabled: boolean;
 }
 
 export interface SettingsCallbacks {
@@ -88,6 +89,7 @@ export interface SettingsCallbacks {
 	onClearOnShrinkChange: (enabled: boolean) => void;
 	onShowTerminalProgressChange: (enabled: boolean) => void;
 	onWarningsChange: (warnings: WarningSettings) => void;
+	onAdvisoryEnabledChange: (enabled: boolean) => void;
 	onCancel: () => void;
 }
 
@@ -226,6 +228,14 @@ export class SettingsSelectorComponent extends Container {
 				label: "Keep branch sessions",
 				description: "Keep branch sessions alive after completion for inspection (session-only)",
 				currentValue: config.keepBranchSessions ? "true" : "false",
+				values: ["true", "false"],
+			},
+			{
+				id: "advisory",
+				label: "Advisory system",
+				description:
+					"Run a branch-session evaluator after each turn to check registered guidelines and continuations",
+				currentValue: config.advisoryEnabled ? "true" : "false",
 				values: ["true", "false"],
 			},
 			{
@@ -480,6 +490,9 @@ export class SettingsSelectorComponent extends Container {
 						break;
 					case "keep-branch-sessions":
 						callbacks.onKeepBranchSessionsChange(newValue === "true");
+						break;
+					case "advisory":
+						callbacks.onAdvisoryEnabledChange(newValue === "true");
 						break;
 					case "show-images":
 						callbacks.onShowImagesChange(newValue === "true");
