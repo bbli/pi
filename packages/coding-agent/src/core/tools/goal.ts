@@ -18,8 +18,15 @@ export function createGoalSatisfiedToolDefinition(runner: ExtensionRunner) {
 			"injected via [GOAL] has been fully addressed. Do not call this " +
 			"speculatively — only call it when the goal is genuinely met.",
 		parameters: Type.Object({}),
-		execute: async (_toolCallId, _params, _signal, _onUpdate, _ctx) => {
+		execute: async (_toolCallId, _params, _signal, _onUpdate, ctx) => {
+			if (!runner.getGoal()) {
+				return {
+					content: [{ type: "text" as const, text: "No active goal." }],
+					details: undefined,
+				};
+			}
 			runner.markGoalSatisfied();
+			ctx.ui.notify("Goal satisfied.", "info");
 			return {
 				content: [{ type: "text" as const, text: "Goal marked as satisfied." }],
 				details: undefined,

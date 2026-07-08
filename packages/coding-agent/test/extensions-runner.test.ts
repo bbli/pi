@@ -1012,6 +1012,136 @@ describe("ExtensionRunner", () => {
 		});
 	});
 
+	describe("goal injection", () => {
+		const makeRunner = () => {
+			const runtime = createExtensionRuntime();
+			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+			const injected: string[] = [];
+			runner.bindCore(
+				{ ...extensionActions, injectUserMessage: (text) => injected.push(text) },
+				extensionContextActions,
+			);
+			return { runner, injected };
+		};
+
+		it("injects goal as followUp when advisory is disabled and no continuation fires", async () => {
+			const { runner, injected } = makeRunner();
+			runner.setGoal("Summarize what you did");
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+
+			expect(injected).toHaveLength(1);
+			expect(injected[0]).toContain("[GOAL] Summarize what you did");
+			expect(injected[0]).toContain("goal_satisfied");
+		});
+
+		it("re-injects goal on every agent_end until markGoalSatisfied is called", async () => {
+			const { runner, injected } = makeRunner();
+			runner.setGoal("Do X");
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toHaveLength(2);
+
+			runner.markGoalSatisfied();
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toHaveLength(2); // no third injection
+		});
+
+		it("setGoal(undefined) stops injection", async () => {
+			const { runner, injected } = makeRunner();
+			runner.setGoal("Do Y");
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toHaveLength(1);
+
+			runner.setGoal(undefined);
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toHaveLength(1); // no second injection
+		});
+
+		it("does not inject when no goal is set", async () => {
+			const { runner, injected } = makeRunner();
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toHaveLength(0);
+		});
+
+		it("suppresses goal when a continuation fires in the same cycle", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "t1", injectPrompt: "inject-c1" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			const injected: string[] = [];
+
+			runner.bindCore(
+				{
+					...extensionActions,
+					injectUserMessage: (text) => injected.push(text),
+					runBranchSession: async (_prompt, options) => {
+						const tool = options.customTools?.find((t) => t.name === "injectGuideline");
+						await tool?.execute("c1", { id: "c1", reason: "test" }, undefined, undefined, {} as never);
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+			runner.setGoal("My goal");
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+
+			// Only the continuation should be injected, not the goal
+			expect(injected).toHaveLength(1);
+			expect(injected[0]).toBe("inject-c1");
+		});
+
+		it("injects goal after continuation queue is fully drained", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "t1", injectPrompt: "inject-c1" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			const injected: string[] = [];
+
+			runner.bindCore(
+				{
+					...extensionActions,
+					injectUserMessage: (text) => injected.push(text),
+					runBranchSession: async (_prompt, options) => {
+						const tool = options.customTools?.find((t) => t.name === "injectGuideline");
+						// First call: fire c1
+						if (injected.length === 0) {
+							await tool?.execute("c1", { id: "c1", reason: "test" }, undefined, undefined, {} as never);
+						}
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+			runner.setGoal("My goal");
+
+			// Cycle 1: continuation fires, goal suppressed
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toEqual(["inject-c1"]);
+
+			// Cycle 2: no continuation fires, goal fires
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			expect(injected).toHaveLength(2);
+			expect(injected[1]).toContain("[GOAL] My goal");
+		});
+	});
+
 	describe("continuation task queue", () => {
 		/** Helper: find the injectGuideline tool in branch session options and call it for given ids. */
 		const fireInjectTool = async (options: BranchSessionOptions, ids: string[]): Promise<void> => {

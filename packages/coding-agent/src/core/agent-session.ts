@@ -2549,6 +2549,7 @@ export class AgentSession {
 
 	async reload(): Promise<void> {
 		const previousFlagValues = this._extensionRunner.getFlagValues();
+		const previousGoal = this._extensionRunner.getGoal();
 		await emitSessionShutdownEvent(this._extensionRunner, { type: "session_shutdown", reason: "reload" });
 		await this.settingsManager.reload();
 		resetApiProviders();
@@ -2558,6 +2559,10 @@ export class AgentSession {
 			flagValues: previousFlagValues,
 			includeAllExtensionTools: true,
 		});
+		// Restore goal after rebuild — uiContext is already bound inside _buildRuntime.
+		if (previousGoal) {
+			this._extensionRunner.setGoal(previousGoal);
+		}
 
 		const hasBindings =
 			this._extensionUIContext ||

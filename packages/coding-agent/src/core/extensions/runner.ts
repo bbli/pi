@@ -458,6 +458,10 @@ export class ExtensionRunner {
 		this.runtime.getGuidelines = actions.getGuidelines;
 		this.runtime.getContinuations = actions.getContinuations;
 		this.runtime.injectUserMessage = actions.injectUserMessage;
+		// Self-wired: goal state lives on the runner, not on agent-session.
+		this.runtime.setGoal = (text) => this.setGoal(text);
+		this.runtime.getGoal = () => this.getGoal();
+		this.runtime.markGoalSatisfied = () => this.markGoalSatisfied();
 		// Self-wired: advisory state lives on the runner, not on agent-session.
 		this.runtime.setAdvisoryEnabled = (enabled: boolean) => {
 			this._advisoryEnabled = enabled;
@@ -667,6 +671,7 @@ export class ExtensionRunner {
 		// fired this cycle. The LLM calls goal_satisfied when the goal is met.
 		if (this._goal && !continuationFired) {
 			const goalMessage = `[GOAL] ${this._goal}\n\nWhen the goal above has been fully addressed, call the goal_satisfied tool.`;
+			debugLog(`goal injection chars=${goalMessage.length} goal="${this._goal.slice(0, 80)}"`);
 			this.runtime.injectUserMessage(goalMessage, "followUp");
 		}
 		await this.emit(event);

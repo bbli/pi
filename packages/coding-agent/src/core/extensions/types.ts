@@ -1330,6 +1330,15 @@ export interface ExtensionAPI {
 	 */
 	registerContinuation(def: ContinuationDefinition): () => void;
 
+	/** Set or clear the session goal. The goal is re-injected as a followUp at agent_end when no continuation fires. Pass undefined to clear. */
+	setGoal(text: string | undefined): void;
+
+	/** Get the current session goal, or undefined if none is set. */
+	getGoal(): string | undefined;
+
+	/** Mark the current session goal as satisfied. Clears the goal and stops re-injection. */
+	markGoalSatisfied(): void;
+
 	/** Enable or disable the entire advisory system at runtime. */
 	setAdvisoryEnabled(enabled: boolean): void;
 
@@ -1733,6 +1742,12 @@ export interface ExtensionCommandContextActions {
  * Created by loader with throwing action stubs, completed by runner.initialize().
  */
 export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionActions {
+	/** Set or clear the session goal. Self-wired by ExtensionRunner.bindCore(). */
+	setGoal: (text: string | undefined) => void;
+	/** Get the current session goal. Self-wired by ExtensionRunner.bindCore(). */
+	getGoal: () => string | undefined;
+	/** Mark the session goal as satisfied. Self-wired by ExtensionRunner.bindCore(). */
+	markGoalSatisfied: () => void;
 	/** Enable or disable the advisory system. Self-wired by ExtensionRunner.bindCore(). */
 	setAdvisoryEnabled: (enabled: boolean) => void;
 	/** Whether the advisory system is currently enabled. Self-wired by ExtensionRunner.bindCore(). */

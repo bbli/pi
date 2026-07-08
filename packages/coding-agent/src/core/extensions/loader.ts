@@ -154,6 +154,9 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		runBranchSession: notInitialized,
 		getGuidelines: notInitialized,
 		getContinuations: notInitialized,
+		setGoal: notInitialized,
+		getGoal: notInitialized,
+		markGoalSatisfied: notInitialized,
 		setAdvisoryEnabled: notInitialized,
 		getAdvisoryEnabled: notInitialized,
 		injectUserMessage: notInitialized,
@@ -258,6 +261,21 @@ function createExtensionAPI(
 			return () => {
 				extension.continuations.delete(def.id);
 			};
+		},
+
+		setGoal(text: string | undefined): void {
+			runtime.assertActive();
+			runtime.setGoal(text);
+		},
+
+		getGoal(): string | undefined {
+			runtime.assertActive();
+			return runtime.getGoal();
+		},
+
+		markGoalSatisfied(): void {
+			runtime.assertActive();
+			runtime.markGoalSatisfied();
 		},
 
 		setAdvisoryEnabled(enabled: boolean): void {
