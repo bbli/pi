@@ -466,7 +466,7 @@ export class ExtensionRunner {
 		this.runtime.markGoalSatisfied = () => this.markGoalSatisfied();
 		// Self-wired: advisory state lives on the runner, not on agent-session.
 		this.runtime.setAdvisoryEnabled = (enabled: boolean) => {
-			this._advisoryEnabled = enabled;
+			this.setAdvisoryEnabled(enabled);
 		};
 		this.runtime.getAdvisoryEnabled = () => this._advisoryEnabled;
 
