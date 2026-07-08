@@ -2174,6 +2174,7 @@ export class InteractiveMode {
 		title: string,
 		placeholder?: string,
 		opts?: ExtensionUIDialogOptions,
+		prefill?: string,
 	): Promise<string | undefined> {
 		return new Promise((resolve) => {
 			if (opts?.signal?.aborted) {
@@ -2200,7 +2201,7 @@ export class InteractiveMode {
 					this.hideExtensionInput();
 					resolve(undefined);
 				},
-				{ tui: this.ui, timeout: opts?.timeout },
+				{ tui: this.ui, timeout: opts?.timeout, prefill },
 			);
 
 			this.editorContainer.clear();
@@ -2589,6 +2590,11 @@ export class InteractiveMode {
 			if (text === "/name" || text.startsWith("/name ")) {
 				this.handleNameCommand(text);
 				this.editor.setText("");
+				return;
+			}
+			if (text === "/goal" || text.startsWith("/goal ")) {
+				this.editor.setText("");
+				await this.handleGoalCommand(text);
 				return;
 			}
 
@@ -5669,6 +5675,41 @@ export class InteractiveMode {
 		} catch (error) {
 			this.showError(error instanceof Error ? error.message : String(error));
 		}
+	}
+
+	private async handleGoalCommand(text: string): Promise<void> {
+		const runner = this.resources.extensionRunner;
+		const arg = text.startsWith("/goal ") ? text.slice(6).trim() : "";
+
+		if (arg) {
+			runner.setGoal(arg);
+			this.chatContainer.addChild(new Spacer(1));
+			this.chatContainer.addChild(new Text(theme.fg("dim", `Goal set: ${arg}`), 1, 0));
+			this.ui.requestRender();
+			return;
+		}
+
+		// No-arg path: open prefilled input dialog
+		const current = runner.getGoal();
+		const result = await this.showExtensionInput(
+			current ? "Edit goal (clear to delete)" : "Set goal",
+			undefined,
+			undefined,
+			current,
+		);
+		if (result === undefined) {
+			// Dialog cancelled
+			return;
+		}
+		const newGoal = result.trim();
+		runner.setGoal(newGoal || undefined);
+		this.chatContainer.addChild(new Spacer(1));
+		if (newGoal) {
+			this.chatContainer.addChild(new Text(theme.fg("dim", `Goal set: ${newGoal}`), 1, 0));
+		} else {
+			this.chatContainer.addChild(new Text(theme.fg("dim", "Goal cleared."), 1, 0));
+		}
+		this.ui.requestRender();
 	}
 
 	private handleNameCommand(text: string): void {

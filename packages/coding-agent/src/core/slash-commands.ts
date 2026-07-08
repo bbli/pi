@@ -38,6 +38,10 @@ export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<BuiltinSlashCommand> = [
 	{ name: "kill", description: "Kill the focused agent session (cannot kill root session)" },
 	{ name: "resume", description: "Resume a different session" },
 	{
+		name: "goal",
+		description: "Set or view session goal (re-injected as follow-up at agent_end when no continuations fire)",
+	},
+	{
 		name: "learn",
 		description: "Analyze this session for guideline/continuation effectiveness and friction patterns",
 	},

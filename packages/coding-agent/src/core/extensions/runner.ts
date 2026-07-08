@@ -410,6 +410,11 @@ export class ExtensionRunner {
 	 * Guards against re-entrant advisory runs when turns fire rapidly.
 	 */
 	private _advisoryRunning = false;
+	/**
+	 * Active session goal set via /goal. Injected as a followUp at agent_end
+	 * whenever no continuation fired. Cleared when the LLM calls goal_satisfied.
+	 */
+	private _goal: string | undefined = undefined;
 
 	constructor(
 		extensions: Extension[],
@@ -554,6 +559,23 @@ export class ExtensionRunner {
 		return this.extensions.flatMap((e) => [...e.continuations.values()]);
 	}
 
+	/** Set or clear the session goal. Clears footer status when undefined. */
+	setGoal(text: string | undefined): void {
+		this._goal = text;
+		this.uiContext.setStatus("goal", text ? `goal: ${text}` : undefined);
+	}
+
+	/** Get the current session goal, or undefined if none is set. */
+	getGoal(): string | undefined {
+		return this._goal;
+	}
+
+	/** Mark the session goal as satisfied. Clears the goal and footer status. */
+	markGoalSatisfied(): void {
+		this._goal = undefined;
+		this.uiContext.setStatus("goal", undefined);
+	}
+
 	/** Enable or disable the advisory system at runtime. */
 	setAdvisoryEnabled(enabled: boolean): void {
 		this._advisoryEnabled = enabled;
@@ -619,12 +641,14 @@ export class ExtensionRunner {
 	 * run the branch session and inject the first task if any fired.
 	 */
 	async emitAgentEnd(event: AgentEndEvent): Promise<void> {
+		let continuationFired = false;
 		if (this._advisoryEnabled) {
 			if (this._continuationTasks.length > 0) {
 				// Tasks remain from a prior evaluation pass - drain one without re-running
 				// the branch session.
 				const next = this._continuationTasks.shift()!;
 				this.runtime.injectUserMessage(next, "followUp");
+				continuationFired = true;
 			} else {
 				const continuations = this.getAllContinuations();
 				if (continuations.length > 0) {
@@ -634,9 +658,16 @@ export class ExtensionRunner {
 					if (this._continuationTasks.length > 0) {
 						const next = this._continuationTasks.shift()!;
 						this.runtime.injectUserMessage(next, "followUp");
+						continuationFired = true;
 					}
 				}
 			}
+		}
+		// Inject the session goal as a followUp if one is active and no continuation
+		// fired this cycle. The LLM calls goal_satisfied when the goal is met.
+		if (this._goal && !continuationFired) {
+			const goalMessage = `[GOAL] ${this._goal}\n\nWhen the goal above has been fully addressed, call the goal_satisfied tool.`;
+			this.runtime.injectUserMessage(goalMessage, "followUp");
 		}
 		await this.emit(event);
 	}
