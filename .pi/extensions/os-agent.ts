@@ -360,8 +360,13 @@ Using the context established in Phase 1, structure your review using Markdown h
 
 If a code change is required, show the original code and propose a specific fix
 
+Each finding must include a priority label in its heading:
+- 🔴 Critical — correctness bug, regression, data loss, or security issue; must fix
+- 🟡 Important — meaningful improvement with clear value; should address in this pass
+- 🔵 Minor — style, polish, or low-risk deferral; surface but do not require implementation
+
 Example Format:
-### --------CODE REVIEW 1: src/components/UserManager.js:45-------
+### --------CODE REVIEW 1: src/components/UserManager.js:45 — 🟡 Important-------
 The variable name is unclear and doesn't follow naming conventions.
 
 Original:
@@ -413,6 +418,7 @@ Conclude with a SUMMARY section using:
   - Exact test file paths and test names
   - Step-by-step reasoning for each recommended test
   - Priority levels for each test based on risk assessment
+- **IMPLEMENTATION SCOPE**: List only 🔴 Critical and 🟡 Important findings here by name. 🔵 Minor findings appear in the review above but are excluded from this list. The Code Implementation Workflow only triggers when this list is non-empty.
 - One to two sentence overall assessment of the changes
 - If helpful, include a free form ASCII text diagram to clarify key architectural or flow concepts affected by the changes
 
@@ -420,6 +426,7 @@ Conclude with a SUMMARY section using:
 - **All items marked with (CRITICAL) are mandatory requirements that must be addressed in every review**
 - **ALWAYS produce an architectural diagram in Phase 1 and an architectural review in Phase 2 - structural problems are as important as local correctness issues**
 - **ALWAYS search the codebase for callers of modified functions - this is critical to prevent breaking changes**
+- **ALWAYS assign a priority (🔴 Critical / 🟡 Important / 🔵 Minor) to every finding in the heading** — this controls whether it flows to implementation
 - Only provide feedback where changes are actually needed
 - Skip files that don't require any modifications
 - Justify all reasoning with specific code examples
@@ -429,7 +436,8 @@ Conclude with a SUMMARY section using:
 - **ALWAYS include specific unit tests to run in the summary with detailed reasoning - this is a critical requirement**
 - **ALWAYS include logging and observability analysis and recommendations - this is frequently overlooked and is critical for production support**
 - **ALWAYS include caller compatibility analysis in the summary - breaking changes to callers are a critical risk**
-- **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**`;
+- **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**
+- **ALWAYS include IMPLEMENTATION SCOPE in the summary listing only Critical and Important findings**`;
 
 const RESEARCH_BEFORE_ACTION_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION — Before taking the next action, \
@@ -601,7 +609,13 @@ For each candidate:
 - New capability: what it would add (one sentence)
 - Why plausible: what in the code suggests this is a reasonable extension
 - Scope signal: small addition vs. significant new surface area
+- Priority: 🔴 Critical / 🟡 Important / 🔵 Minor
 - Focused diagram (REQUIRED): scoped ASCII diagram showing where the capability attaches
+
+Priority definitions for BEHAVIORS:
+- 🔴 Critical — missing functionality that blocks correct use of the feature as designed
+- 🟡 Important — clear value, well-scoped, worth implementing in the next pass
+- 🔵 Minor — nice-to-have, speculative, or unlikely to be needed; surface for awareness only
 
 Keep this to highest-signal candidates only — not a brainstorming dump.
 
@@ -621,7 +635,13 @@ For each candidate:
 - Gap: what input/state isn't handled
 - Why plausible: why this scenario could realistically occur
 - Current behavior if triggered (e.g. "throws uncaught exception", "silently no-ops")
+- Priority: 🔴 Critical / 🟡 Important / 🔵 Minor
 - Focused diagram (REQUIRED): scoped ASCII diagram pinpointing where the gap lives
+
+Priority definitions for EDGE CASES:
+- 🔴 Critical — likely to occur in normal use; significant impact if triggered (crash, data loss, wrong output)
+- 🟡 Important — plausible scenario with noticeable impact; worth guarding against in this pass
+- 🔵 Minor — unlikely, low-impact, or acceptable as-is; surface for awareness only
 
 Do not propose fixes — surface the gap and ask what behavior is wanted.
 
@@ -639,6 +659,7 @@ Summary: N candidates identified
    - New capability: ...
    - Why plausible: ...
    - Scope signal: ...
+   - Priority: 🔴 / 🟡 / 🔵
    - Diagram: <focused ASCII diagram>
 
 ## ⚠️ CANDIDATE EDGE CASES (Existing-Scope Gaps)
@@ -649,11 +670,16 @@ Summary: N candidates identified
    - Gap: ...
    - Why plausible: ...
    - Current behavior if triggered: ...
+   - Priority: 🔴 / 🟡 / 🔵
    - Diagram: <focused ASCII diagram>
 
 ## 📝 RECOMMENDATIONS
-- BEHAVIORS to implement: [list by name, or "none"]
-- EDGE CASES to address: [list by name with brief intended resolution, or "none"]
+Only 🔴 Critical and 🟡 Important items appear here. 🔵 Minor items are surfaced above
+for awareness but excluded — the Code Implementation Workflow only triggers for Critical
+and Important items.
+
+- BEHAVIORS to implement (🔴 + 🟡 only): [list by name, or "none"]
+- EDGE CASES to address (🔴 + 🟡 only): [list by name with brief intended resolution, or "none"]
 ~~~
 
 Keep BEHAVIORS and EDGE CASES in two clearly separate sections in that order.
@@ -669,7 +695,10 @@ genuinely missing.
 - Static analysis only — no test generation or execution, no broad exploratory search.
 - Never blend BEHAVIORS with EDGE CASES. Keep them in separate, clearly labeled sections.
 - Step 2 is prose only — one focused diagram per candidate in Steps 3 and 4 only.
-- Every candidate must be traceable to something specific observed in the code.`;
+- Every candidate must be traceable to something specific observed in the code.
+- Assign a Priority (🔴 Critical / 🟡 Important / 🔵 Minor) to every candidate. Only Critical \
+and Important items appear in RECOMMENDATIONS — Minor items are surfaced but not forwarded \
+to implementation.`;
 
 
 
@@ -863,11 +892,10 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- A new feature, refactor, or architectural change where the approach is not yet determined. " +
 			"- The change touches multiple files or components without a clear pre-existing plan. " +
 			"- The agent would need to discover callers, data flows, or cross-file impacts before acting. " +
-			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] has recently appeared with findings " +
-			"  or suggestions to implement. " +
-			"- The most recent assistant message is a Flesh Out response containing " +
-			"  ## 🆕 CANDIDATE BEHAVIORS / ## ⚠️ CANDIDATE EDGE CASES and a ## 📝 RECOMMENDATIONS " +
-			"  section — implement the recommended items. " +
+			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] has recently appeared with 🔴 Critical " +
+			"  or 🟡 Important findings listed in its IMPLEMENTATION SCOPE section. " +
+			"- The most recent assistant message is a Flesh Out response whose ## 📝 RECOMMENDATIONS " +
+			"  section contains 🔴 Critical or 🟡 Important items (not 'none' on both lines). " +
 			"Strong signals that this does NOT apply: " +
 			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW] has already been injected for " +
 			"  this task — do not re-trigger for work already in progress or committed. " +
@@ -875,6 +903,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"  (⚠️ IMPLEMENTATION UNCERTAINTIES), or research points — without an accompanying code " +
 			"  directive or Flesh Out recommendations. Questions and uncertainties are handled by " +
 			"  RESEARCH_POINTS, not CODE_WORKFLOW. " +
+			"- The most recent CODE_REVIEW or FLESH_OUT contains only 🔵 Minor findings — " +
+			"  its IMPLEMENTATION SCOPE or RECOMMENDATIONS lists only 'none' or Minor-only items. " +
 			"- The agent's immediate task is to search, read, or explain code — not implement it. " +
 			"- The user expresses future intent without directing the agent to act now " +
 			"  (e.g., 'we should probably...', 'this might need to change', 'I think X should do Y'). " +
