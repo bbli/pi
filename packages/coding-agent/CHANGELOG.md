@@ -12,6 +12,8 @@
 
 ### Added
 
+- Added `/goal [question]` command. Sets a session-level goal that is re-injected as a follow-up message at every `agent_end` where no continuation fired. The LLM calls the new `goal_satisfied` built-in tool when the goal is met, which clears the goal and stops re-injection. `/goal` with no args opens a prefilled edit dialog — clear the field to delete the goal. Active goal shown in the footer.
+
 - Branch sessions (`runBranchSession`, `researchConversationQuestion`) that complete while the user is focused on them in the TUI are now kept alive until the user navigates away, instead of being disposed immediately on turn completion.
 
 - Added `completed` field to `SubagentRecord` (exported). Set to `true` by `AgentManager.onDone()` when a branch session finishes while focused; cleared automatically when focus moves away.
