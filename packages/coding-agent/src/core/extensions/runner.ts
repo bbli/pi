@@ -670,7 +670,7 @@ export class ExtensionRunner {
 		// Inject the session goal as a followUp if one is active and no continuation
 		// fired this cycle. The LLM calls goal_satisfied when the goal is met.
 		if (this._goal && !continuationFired) {
-			const goalMessage = `[GOAL] ${this._goal}\n\nWhen the goal above has been fully addressed, call the goal_satisfied tool.`;
+			const goalMessage = `[GOAL] ${this._goal}\n\nWhen the goal above has been fully addressed, call the goal_satisfied tool. Otherwise continue working towards it`;
 			debugLog(`goal injection chars=${goalMessage.length} goal="${this._goal.slice(0, 80)}"`);
 			this.runtime.injectUserMessage(goalMessage, "followUp");
 		}
