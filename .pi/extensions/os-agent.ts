@@ -304,9 +304,9 @@ Using the context established in Phase 1, structure your review using Markdown h
   - Note any state or consistency concerns arising from new component interactions
 
 3. **Workflow and Interaction Impact Analysis (CRITICAL)**:
-  This section is mandatory. Its focus is **emergent behavior** — effects that arise from combining the new change with existing system mechanisms, where each component is locally correct but their combination produces an unintended result. This is explicitly not about edge cases or concurrency; it is about the common, happy-path scenario.
+  This section is mandatory. It focuses on **normal, expected usage flows** — scenarios where both the new and existing mechanisms are working correctly, but their combination produces an effect the author didn't anticipate. This is distinct from edge cases (unusual inputs) and concurrency (parallel execution): it is about the common happy-path scenario where independently correct code produces an unintended combined result.
 
-  **For each distinct behavior the change adds:**
+  **For each distinct behavior the change adds**, use the lenses below as needed — apply the ones relevant to the change at hand, not as an exhaustive checklist:
 
   - **Identify existing mechanisms that handle the same concern.** Search the codebase for other code paths that produce the same kind of effect (same state mutation, same message type, same event injection, same side effect). Ask: *can both the new and existing mechanism fire for the same triggering condition within the same execution context?*
   - **Trace the most common end-to-end scenario.** Walk through the normal usage flow and trace what the system now does that it didn't before. Check whether any step now happens **more than once** or **no longer happens** as a result of the change.
@@ -314,10 +314,13 @@ Using the context established in Phase 1, structure your review using Markdown h
   - **Check for implicit ordering assumptions.** Does the new code assume a particular order in which existing events fire or other mechanisms run? Would a change to that ordering break the new code silently?
 
   **Format findings as:**
+  > **Severity:** [🔴 Critical / 🟡 Important / 🔵 Minor]
   > **Scenario:** [description of the common usage path]
   > **Combined effect:** [what the new + existing mechanisms produce together]
   > **Expected vs. actual:** [what the user/developer would expect vs. what actually happens]
   > **Trigger condition:** [exactly when this manifests]
+
+  If no cross-mechanism interactions are found, state that explicitly — this is a valid and complete finding.
 
 4. **Edge Cases and Control Flow Analysis**:
   - Think critically about edge cases for newly implemented code
