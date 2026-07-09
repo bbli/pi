@@ -913,6 +913,34 @@ describe("ExtensionRunner", () => {
 					.sort(),
 			).toEqual(["a", "b"]);
 		});
+
+		it("getAllGuidelines deduplicates by id across extensions (first wins)", async () => {
+			const ext1 = `export default function(pi) { pi.registerGuideline({ id: "shared", triggerPrompt: "from-ext1", injectPrompt: "i" }); }`;
+			const ext2 = `export default function(pi) { pi.registerGuideline({ id: "shared", triggerPrompt: "from-ext2", injectPrompt: "i" }); }`;
+			fs.writeFileSync(path.join(extensionsDir, "ext1.ts"), ext1);
+			fs.writeFileSync(path.join(extensionsDir, "ext2.ts"), ext2);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			const guidelines = runner.getAllGuidelines();
+
+			expect(guidelines).toHaveLength(1);
+			expect(guidelines[0]?.triggerPrompt).toBe("from-ext1");
+		});
+
+		it("getAllContinuations deduplicates by id across extensions (first wins)", async () => {
+			const ext1 = `export default function(pi) { pi.registerContinuation({ id: "shared", triggerPrompt: "from-ext1", injectPrompt: "i" }); }`;
+			const ext2 = `export default function(pi) { pi.registerContinuation({ id: "shared", triggerPrompt: "from-ext2", injectPrompt: "i" }); }`;
+			fs.writeFileSync(path.join(extensionsDir, "ext1.ts"), ext1);
+			fs.writeFileSync(path.join(extensionsDir, "ext2.ts"), ext2);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			const continuations = runner.getAllContinuations();
+
+			expect(continuations).toHaveLength(1);
+			expect(continuations[0]?.triggerPrompt).toBe("from-ext1");
+		});
 	});
 
 	describe("makeInjectGuidelineTool", () => {

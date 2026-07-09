@@ -562,14 +562,28 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
-	/** Collect all guidelines registered across all loaded extensions. */
+	/** Collect all guidelines registered across all loaded extensions, deduplicating by id (first wins). */
 	getAllGuidelines(): GuidelineDefinition[] {
-		return this.extensions.flatMap((e) => [...e.guidelines.values()]);
+		const seen = new Set<string>();
+		return this.extensions
+			.flatMap((e) => [...e.guidelines.values()])
+			.filter((g) => {
+				if (seen.has(g.id)) return false;
+				seen.add(g.id);
+				return true;
+			});
 	}
 
-	/** Collect all continuations registered across all loaded extensions. */
+	/** Collect all continuations registered across all loaded extensions, deduplicating by id (first wins). */
 	getAllContinuations(): ContinuationDefinition[] {
-		return this.extensions.flatMap((e) => [...e.continuations.values()]);
+		const seen = new Set<string>();
+		return this.extensions
+			.flatMap((e) => [...e.continuations.values()])
+			.filter((c) => {
+				if (seen.has(c.id)) return false;
+				seen.add(c.id);
+				return true;
+			});
 	}
 
 	/** Maximum characters shown in the footer status for the goal display. */
