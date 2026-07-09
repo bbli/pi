@@ -66,6 +66,8 @@ Does the prompt instruct the receiver to apply its content to the current task? 
 ### 6. Acknowledge the interruption *(advisory injection prompts — long workflows only)*
 If the advisory may fire while the receiver is mid-task, does it ask the receiver to briefly note what was in progress before entering the workflow, and to return to it afterward? Without this, the workflow completes but the prior context is silently abandoned.
 
+Also: if multiple advisories in a group may fire in the same turn, does this prompt note that other co-active advisories may be present and that their findings should not be discarded? Without this, one advisory's findings can be silently lost when another takes over.
+
 ---
 
 ## Phase 3: Anti-Pattern Scan
@@ -83,6 +85,7 @@ Check the prompt against each anti-pattern. For any match, flag it as a finding 
 | No closing instruction — findings | Model treats returned information as passive context rather than input to act on |
 | No closing instruction — uncertainties | Model escalates every gap into more research, or discards it |
 | No interruption acknowledgment *(advisory, long workflow)* | Prior task is silently abandoned when the advisory fires mid-task |
+| No co-active advisory acknowledgment *(advisory, may co-fire)* | Co-active advisory findings are silently discarded when this prompt takes over |
 
 ---
 
@@ -183,6 +186,11 @@ For workflows long enough to displace the interrupted task, instruct the receive
 
 This applies most strongly to workflows that may fire at any point during an active task (e.g., CODE_WORKFLOW). It is less applicable to advisories that fire at natural task boundaries (e.g., post-implementation review or flesh-out prompts), where there is typically nothing in progress to interrupt.
 
+A related case: when multiple advisories in a group may fire in the same turn (e.g., two review-phase continuations), one advisory taking over can cause the receiver to discard the other's findings. If your advisory belongs to such a group, note that other co-active advisories may be present and suggest the receiver complete all of them before any downstream workflow triggers.
+
+- ❌ No co-active acknowledgment — one advisory fires, the other's findings are silently lost
+- ✅ `"Note: this prompt may fire alongside other [group] advisories in the same turn. If that appears to be the case, you may want to complete all of them before proceeding — the downstream workflow will apply the combined findings."`
+
 ---
 
 ## Vocabulary Reference
@@ -201,6 +209,7 @@ Use freeing language, not locking language:
 | Closing — findings | *(absent)* | `apply these findings to the current task` |
 | Closing — uncertainties | *(absent)* | `reflect on any uncertainties flagged` |
 | Interruption *(advisory, long workflow)* | *(absent)* | `"Before starting, briefly note what you were in the middle of..."` |
+| Co-active advisories *(advisory, may co-fire)* | *(absent)* | `"Note: this prompt may fire alongside other [group] advisories in the same turn..."` |
 
 ---
 

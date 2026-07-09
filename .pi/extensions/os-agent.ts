@@ -165,7 +165,11 @@ You are about to debug an issue. Before making any changes:
 const REVIEW_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW — You must work through this checklist for the commit \
 just made before proceeding. Skip only if a review for this specific commit has already \
-been completed.]
+been completed. \
+Note: this prompt may fire alongside other review-phase continuations in the same turn. \
+If that appears to be the case — another review continuation is present in this turn but not yet \
+completed — you may want to complete all active review continuations before CODE_WORKFLOW \
+triggers, since CODE_WORKFLOW will apply the combined findings from all of them.]
 
 ### System Role
 You are a senior software engineer performing a comprehensive code review for a colleague. Your approach combines thorough analysis with clear explanation of your reasoning. Follow the following three-phase procedure:
@@ -541,7 +545,11 @@ Skip if any of these apply: \
 (1) A FLESH_OUT analysis has already been completed for this implementation. \
 (2) A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] message appeared in the conversation \
 before the most recent implementation — those findings produce targeted fixes, not new scope. \
-(3) The user asked for a specific, bounded change: a bug fix, refactor, rename, or targeted edit.]
+(3) The user asked for a specific, bounded change: a bug fix, refactor, rename, or targeted edit. \
+Note: this prompt may fire alongside other review-phase continuations in the same turn. \
+If that appears to be the case — another review continuation is present in this turn but not yet \
+completed — you may want to complete all active review continuations before CODE_WORKFLOW \
+triggers, since CODE_WORKFLOW will apply the combined findings from all of them.]
 
 # Implementation Fleshing-Out Prompt
 
@@ -905,6 +913,9 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"  RESEARCH_POINTS, not CODE_WORKFLOW. " +
 			"- The most recent CODE_REVIEW or FLESH_OUT contains only 🔵 Minor findings — " +
 			"  its IMPLEMENTATION SCOPE or RECOMMENDATIONS lists only 'none' or Minor-only items. " +
+			"- One or more review-phase continuations (e.g. FLESH_OUT, CODE_REVIEW) are present in this " +
+			"  turn but have not yet received completed responses — consider deferring until all active " +
+			"  review continuations have settled. " +
 			"- The agent's immediate task is to search, read, or explain code — not implement it. " +
 			"- The user expresses future intent without directing the agent to act now " +
 			"  (e.g., 'we should probably...', 'this might need to change', 'I think X should do Y'). " +
