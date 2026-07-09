@@ -1233,27 +1233,6 @@ describe("ExtensionRunner", () => {
 			expect(injected[0]?.text).toContain("Goal B");
 			expect(injected[0]?.text).not.toContain("Goal A");
 		});
-
-		it("suppresses agent_end followUp when a steer already fired this run", async () => {
-			const { runner, injected } = makeRunner();
-			runner.setGoal("My goal");
-
-			const turnEvent: TurnStartEvent = { type: "turn_start", turnIndex: 0, timestamp: 0 };
-			// Advance to turn 14 (no steer yet)
-			for (let i = 0; i < 14; i++) {
-				await runner.emitTurnStart({ ...turnEvent, turnIndex: i });
-			}
-			expect(injected).toHaveLength(0);
-
-			// Turn 15: steer fires
-			await runner.emitTurnStart({ ...turnEvent, turnIndex: 14 });
-			expect(injected).toHaveLength(1);
-			expect(injected[0]?.mode).toBe("steer");
-
-			// agent_end in same run: followUp must be suppressed
-			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			expect(injected).toHaveLength(1);
-		});
 	});
 
 	describe("continuation task queue", () => {

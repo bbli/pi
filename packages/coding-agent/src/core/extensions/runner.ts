@@ -426,8 +426,6 @@ export class ExtensionRunner {
 	private _goal: string | undefined = undefined;
 	/** Turn counter for goal steer injection. Persistent across agent runs; resets when goal changes. */
 	private _goalTurnCount = 0;
-	/** True if a goal steer was injected in the current agent run. Suppresses the agent_end followUp for that run. */
-	private _goalSteerFiredThisRun = false;
 
 	constructor(
 		extensions: Extension[],
@@ -649,16 +647,12 @@ export class ExtensionRunner {
 	 * Emit turn_start to extension handlers.
 	 */
 	async emitTurnStart(event: TurnStartEvent): Promise<void> {
-		if (event.turnIndex === 0) {
-			this._goalSteerFiredThisRun = false;
-		}
 		if (this._goal) {
 			this._goalTurnCount++;
 			if (this._goalTurnCount % 15 === 0) {
 				const goalMessage = this._buildGoalMessage();
 				debugLog(`goal steer injection at turn ${this._goalTurnCount} chars=${goalMessage.length}`);
 				this.runtime.injectUserMessage(goalMessage, "steer");
-				this._goalSteerFiredThisRun = true;
 			}
 		}
 		await this.emit(event);
@@ -734,7 +728,7 @@ export class ExtensionRunner {
 		}
 		// Inject the session goal as a followUp if one is active and no continuation
 		// fired this cycle. The LLM calls goal_satisfied when the goal is met.
-		if (this._goal && !continuationFired && !this._goalSteerFiredThisRun) {
+		if (this._goal && !continuationFired) {
 			const goalMessage = this._buildGoalMessage();
 			debugLog(`goal followUp injection chars=${goalMessage.length} goal="${this._goal.slice(0, 80)}"`);
 			this.runtime.injectUserMessage(goalMessage, "followUp");
