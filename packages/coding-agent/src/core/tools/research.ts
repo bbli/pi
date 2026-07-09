@@ -83,7 +83,7 @@ export function makeResearchTool(session: AgentSession, manager: AgentManager): 
 						label: "research",
 						seedContext: true,
 						abortSignal: signal,
-						injectEvery: { turns: 3, message: RESEARCH_REMINDER_TEXT },
+						injectEvery: { turns: 5, message: RESEARCH_REMINDER_TEXT },
 					},
 					session,
 					manager,

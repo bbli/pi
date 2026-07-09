@@ -198,7 +198,7 @@ export async function runBranchSession(
 					turnCount++;
 					if (turnCount % turns === 0) {
 						debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
-						void branchSession.followUp(message);
+						void branchSession.steer(message);
 					}
 				});
 			}
