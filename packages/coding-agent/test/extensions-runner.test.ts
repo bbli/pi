@@ -16,6 +16,7 @@ import type {
 	ExtensionContextActions,
 	ExtensionUIContext,
 	ProviderConfig,
+	TurnStartEvent,
 } from "../src/core/extensions/types.ts";
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
 import { ModelRegistry } from "../src/core/model-registry.ts";
@@ -1044,9 +1045,9 @@ describe("ExtensionRunner", () => {
 		const makeRunner = () => {
 			const runtime = createExtensionRuntime();
 			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-			const injected: string[] = [];
+			const injected: Array<{ text: string; mode: "steer" | "followUp" }> = [];
 			runner.bindCore(
-				{ ...extensionActions, injectUserMessage: (text) => injected.push(text) },
+				{ ...extensionActions, injectUserMessage: (text, mode) => injected.push({ text, mode }) },
 				extensionContextActions,
 			);
 			return { runner, injected };
@@ -1059,8 +1060,9 @@ describe("ExtensionRunner", () => {
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 
 			expect(injected).toHaveLength(1);
-			expect(injected[0]).toContain("[GOAL] Summarize what you did");
-			expect(injected[0]).toContain("goal_satisfied");
+			expect(injected[0]?.text).toContain("[GOAL] Summarize what you did");
+			expect(injected[0]?.text).toContain("goal_satisfied");
+			expect(injected[0]?.mode).toBe("followUp");
 		});
 
 		it("re-injects goal on every agent_end until markGoalSatisfied is called", async () => {
@@ -1167,6 +1169,69 @@ describe("ExtensionRunner", () => {
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(injected).toHaveLength(2);
 			expect(injected[1]).toContain("[GOAL] My goal");
+		});
+
+		it("injects goal as steer on every 15th turn start", async () => {
+			const { runner, injected } = makeRunner();
+			runner.setGoal("My goal");
+
+			const turnEvent: TurnStartEvent = { type: "turn_start", turnIndex: 0, timestamp: 0 };
+			for (let i = 0; i < 14; i++) {
+				await runner.emitTurnStart(turnEvent);
+			}
+			expect(injected).toHaveLength(0);
+
+			await runner.emitTurnStart(turnEvent);
+			expect(injected).toHaveLength(1);
+			expect(injected[0]?.mode).toBe("steer");
+			expect(injected[0]?.text).toContain("[GOAL] My goal");
+			expect(injected[0]?.text).toContain("goal_satisfied");
+		});
+
+		it("_goalTurnCount persists across agent_end boundaries", async () => {
+			const { runner, injected } = makeRunner();
+			runner.setGoal("My goal");
+
+			const turnEvent: TurnStartEvent = { type: "turn_start", turnIndex: 0, timestamp: 0 };
+			for (let i = 0; i < 14; i++) {
+				await runner.emitTurnStart(turnEvent);
+			}
+			// agent_end fires a followUp injection but does not reset the turn counter
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+			const countAfterAgentEnd = injected.length; // followUp from agent_end
+			expect(injected.every((i) => i.mode === "followUp")).toBe(true);
+
+			// 15th turn globally — steer must fire
+			await runner.emitTurnStart(turnEvent);
+			expect(injected).toHaveLength(countAfterAgentEnd + 1);
+			expect(injected[injected.length - 1]?.mode).toBe("steer");
+		});
+
+		it("counter resets when goal is replaced via setGoal", async () => {
+			const { runner, injected } = makeRunner();
+			runner.setGoal("Goal A");
+
+			const turnEvent: TurnStartEvent = { type: "turn_start", turnIndex: 0, timestamp: 0 };
+			for (let i = 0; i < 14; i++) {
+				await runner.emitTurnStart(turnEvent);
+			}
+			expect(injected).toHaveLength(0); // no steer yet
+
+			// Replace the goal — counter should reset to 0
+			runner.setGoal("Goal B");
+
+			// 14 more turns under Goal B — still no steer (counter restarted)
+			for (let i = 0; i < 14; i++) {
+				await runner.emitTurnStart(turnEvent);
+			}
+			expect(injected).toHaveLength(0);
+
+			// 15th turn under Goal B — steer fires with new goal text
+			await runner.emitTurnStart(turnEvent);
+			expect(injected).toHaveLength(1);
+			expect(injected[0]?.mode).toBe("steer");
+			expect(injected[0]?.text).toContain("Goal B");
+			expect(injected[0]?.text).not.toContain("Goal A");
 		});
 	});
 
