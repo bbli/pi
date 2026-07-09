@@ -2568,6 +2568,22 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
+			if (text === "/settings:keep") {
+				const current = this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true;
+				const enabled = !current;
+				this.resources.extensionRunner.setFlagValue("keep-branch-sessions", enabled);
+				if (enabled) {
+					for (const record of this.manager.getAll()) {
+						if (record.kind === "branch") {
+							this.manager.setKept(record.id, true);
+						}
+					}
+				}
+				this.footer.setKeepBranchSessions(enabled);
+				this.editor.setText("");
+				this.showStatus(`Keep branch sessions: ${enabled ? "on" : "off"}`);
+				return;
+			}
 			if (text === "/scoped-models") {
 				this.editor.setText("");
 				await this.showModelsSelector();
