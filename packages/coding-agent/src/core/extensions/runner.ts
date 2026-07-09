@@ -424,6 +424,8 @@ export class ExtensionRunner {
 	 * whenever no continuation fired. Cleared when the LLM calls goal_satisfied.
 	 */
 	private _goal: string | undefined = undefined;
+	/** Turn counter for goal steer injection. Persistent across agent runs; resets when goal changes. */
+	private _goalTurnCount = 0;
 
 	constructor(
 		extensions: Extension[],
@@ -589,9 +591,15 @@ export class ExtensionRunner {
 	/** Maximum characters shown in the footer status for the goal display. */
 	private static readonly _GOAL_DISPLAY_MAX = 60;
 
+	/** Build the goal reminder message injected into the main session. */
+	private _buildGoalMessage(): string {
+		return `[GOAL] ${this._goal}\n\nPlan:\n1. Is what we are currently doing keeping on track with the goal: ${this._goal}\n2. If we are done, have we called the goal_satisfied tool. Otherwise continue working towards it`;
+	}
+
 	/** Set or clear the session goal. Clears footer status when undefined. */
 	setGoal(text: string | undefined): void {
 		this._goal = text;
+		this._goalTurnCount = 0;
 		if (text) {
 			const display =
 				text.length > ExtensionRunner._GOAL_DISPLAY_MAX
@@ -611,6 +619,7 @@ export class ExtensionRunner {
 	/** Mark the session goal as satisfied. Clears the goal and footer status. */
 	markGoalSatisfied(): void {
 		this._goal = undefined;
+		this._goalTurnCount = 0;
 		this.uiContext.setStatus("goal", undefined);
 	}
 
@@ -638,6 +647,14 @@ export class ExtensionRunner {
 	 * Emit turn_start to extension handlers.
 	 */
 	async emitTurnStart(event: TurnStartEvent): Promise<void> {
+		if (this._goal) {
+			this._goalTurnCount++;
+			if (this._goalTurnCount % 15 === 0) {
+				const goalMessage = this._buildGoalMessage();
+				debugLog(`goal steer injection at turn ${this._goalTurnCount} chars=${goalMessage.length}`);
+				this.runtime.injectUserMessage(goalMessage, "steer");
+			}
+		}
 		await this.emit(event);
 	}
 
@@ -712,8 +729,8 @@ export class ExtensionRunner {
 		// Inject the session goal as a followUp if one is active and no continuation
 		// fired this cycle. The LLM calls goal_satisfied when the goal is met.
 		if (this._goal && !continuationFired) {
-			const goalMessage = `[GOAL] ${this._goal}\n\nWhen the goal above has been fully addressed, call the goal_satisfied tool. Otherwise continue working towards it`;
-			debugLog(`goal injection chars=${goalMessage.length} goal="${this._goal.slice(0, 80)}"`);
+			const goalMessage = this._buildGoalMessage();
+			debugLog(`goal followUp injection chars=${goalMessage.length} goal="${this._goal.slice(0, 80)}"`);
 			this.runtime.injectUserMessage(goalMessage, "followUp");
 		}
 		await this.emit(event);
