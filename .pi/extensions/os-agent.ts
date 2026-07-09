@@ -303,13 +303,29 @@ Using the context established in Phase 1, structure your review using Markdown h
   - Identify single points of failure or unbounded resource usage introduced by the change
   - Note any state or consistency concerns arising from new component interactions
 
-3. **Edge Cases and Control Flow Analysis**:
+3. **Workflow and Interaction Impact Analysis (CRITICAL)**:
+  This section is mandatory. Its focus is **emergent behavior** — effects that arise from combining the new change with existing system mechanisms, where each component is locally correct but their combination produces an unintended result. This is explicitly not about edge cases or concurrency; it is about the common, happy-path scenario.
+
+  **For each distinct behavior the change adds:**
+
+  - **Identify existing mechanisms that handle the same concern.** Search the codebase for other code paths that produce the same kind of effect (same state mutation, same message type, same event injection, same side effect). Ask: *can both the new and existing mechanism fire for the same triggering condition within the same execution context?*
+  - **Trace the most common end-to-end scenario.** Walk through the normal usage flow and trace what the system now does that it didn't before. Check whether any step now happens **more than once** or **no longer happens** as a result of the change.
+  - **Identify state the change introduces or mutates.** For each new field, counter, flag, or queue entry: what other parts of the system read or depend on it? What happens when it transitions at an unexpected point in the lifecycle (e.g., reset before expected, set after expected)?
+  - **Check for implicit ordering assumptions.** Does the new code assume a particular order in which existing events fire or other mechanisms run? Would a change to that ordering break the new code silently?
+
+  **Format findings as:**
+  > **Scenario:** [description of the common usage path]
+  > **Combined effect:** [what the new + existing mechanisms produce together]
+  > **Expected vs. actual:** [what the user/developer would expect vs. what actually happens]
+  > **Trigger condition:** [exactly when this manifests]
+
+4. **Edge Cases and Control Flow Analysis**:
   - Think critically about edge cases for newly implemented code
   - Analyze if changes can cause unwanted control flow
   - **Point out any gaps in test coverage**
   - When applicable, demonstrate how test code interacts with the main codebase changes
 
-4. **Logging, Observability, and Debugging Analysis (CRITICAL)**:
+5. **Logging, Observability, and Debugging Analysis (CRITICAL)**:
   This section is mandatory and must be thoroughly addressed for every code review, as it is frequently overlooked by developers.
   
   **Logging:**
@@ -346,7 +362,7 @@ Using the context established in Phase 1, structure your review using Markdown h
   - Identify code paths where additional observability would significantly reduce MTTR (Mean Time To Resolution)
   - Consider: "If this fails in production at 3 AM, what information would I need to debug it?"
 
-5. **Deleted Code Regression Analysis**:
+6. **Deleted Code Regression Analysis**:
   - **Analyze if deleted or modified code had important side effects or edge case handling**:
     - Check if removed functions handled specific error conditions or edge cases
     - Identify if deleted code provided critical fallback mechanisms
@@ -355,7 +371,7 @@ Using the context established in Phase 1, structure your review using Markdown h
     - **Check if deleted code had logging, metrics, or tracing that needs to be preserved**
   - Verify that replacement code maintains the same level of robustness
 
-6. **Code Quality and Maintenance**:
+7. **Code Quality and Maintenance**:
   - Look for typos or accidentally deleted code
   - Check for naming conventions, code clarity, and maintainability
   - Identify any architectural concerns
@@ -417,6 +433,7 @@ Conclude with a SUMMARY section using:
 - Bullet points for main findings and recommendations from Phase 2
 - **ARCHITECTURAL ASSESSMENT (CRITICAL)**: Summarize the key architectural findings — boundary/responsibility issues, new coupling or dependency concerns, integration and failure-mode risks, and overall structural soundness of the change
 - **CALLER COMPATIBILITY ISSUES (CRITICAL)**: List all affected callers of modified functions and their compatibility status
+- **WORKFLOW AND INTERACTION IMPACT (CRITICAL)**: For each emergent behavior identified — describe the scenario, the combined effect, and whether it was addressed
 - **LOGGING AND OBSERVABILITY RECOMMENDATIONS (CRITICAL)**: Summarize key logging, metrics, and tracing additions needed
 - **UNIT TESTS TO RUN (CRITICAL)**: Present the specific unit test recommendations from Phase 3, including:
   - Exact test file paths and test names
@@ -441,6 +458,7 @@ Conclude with a SUMMARY section using:
 - **ALWAYS include logging and observability analysis and recommendations - this is frequently overlooked and is critical for production support**
 - **ALWAYS include caller compatibility analysis in the summary - breaking changes to callers are a critical risk**
 - **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**
+- **ALWAYS include workflow and interaction impact in the summary - emergent behaviors from combining new and existing mechanisms are a critical risk and are invisible to single-component analysis**
 - **ALWAYS include IMPLEMENTATION SCOPE in the summary listing only Critical and Important findings**`;
 
 const RESEARCH_BEFORE_ACTION_PROMPT = `\
