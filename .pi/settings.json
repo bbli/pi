@@ -6,5 +6,9 @@
   "lastChangelogVersion": "0.78.1",
   "defaultProvider": "everpure-foundry",
   "defaultModel": "claude-sonnet-4-6",
-  "hideThinkingBlock": false
+  "hideThinkingBlock": false,
+  "advisoryEnabled": true,
+  "terminal": {
+    "showTerminalProgress": true
+  }
 }
