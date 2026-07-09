@@ -7,7 +7,6 @@
   "defaultProvider": "everpure-foundry",
   "defaultModel": "claude-sonnet-4-6",
   "hideThinkingBlock": false,
-  "advisoryEnabled": true,
   "terminal": {
     "showTerminalProgress": true
   }

@@ -466,11 +466,6 @@ export class InteractiveMode {
 			this.footer.setAdvisoryEnabled(enabled);
 			this.ui.requestRender();
 		});
-		// Apply persisted advisory state (fires the subscription above if true).
-		// The --advisor CLI flag can still override this later via session_start.
-		if (this.settingsManager.getAdvisoryEnabled()) {
-			this.resources.extensionRunner.setAdvisoryEnabled(true);
-		}
 
 		// Load hide thinking block setting
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
@@ -4458,7 +4453,6 @@ export class InteractiveMode {
 					},
 					onAdvisoryEnabledChange: (enabled) => {
 						this.resources.extensionRunner.setAdvisoryEnabled(enabled);
-						this.settingsManager.setAdvisoryEnabled(enabled);
 					},
 					onCancel: () => {
 						done();
