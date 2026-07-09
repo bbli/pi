@@ -1179,6 +1179,12 @@ export interface BranchSessionOptions {
 	 * to cancel an in-flight branch session when the parent turn is cancelled.
 	 */
 	abortSignal?: AbortSignal;
+	/**
+	 * If set, injects a follow-up user message into the branch session every
+	 * `turns` completed turns. Useful for keeping long-running advisory agents
+	 * focused on their task.
+	 */
+	injectEvery?: { turns: number; message: string };
 }
 
 /** A guideline registered via registerGuideline(). Evaluated at turn_end. */

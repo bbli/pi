@@ -247,6 +247,13 @@ const noOpUIContext: ExtensionUIContext = {
 // Advisory system - module-level constants and helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Reminder injected into advisory branch sessions every 3 turns to keep
+ * the agent focused on its evaluation task.
+ */
+const ADVISORY_REMINDER_TEXT =
+	"Are you working on evaluating the guideline/continuations and not anything else from this conversation?";
+
 function buildAdvisoryEvalSystemPrompt(sentinelPrefix: string, allowMultipleInjections = false): string {
 	// The step-4 tail and step-5/NOTE blocks differ between guidelines (single injection)
 	// and continuations (multiple injections applied serially).
@@ -651,6 +658,7 @@ export class ExtensionRunner {
 				],
 				label: "advisory:guidelines",
 				seedContext: true,
+				injectEvery: { turns: 3, message: ADVISORY_REMINDER_TEXT },
 			});
 		} catch (err) {
 			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
@@ -711,6 +719,7 @@ export class ExtensionRunner {
 				customTools: [makeInjectGuidelineTool(continuations, (prompt) => this._continuationTasks.push(prompt))],
 				label: "advisory:continuations",
 				seedContext: true,
+				injectEvery: { turns: 3, message: ADVISORY_REMINDER_TEXT },
 			});
 		} catch (err) {
 			console.error(`[advisory] continuations error: ${err instanceof Error ? err.message : String(err)}`);

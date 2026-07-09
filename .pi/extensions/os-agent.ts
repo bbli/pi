@@ -928,23 +928,6 @@ export default function osAgent(pi: ExtensionAPI): void {
 	});
 
 	pi.registerContinuation({
-		id: "review-after-implementation",
-		triggerPrompt:
-			"Does this conversation show a recently completed implementation pass that has not yet " +
-			"been followed by a code review? " +
-			"Strong signals that implementation is done: the agent wrote or modified code across " +
-			"one or more files, the work appears substantively complete (not mid-slice), git commits " +
-			"were made, or the agent's last action was finalizing or wrapping up code changes. " +
-			"Strong signals that review is NOT needed yet: the agent is still actively implementing " +
-			"(mid-slice, uncommitted changes), no code was written (search/read/explain only), " +
-			"or only mechanical non-code changes were made (changelog, docs, config). " +
-			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] has " +
-			"already appeared in the conversation after the most recent implementation.",
-		injectPrompt: REVIEW_PROMPT,
-		label: "advisory:review",
-	});
-
-	pi.registerContinuation({
 		id: "flesh-out-after-implementation",
 		triggerPrompt:
 			"Does this conversation show a recently completed NEW FEATURE implementation that has not " +
@@ -967,6 +950,24 @@ export default function osAgent(pi: ExtensionAPI): void {
 		injectPrompt: FLESH_OUT_PROMPT,
 		label: "advisory:flesh-out",
 	});
+
+	pi.registerContinuation({
+		id: "review-after-implementation",
+		triggerPrompt:
+			"Does this conversation show a recently completed implementation pass that has not yet " +
+			"been followed by a code review? " +
+			"Strong signals that implementation is done: the agent wrote or modified code across " +
+			"one or more files, the work appears substantively complete (not mid-slice), git commits " +
+			"were made, or the agent's last action was finalizing or wrapping up code changes. " +
+			"Strong signals that review is NOT needed yet: the agent is still actively implementing " +
+			"(mid-slice, uncommitted changes), no code was written (search/read/explain only), " +
+			"or only mechanical non-code changes were made (changelog, docs, config). " +
+			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] has " +
+			"already appeared in the conversation after the most recent implementation.",
+		injectPrompt: REVIEW_PROMPT,
+		label: "advisory:review",
+	});
+
 
 	pi.registerContinuation({
 		id: "resume-task",

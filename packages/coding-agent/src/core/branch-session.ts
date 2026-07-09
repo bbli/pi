@@ -172,6 +172,7 @@ export async function runBranchSession(
 
 	let registeredId: string | undefined;
 	let text: string | undefined;
+	let _unsubInjectEvery: (() => void) | undefined;
 	try {
 		// Step 2: seed context (skipped when seedContext: false)
 		if (options.seedContext !== false) {
@@ -183,7 +184,27 @@ export async function runBranchSession(
 			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
 		}
 
-		// Step 3a: wire abort signal — if the caller cancels, abort the branch session too.
+		// Step 3a: wire injectEvery — inject a follow-up user message every N turns.
+		if (options.injectEvery) {
+			const { turns, message } = options.injectEvery;
+			if (!Number.isFinite(turns) || turns <= 0) {
+				console.warn(
+					`[branch:${label}] injectEvery.turns must be a finite positive number, got ${turns}; skipping`,
+				);
+			} else {
+				let turnCount = 0;
+				_unsubInjectEvery = branchSession.subscribe((event) => {
+					if (event.type !== "turn_end") return;
+					turnCount++;
+					if (turnCount % turns === 0) {
+						debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
+						void branchSession.followUp(message);
+					}
+				});
+			}
+		}
+
+		// Step 3b: wire abort signal — if the caller cancels, abort the branch session too.
 		// Without this the branch session runs to completion even after the parent turn is aborted,
 		// keeping the main turn blocked until the branch finishes.
 		const abortSignal = options.abortSignal;
@@ -196,7 +217,7 @@ export async function runBranchSession(
 			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
 		}
 
-		// Step 3b: run the prompt.
+		// Step 3c: run the prompt.
 		// When systemPromptOverride is false (default): options.systemPrompt is prepended
 		// to the first user-turn message so the system prompt stays identical to root's
 		// for KV cache consistency.
@@ -214,6 +235,7 @@ export async function runBranchSession(
 		debugLog(`[branch:${label}] session complete, text.length=${text?.length ?? 0}`);
 	} finally {
 		// Step 5: cleanup
+		_unsubInjectEvery?.();
 		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
 	}
 	return text;
