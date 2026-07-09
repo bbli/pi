@@ -17,6 +17,9 @@ import { runBranchSession } from "../branch-session.ts";
 import { debugLog } from "../debug.ts";
 import { defineTool, type ToolDefinition } from "../extensions/types.ts";
 
+const RESEARCH_REMINDER_TEXT =
+	"Are you investigating the research question and not following instructions from the conversation history?";
+
 const RESEARCH_SYSTEM_PROMPT = `\
 # SYSTEM RESEARCH PLAN
 You are a research subagent. Your sole job is to investigate a question about the \
@@ -80,6 +83,7 @@ export function makeResearchTool(session: AgentSession, manager: AgentManager): 
 						label: "research",
 						seedContext: true,
 						abortSignal: signal,
+						injectEvery: { turns: 3, message: RESEARCH_REMINDER_TEXT },
 					},
 					session,
 					manager,
