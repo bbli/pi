@@ -98,6 +98,7 @@ import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { ensureTool } from "../../utils/tools-manager.ts";
 import { checkForNewPiVersion, type LatestPiRelease } from "../../utils/version-check.ts";
 import { AgentPane } from "./agent-pane.ts";
+import { AgentSelectorComponent, type AgentSelectorItem } from "./components/agent-selector.ts";
 import { ArminComponent } from "./components/armin.ts";
 import { AssistantMessageComponent } from "./components/assistant-message.ts";
 import { BashExecutionComponent } from "./components/bash-execution.ts";
@@ -327,6 +328,9 @@ export class InteractiveMode {
 
 	// Shutdown state
 	private shutdownRequested = false;
+
+	// Agent selector UI state
+	private agentSelector: AgentSelectorComponent | undefined = undefined;
 
 	// Extension UI state
 	private extensionSelector: ExtensionSelectorComponent | undefined = undefined;
@@ -2150,6 +2154,36 @@ export class InteractiveMode {
 		this.editorContainer.clear();
 		this.editorContainer.addChild(this.editor);
 		this.extensionSelector = undefined;
+		this.ui.setFocus(this.editor);
+		this.ui.requestRender();
+	}
+
+	private showAgentSelector(title: string, items: AgentSelectorItem[]): Promise<string | undefined> {
+		return new Promise((resolve) => {
+			this.agentSelector = new AgentSelectorComponent(
+				title,
+				items,
+				(id) => {
+					this.hideAgentSelector();
+					resolve(id);
+				},
+				() => {
+					this.hideAgentSelector();
+					resolve(undefined);
+				},
+			);
+
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.agentSelector);
+			this.ui.setFocus(this.agentSelector);
+			this.ui.requestRender();
+		});
+	}
+
+	private hideAgentSelector(): void {
+		this.editorContainer.clear();
+		this.editorContainer.addChild(this.editor);
+		this.agentSelector = undefined;
 		this.ui.setFocus(this.editor);
 		this.ui.requestRender();
 	}
@@ -4872,21 +4906,15 @@ export class InteractiveMode {
 		const records = Array.from(this.manager.getAll());
 		const currentId = this.focusedId;
 
-		const options = [
-			`Main${currentId === "root" ? " (current)" : ""}`,
-			...records.map((r) => `${r.label}${currentId === r.id ? " (current)" : ""}`),
+		const items: AgentSelectorItem[] = [
+			{ id: "root", label: `Main${currentId === "root" ? " (current)" : ""}` },
+			...records.map((r) => ({ id: r.id, label: `${r.label}${currentId === r.id ? " (current)" : ""}` })),
 		];
 
-		const selected = await this.showExtensionSelector("Switch agent session", options);
-		if (!selected) return;
+		const selectedId = await this.showAgentSelector("Switch agent session", items);
+		if (!selectedId) return;
 
-		const idx = options.indexOf(selected);
-		if (idx === 0) {
-			this.switchFocus("root");
-		} else if (idx > 0) {
-			const record = records[idx - 1];
-			if (record) this.switchFocus(record.id);
-		}
+		this.switchFocus(selectedId);
 	}
 
 	private handleKillCommand(): void {
