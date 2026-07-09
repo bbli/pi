@@ -40,7 +40,7 @@ import { buildSessionContext, SessionManager } from "./session-manager.ts";
  * role-override sessions (advisory evaluators) that need system-level authority.
  */
 function createBranchResourceLoader(rootLoader: ResourceLoader, overrideSystemPrompt?: string): ResourceLoader {
-	const extensionsResult = { extensions: [], errors: [], runtime: createExtensionRuntime() };
+	const extensionsResult = { extensions: [], errors: [], warnings: [], runtime: createExtensionRuntime() };
 	return {
 		getExtensions: () => extensionsResult,
 		getSkills: () => rootLoader.getSkills(),

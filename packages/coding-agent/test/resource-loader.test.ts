@@ -227,6 +227,8 @@ Project skill`,
 			const extensionsResult = loader.getExtensions();
 			expect(extensionsResult.extensions).toHaveLength(2);
 			expect(extensionsResult.errors.some((e) => e.error.includes('Command "/deploy" conflicts'))).toBe(false);
+			// Command conflicts are resolved by the runner (not detectExtensionConflicts), so no warnings
+			expect(extensionsResult.warnings ?? []).toHaveLength(0);
 
 			const sessionManager = SessionManager.inMemory();
 			const authStorage = AuthStorage.create(join(tempDir, "auth.json"));
@@ -569,8 +571,48 @@ export default function(pi: ExtensionAPI) {
 			const loader = new DefaultResourceLoader({ cwd, agentDir });
 			await loader.reload();
 
-			const { errors } = loader.getExtensions();
-			expect(errors.some((e) => e.error.includes("duplicate-tool") && e.error.includes("conflicts"))).toBe(true);
+			const { extensions, errors, warnings } = loader.getExtensions();
+			// Both extensions are still loaded — first registration wins at the runner level
+			expect(extensions).toHaveLength(2);
+			expect(errors).toHaveLength(0);
+			expect(warnings?.some((w) => w.warning.includes("duplicate-tool") && w.warning.includes("conflicts"))).toBe(
+				true,
+			);
+		});
+
+		it("should emit warnings not errors for flag conflicts between extensions", async () => {
+			const ext1Dir = join(agentDir, "extensions", "flag-ext1");
+			const ext2Dir = join(agentDir, "extensions", "flag-ext2");
+			mkdirSync(ext1Dir, { recursive: true });
+			mkdirSync(ext2Dir, { recursive: true });
+
+			writeFileSync(
+				join(ext1Dir, "index.ts"),
+				`
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+export default function(pi: ExtensionAPI) {
+  pi.registerFlag("duplicate-flag", { type: "boolean", default: false });
+}`,
+			);
+
+			writeFileSync(
+				join(ext2Dir, "index.ts"),
+				`
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+export default function(pi: ExtensionAPI) {
+  pi.registerFlag("duplicate-flag", { type: "boolean", default: true });
+}`,
+			);
+
+			const loader = new DefaultResourceLoader({ cwd, agentDir });
+			await loader.reload();
+
+			const { extensions, errors, warnings } = loader.getExtensions();
+			expect(extensions).toHaveLength(2);
+			expect(errors).toHaveLength(0);
+			expect(warnings?.some((w) => w.warning.includes("duplicate-flag") && w.warning.includes("conflicts"))).toBe(
+				true,
+			);
 		});
 
 		it("should prefer explicit CLI extensions over discovered extensions when commands and tools conflict", async () => {

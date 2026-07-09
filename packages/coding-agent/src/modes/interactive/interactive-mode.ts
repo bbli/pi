@@ -1527,11 +1527,12 @@ export class InteractiveMode {
 			}
 
 			const extensionDiagnostics: ResourceDiagnostic[] = [];
-			const extensionErrors = this.resources.resourceLoader.getExtensions().errors;
-			if (extensionErrors.length > 0) {
-				for (const error of extensionErrors) {
-					extensionDiagnostics.push({ type: "error", message: error.error, path: error.path });
-				}
+			const { errors: extensionErrors, warnings: extensionWarnings } = this.resources.resourceLoader.getExtensions();
+			for (const error of extensionErrors) {
+				extensionDiagnostics.push({ type: "error", message: error.error, path: error.path });
+			}
+			for (const w of extensionWarnings ?? []) {
+				extensionDiagnostics.push({ type: "warning", message: w.warning, path: w.path });
 			}
 
 			const commandDiagnostics = this.resources.extensionRunner.getCommandDiagnostics();

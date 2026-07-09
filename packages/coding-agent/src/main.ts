@@ -653,12 +653,17 @@ export async function main(args: string[], options?: MainOptions) {
 			},
 		});
 		const { settingsManager, modelRegistry, resourceLoader } = services;
+		const { errors: extErrors, warnings: extWarnings } = resourceLoader.getExtensions();
 		const diagnostics: AgentSessionRuntimeDiagnostic[] = [
 			...services.diagnostics,
 			...collectSettingsDiagnostics(settingsManager, "runtime creation"),
-			...resourceLoader.getExtensions().errors.map(({ path, error }) => ({
+			...extErrors.map(({ path, error }) => ({
 				type: "error" as const,
 				message: `Failed to load extension "${path}": ${error}`,
+			})),
+			...(extWarnings ?? []).map(({ warning }) => ({
+				type: "warning" as const,
+				message: `Extension conflict (first wins): ${warning}`,
 			})),
 		];
 

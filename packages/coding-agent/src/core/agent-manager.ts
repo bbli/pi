@@ -247,7 +247,7 @@ export class AgentManager {
 		const extensionRuntime = createExtensionRuntime();
 		const rootLoader = root.resourceLoader;
 		const resourceLoader: ResourceLoader = {
-			getExtensions: () => ({ extensions: [], errors: [], runtime: extensionRuntime }),
+			getExtensions: () => ({ extensions: [], errors: [], warnings: [], runtime: extensionRuntime }),
 			getSkills: () => rootLoader.getSkills(),
 			getPrompts: () => rootLoader.getPrompts(),
 			getThemes: () => rootLoader.getThemes(),

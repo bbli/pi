@@ -233,7 +233,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.systemPromptOverride = options.systemPromptOverride;
 		this.appendSystemPromptOverride = options.appendSystemPromptOverride;
 
-		this.extensionsResult = { extensions: [], errors: [], runtime: createExtensionRuntime() };
+		this.extensionsResult = { extensions: [], errors: [], warnings: [], runtime: createExtensionRuntime() };
 		this.skills = [];
 		this.skillDiagnostics = [];
 		this.prompts = [];
@@ -400,11 +400,14 @@ export class DefaultResourceLoader implements ResourceLoader {
 		extensionsResult.extensions.push(...inlineExtensions.extensions);
 		extensionsResult.errors.push(...inlineExtensions.errors);
 
-		// Detect extension conflicts (tools, commands, flags with same names from different extensions)
-		// Keep all extensions loaded. Conflicts are reported as diagnostics, and precedence is handled by load order.
+		// Detect extension conflicts (tools, commands, flags with same names from different extensions).
+		// Keep all extensions loaded. Conflicts are reported as warnings; first registration wins.
 		const conflicts = this.detectExtensionConflicts(extensionsResult.extensions);
-		for (const conflict of conflicts) {
-			extensionsResult.errors.push({ path: conflict.path, error: conflict.message });
+		if (conflicts.length > 0) {
+			extensionsResult.warnings ??= [];
+			for (const conflict of conflicts) {
+				extensionsResult.warnings.push({ path: conflict.path, warning: conflict.message });
+			}
 		}
 
 		for (const p of this.additionalExtensionPaths) {

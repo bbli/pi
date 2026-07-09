@@ -509,6 +509,7 @@ export async function loadExtensions(paths: string[], cwd: string, eventBus?: Ev
 	return {
 		extensions,
 		errors,
+		warnings: [],
 		runtime,
 	};
 }
