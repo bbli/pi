@@ -187,15 +187,21 @@ export async function runBranchSession(
 		// Step 3a: wire injectEvery — inject a follow-up user message every N turns.
 		if (options.injectEvery) {
 			const { turns, message } = options.injectEvery;
-			let turnCount = 0;
-			_unsubInjectEvery = branchSession.subscribe((event) => {
-				if (event.type !== "turn_end") return;
-				turnCount++;
-				if (turnCount % turns === 0) {
-					debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
-					void branchSession.followUp(message);
-				}
-			});
+			if (!Number.isFinite(turns) || turns <= 0) {
+				console.warn(
+					`[branch:${label}] injectEvery.turns must be a finite positive number, got ${turns}; skipping`,
+				);
+			} else {
+				let turnCount = 0;
+				_unsubInjectEvery = branchSession.subscribe((event) => {
+					if (event.type !== "turn_end") return;
+					turnCount++;
+					if (turnCount % turns === 0) {
+						debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
+						void branchSession.followUp(message);
+					}
+				});
+			}
 		}
 
 		// Step 3b: wire abort signal — if the caller cancels, abort the branch session too.
