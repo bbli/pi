@@ -292,6 +292,26 @@ function createExtensionAPI(
 			return runtime.getAdvisoryEnabled();
 		},
 
+		setGuidelineEnabled(id: string, enabled: boolean): void {
+			runtime.assertActive();
+			runtime.setGuidelineEnabled(id, enabled);
+		},
+
+		getGuidelineEnabled(id: string): boolean {
+			runtime.assertActive();
+			return runtime.getGuidelineEnabled(id);
+		},
+
+		setContinuationEnabled(id: string, enabled: boolean): void {
+			runtime.assertActive();
+			runtime.setContinuationEnabled(id, enabled);
+		},
+
+		getContinuationEnabled(id: string): boolean {
+			runtime.assertActive();
+			return runtime.getContinuationEnabled(id);
+		},
+
 		getGuidelines(): readonly GuidelineDefinition[] {
 			runtime.assertActive();
 			return runtime.getGuidelines();
