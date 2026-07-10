@@ -255,6 +255,7 @@ Using the context established in Phase 1, structure your review using Markdown h
       - Identify callers that may depend on the old behavior
       - Assess if the new behavior could break existing assumptions
       - Check for callers in unexpected locations (tests, scripts, configuration)
+    - **Manual interface implementations**: When the diff adds new required members to an interface or type, search for all construction sites that satisfy it without class inheritance — factory functions with an explicit return-type annotation (e.g. function createFoo(): FooInterface { return { ... } }), pre-initialization stub objects, and object literals assigned to a typed variable. These are not updated automatically when an interface changes, and some type checkers (e.g. tsgo) may not report missing members on object literal returns. Verify each site includes every new member, and list any that are missing.
     - **List all affected callers and their compatibility status**
   - **State Synchronization and Dual Representations (CRITICAL)**:
     - For each mutation (write, initialization, seeding, or cache update) in the diff, identify all other data structures that represent the same logical state — caches, indexes, secondary stores, parallel in-memory views, or derived representations
