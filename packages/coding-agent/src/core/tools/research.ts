@@ -10,7 +10,9 @@
  * is the default) so the subagent has complete context for codebase questions.
  */
 
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import { theme } from "../../modes/interactive/theme/theme.ts";
 import type { AgentManager } from "../agent-manager.ts";
 import type { AgentSession } from "../agent-session.ts";
 import { runBranchSession } from "../branch-session.ts";
@@ -70,6 +72,15 @@ export function makeResearchTool(session: AgentSession, manager: AgentManager): 
 				description: "The question or topic to research.",
 			}),
 		}),
+		renderCall(args, _theme, context) {
+			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
+			const question = typeof args?.question === "string" ? args.question : "";
+			text.setText(
+				theme.fg("toolTitle", theme.bold("researchConversationQuestion")) +
+					theme.fg("toolOutput", question ? `: ${question}` : ""),
+			);
+			return text;
+		},
 		execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {
 			debugLog(`[research] starting: question.length=${params.question.length}`);
 			let text: string | undefined;
