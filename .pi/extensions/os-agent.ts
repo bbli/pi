@@ -758,19 +758,36 @@ class AdvisoryStatusComponent extends Container {
 					"Toggle the advisory system on or off. When disabled, no guidelines " +
 					"or continuations are evaluated.",
 			},
-			...guidelines.map((g) => ({
-				id: `guideline:${g.id}`,
-				label: g.id,
-				currentValue: "guideline",
-				description: `Trigger: ${g.triggerPrompt}`,
-			})),
-			...continuations.map((c) => ({
-				id: `continuation:${c.id}`,
-				label: c.id,
-				currentValue: "continuation",
-				description: `Trigger: ${c.triggerPrompt}`,
-			})),
 		];
+
+		if (guidelines.length === 0 && continuations.length === 0) {
+			items.push({ id: "empty", label: "No guidelines or continuations registered", currentValue: "" });
+		} else {
+			if (guidelines.length > 0) {
+				items.push({ id: "section:guidelines", label: "── Guidelines ──", currentValue: "" });
+				for (const g of guidelines) {
+					items.push({
+						id: `guideline:${g.id}`,
+						label: g.label ?? g.id,
+						currentValue: pi.getGuidelineEnabled(g.id) ? "enabled" : "disabled",
+						values: ["enabled", "disabled"],
+						description: `Trigger: ${g.triggerPrompt}`,
+					});
+				}
+			}
+			if (continuations.length > 0) {
+				items.push({ id: "section:continuations", label: "── Continuations ──", currentValue: "" });
+				for (const c of continuations) {
+					items.push({
+						id: `continuation:${c.id}`,
+						label: c.label ?? c.id,
+						currentValue: pi.getContinuationEnabled(c.id) ? "enabled" : "disabled",
+						values: ["enabled", "disabled"],
+						description: `Trigger: ${c.triggerPrompt}`,
+					});
+				}
+			}
+		}
 
 		this.settingsList = new SettingsList(
 			items,
@@ -779,6 +796,10 @@ class AdvisoryStatusComponent extends Container {
 			(id, newValue) => {
 				if (id === "system") {
 					pi.setAdvisoryEnabled(newValue === "enabled");
+				} else if (id.startsWith("guideline:")) {
+					pi.setGuidelineEnabled(id.slice("guideline:".length), newValue === "enabled");
+				} else if (id.startsWith("continuation:")) {
+					pi.setContinuationEnabled(id.slice("continuation:".length), newValue === "enabled");
 				}
 			},
 			onClose,

@@ -1352,6 +1352,18 @@ export interface ExtensionAPI {
 	/** Whether the advisory system is currently enabled. */
 	getAdvisoryEnabled(): boolean;
 
+	/** Enable or disable a specific guideline by ID. Disabled guidelines are excluded from advisory evaluation. */
+	setGuidelineEnabled(id: string, enabled: boolean): void;
+
+	/** Whether a specific guideline is currently enabled. Returns true for unknown IDs. */
+	getGuidelineEnabled(id: string): boolean;
+
+	/** Enable or disable a specific continuation by ID. Disabled continuations are excluded from advisory evaluation. */
+	setContinuationEnabled(id: string, enabled: boolean): void;
+
+	/** Whether a specific continuation is currently enabled. Returns true for unknown IDs. */
+	getContinuationEnabled(id: string): boolean;
+
 	/** Return all registered guidelines across all loaded extensions. */
 	getGuidelines(): readonly GuidelineDefinition[];
 
@@ -1759,6 +1771,14 @@ export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionAction
 	setAdvisoryEnabled: (enabled: boolean) => void;
 	/** Whether the advisory system is currently enabled. Self-wired by ExtensionRunner.bindCore(). */
 	getAdvisoryEnabled: () => boolean;
+	/** Enable or disable a specific guideline. Self-wired by ExtensionRunner.bindCore(). */
+	setGuidelineEnabled: (id: string, enabled: boolean) => void;
+	/** Whether a specific guideline is enabled. Self-wired by ExtensionRunner.bindCore(). */
+	getGuidelineEnabled: (id: string) => boolean;
+	/** Enable or disable a specific continuation. Self-wired by ExtensionRunner.bindCore(). */
+	setContinuationEnabled: (id: string, enabled: boolean) => void;
+	/** Whether a specific continuation is enabled. Self-wired by ExtensionRunner.bindCore(). */
+	getContinuationEnabled: (id: string) => boolean;
 }
 
 /** Loaded extension with all registered items. */

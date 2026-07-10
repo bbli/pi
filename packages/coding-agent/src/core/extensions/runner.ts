@@ -409,6 +409,10 @@ export class ExtensionRunner {
 	private _advisoryEnabled = false;
 	/** Listeners notified whenever advisory enabled state changes. */
 	private _advisoryChangeListeners = new Set<(enabled: boolean) => void>();
+	/** IDs of guidelines disabled via setGuidelineEnabled(). */
+	private _disabledGuidelineIds = new Set<string>();
+	/** IDs of continuations disabled via setContinuationEnabled(). */
+	private _disabledContinuationIds = new Set<string>();
 	/**
 	 * Continuation prompts queued for serial application across agent runs.
 	 * Populated by _runContinuationsSync; drained one entry per emitAgentEnd call.
@@ -478,6 +482,11 @@ export class ExtensionRunner {
 			this.setAdvisoryEnabled(enabled);
 		};
 		this.runtime.getAdvisoryEnabled = () => this._advisoryEnabled;
+		// Self-wired: per-item guideline/continuation toggle state lives on the runner.
+		this.runtime.setGuidelineEnabled = (id, enabled) => this.setGuidelineEnabled(id, enabled);
+		this.runtime.getGuidelineEnabled = (id) => this.getGuidelineEnabled(id);
+		this.runtime.setContinuationEnabled = (id, enabled) => this.setContinuationEnabled(id, enabled);
+		this.runtime.getContinuationEnabled = (id) => this.getContinuationEnabled(id);
 
 		// Context actions (required)
 		this.getModel = contextActions.getModel;
@@ -637,6 +646,28 @@ export class ExtensionRunner {
 		return this._advisoryEnabled;
 	}
 
+	/** Enable or disable a specific guideline by ID. Disabled guidelines are excluded from advisory evaluation. */
+	setGuidelineEnabled(id: string, enabled: boolean): void {
+		if (enabled) this._disabledGuidelineIds.delete(id);
+		else this._disabledGuidelineIds.add(id);
+	}
+
+	/** Whether a specific guideline is enabled. Returns true for unknown IDs. */
+	getGuidelineEnabled(id: string): boolean {
+		return !this._disabledGuidelineIds.has(id);
+	}
+
+	/** Enable or disable a specific continuation by ID. Disabled continuations are excluded from advisory evaluation. */
+	setContinuationEnabled(id: string, enabled: boolean): void {
+		if (enabled) this._disabledContinuationIds.delete(id);
+		else this._disabledContinuationIds.add(id);
+	}
+
+	/** Whether a specific continuation is enabled. Returns true for unknown IDs. */
+	getContinuationEnabled(id: string): boolean {
+		return !this._disabledContinuationIds.has(id);
+	}
+
 	/** Subscribe to advisory enabled state changes. Returns an unsubscribe function. */
 	onAdvisoryChange(cb: (enabled: boolean) => void): () => void {
 		this._advisoryChangeListeners.add(cb);
@@ -664,7 +695,7 @@ export class ExtensionRunner {
 	 */
 	async emitTurnEnd(event: TurnEndEvent): Promise<void> {
 		if (this._advisoryEnabled && !this._advisoryRunning) {
-			const guidelines = this.getAllGuidelines();
+			const guidelines = this.getAllGuidelines().filter((g) => this.getGuidelineEnabled(g.id));
 			if (guidelines.length > 0) {
 				void this._runGuidelinesAsync(guidelines);
 			}
@@ -713,7 +744,7 @@ export class ExtensionRunner {
 				this.runtime.injectUserMessage(next, "followUp");
 				continuationFired = true;
 			} else {
-				const continuations = this.getAllContinuations();
+				const continuations = this.getAllContinuations().filter((c) => this.getContinuationEnabled(c.id));
 				if (continuations.length > 0) {
 					// No pending tasks - run the branch session to evaluate continuations.
 					await this._runContinuationsSync(continuations);
