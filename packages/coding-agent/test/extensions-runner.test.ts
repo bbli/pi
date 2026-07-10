@@ -16,6 +16,7 @@ import type {
 	ExtensionContextActions,
 	ExtensionUIContext,
 	ProviderConfig,
+	TurnEndEvent,
 	TurnStartEvent,
 } from "../src/core/extensions/types.ts";
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
@@ -1394,6 +1395,178 @@ describe("ExtensionRunner", () => {
 
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(injected).toEqual([]);
+		});
+	});
+
+	describe("per-item guideline/continuation toggles", () => {
+		/** Minimal runner with no extensions — sufficient for pure state tests. */
+		const makeRunner = () => {
+			const runtime = createExtensionRuntime();
+			return new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
+		};
+
+		it("getGuidelineEnabled returns true by default including for unknown ids", () => {
+			const runner = makeRunner();
+			expect(runner.getGuidelineEnabled("unknown-id")).toBe(true);
+			expect(runner.getGuidelineEnabled("any-other-id")).toBe(true);
+		});
+
+		it("getContinuationEnabled returns true by default including for unknown ids", () => {
+			const runner = makeRunner();
+			expect(runner.getContinuationEnabled("unknown-id")).toBe(true);
+		});
+
+		it("setGuidelineEnabled false then true round-trips correctly", () => {
+			const runner = makeRunner();
+			runner.setGuidelineEnabled("g1", false);
+			expect(runner.getGuidelineEnabled("g1")).toBe(false);
+			runner.setGuidelineEnabled("g1", true);
+			expect(runner.getGuidelineEnabled("g1")).toBe(true);
+		});
+
+		it("setContinuationEnabled false then true round-trips correctly", () => {
+			const runner = makeRunner();
+			runner.setContinuationEnabled("c1", false);
+			expect(runner.getContinuationEnabled("c1")).toBe(false);
+			runner.setContinuationEnabled("c1", true);
+			expect(runner.getContinuationEnabled("c1")).toBe(true);
+		});
+
+		it("getAllGuidelines returns full list regardless of disabled state", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerGuideline({ id: "g1", triggerPrompt: "t1", injectPrompt: "i1" });
+					pi.registerGuideline({ id: "g2", triggerPrompt: "t2", injectPrompt: "i2" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			runner.bindCore({ ...extensionActions }, extensionContextActions);
+
+			runner.setGuidelineEnabled("g1", false);
+
+			expect(runner.getAllGuidelines()).toHaveLength(2);
+		});
+
+		it("emitTurnEnd skips branch session when all guidelines are disabled", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerGuideline({ id: "g1", triggerPrompt: "t1", injectPrompt: "i1" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			let branchCalled = false;
+			runner.bindCore(
+				{
+					...extensionActions,
+					runBranchSession: async () => {
+						branchCalled = true;
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+			runner.setGuidelineEnabled("g1", false);
+
+			await runner.emitTurnEnd({ type: "turn_end" } as unknown as TurnEndEvent);
+
+			expect(branchCalled).toBe(false);
+		});
+
+		it("emitTurnEnd passes only enabled guidelines to branch session", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerGuideline({ id: "g1", triggerPrompt: "trigger-for-g1", injectPrompt: "i1" });
+					pi.registerGuideline({ id: "g2", triggerPrompt: "trigger-for-g2", injectPrompt: "i2" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			let capturedPrompt = "";
+			runner.bindCore(
+				{
+					...extensionActions,
+					runBranchSession: async (prompt) => {
+						capturedPrompt = prompt;
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+			runner.setGuidelineEnabled("g1", false);
+
+			await runner.emitTurnEnd({ type: "turn_end" } as unknown as TurnEndEvent);
+
+			expect(capturedPrompt).not.toContain("trigger-for-g1");
+			expect(capturedPrompt).toContain("trigger-for-g2");
+		});
+
+		it("emitAgentEnd skips branch session when all continuations are disabled", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "t1", injectPrompt: "i1" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			let branchCalled = false;
+			runner.bindCore(
+				{
+					...extensionActions,
+					runBranchSession: async () => {
+						branchCalled = true;
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+			runner.setContinuationEnabled("c1", false);
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+
+			expect(branchCalled).toBe(false);
+		});
+
+		it("emitAgentEnd passes only enabled continuations to branch session", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.registerContinuation({ id: "c1", triggerPrompt: "trigger-for-c1", injectPrompt: "i1" });
+					pi.registerContinuation({ id: "c2", triggerPrompt: "trigger-for-c2", injectPrompt: "i2" });
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "continuations.ts"), extCode);
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			let capturedPrompt = "";
+			runner.bindCore(
+				{
+					...extensionActions,
+					runBranchSession: async (prompt) => {
+						capturedPrompt = prompt;
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+			runner.setContinuationEnabled("c1", false);
+
+			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
+
+			expect(capturedPrompt).not.toContain("trigger-for-c1");
+			expect(capturedPrompt).toContain("trigger-for-c2");
 		});
 	});
 });
