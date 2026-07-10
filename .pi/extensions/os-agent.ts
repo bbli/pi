@@ -993,27 +993,31 @@ export default function osAgent(pi: ExtensionAPI): void {
 	pi.registerContinuation({
 		id: "resume-task",
 		triggerPrompt:
-			"Does the conversation show a completed advisory workflow (CODE_WORKFLOW, FLESH_OUT, or " +
-			"CODE_REVIEW) where the agent's response to that advisory explicitly noted a prior task " +
-			"to return to, and that task has not yet been resumed? " +
-			"These are representative signals — use them to calibrate your judgment. " +
-			"Signals this APPLIES: " +
-			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW], [FLESH_OUT], or [CODE_REVIEW] " +
-			"  appears in the conversation, AND the agent's response to it explicitly noted something " +
-			"  it was working on before the interruption (e.g. 'I was in the middle of X, I will " +
-			"  return after this workflow'), AND that prior task has not been resumed. " +
-			"Signals this does NOT apply: " +
+			"Does the conversation suggest that an advisory workflow (CODE_WORKFLOW, FLESH_OUT, or " +
+			"CODE_REVIEW) has completed while the agent was mid-task, and that the interrupted work " +
+			"has not yet been resumed? " +
+			"These are representative signals — use them to calibrate your judgment, not as an exhaustive checklist. " +
+			"Signals this tends to apply: " +
+			"- A [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW], " +
+			"  [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT], or " +
+			"  [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] appears in the conversation. " +
+			"- The agent's response to that advisory indicated there was an ongoing task it would " +
+			"  return to after the advisory (e.g. 'I was in the middle of X, I will return after " +
+			"  this' — explicit or implied). " +
+			"- That prior task has not been resumed since the advisory. " +
+			"Signals this may not apply: " +
 			"- The agent is still mid-workflow (uncommitted changes, mid-review, mid-flesh-out). " +
 			"- A [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] or [SYSTEM CONTINUATION INSTRUCTIONS: " +
 			"  CODE_REVIEW] appears in the conversation for the current implementation but has not " +
-			"  yet been completed — RESUME_TASK should fire after those settle, not alongside them. " +
-			"- The agent did not note any prior task when the advisory fired (the advisory was the " +
-			"  full scope of the request). " +
-			"- The agent has already resumed the prior task after the advisory. " +
+			"  yet settled — RESUME_TASK should fire after those complete, not while they are active. " +
+			"- The agent did not indicate any prior task when the advisory fired (the advisory was " +
+			"  the full scope of the request). " +
+			"- The agent has already returned to the prior task after the advisory. " +
 			"- No advisory injection appears in the conversation. " +
-			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK] already " +
-			"appears in the conversation after the last [SYSTEM CONTINUATION INSTRUCTIONS: " +
-			"CODE_WORKFLOW], [FLESH_OUT], or [CODE_REVIEW] message. " +
+			"Idempotency: skip if [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK] already appears " +
+			"in the conversation after the most recent [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW], " +
+			"[SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT], or " +
+			"[SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW]. " +
 			"When calling injectGuideline for this condition, set the `content` argument to a brief " +
 			"description of the prior task that was interrupted, quoted or paraphrased from " +
 			"the agent's note at the start of the advisory workflow.",
