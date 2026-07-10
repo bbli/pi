@@ -828,18 +828,23 @@ export default function osAgent(pi: ExtensionAPI): void {
 	const researchUncertaintiesTrigger =
 		"Does anything recent in the conversation contain explicit, unresolved questions or " +
 		"uncertainties that have NOT yet been investigated? " +
-		"Look for either: " +
-		"(1) An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) in the " +
-		"recent conversation, containing 🔴 CRITICAL or 🟠 LOW confidence items. " +
-		"(2) Anything recent in the conversation explicitly enumerates questions or knowledge " +
-		"gaps that need to be resolved before proceeding (e.g. numbered open items, " +
-		"'I need to verify X before implementing', or an ⚠️ IMPLEMENTATION UNCERTAINTIES block). " +
+		"Look for any of the following: " +
+		"1. An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) containing " +
+		"   🔴 CRITICAL or 🟠 LOW confidence items. " +
+		"2. Anything that explicitly enumerates knowledge gaps, evidence gaps, or open questions " +
+		"   — including but not limited to: " +
+		"   - Numbered or bulleted open items (e.g. [ ] unchecked gaps, [?] unconfirmed steps) " +
+		"   - Sections titled Evidence Gaps, Unverified Assumptions, Alternative Hypotheses Not " +
+		"     Ruled Out, or Unconfirmed Callpath Steps " +
+		"   - Statements like 'I need to verify X', 'not confirmed from source', or 'no log confirms' " +
+		"3. A Phase 5 / Uncertainty & Confidence Assessment block where Overall Confidence is rated " +
+		"   Medium or Low, or where any evidence gap or unconfirmed step is listed with a [ ] or [?] marker. " +
 		"Do NOT trigger if any of these are true: " +
 		"- The researchConversationQuestion tool was already called after the uncertainties appeared. " +
 		"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES] or " +
 		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES] message already follows the uncertainties. " +
 		"- The questions were answered by the user or resolved through direct context. " +
-		"- The assistant ended its turn proceeding confidently without flagged open items.";
+		"- The assistant ended its turn proceeding confidently and produced no enumerated gaps or [ ]/[?] markers.";
 
 	pi.registerGuideline({
 		id: "research-before-action",
