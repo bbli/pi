@@ -2808,6 +2808,11 @@ export class InteractiveMode {
 			// First, move any pending bash components to chat
 			this.flushPendingBashComponents();
 			this.editor.addToHistory?.(text);
+			// Note: showError() writes to this.chatContainer which follows the
+			// currently focused pane. If focus changes between submit and the
+			// .catch() firing, the error appears in the new pane's chat rather
+			// than the submitting pane's. In practice this only affects preflight
+			// errors (no model, no API key) which surface within one microtask.
 			void this.active.session.prompt(text).catch((error: unknown) => {
 				this.showError(error instanceof Error ? error.message : "Unknown error occurred");
 			});

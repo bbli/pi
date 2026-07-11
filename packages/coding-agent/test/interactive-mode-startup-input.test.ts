@@ -1,31 +1,36 @@
 import { describe, expect, it, vi } from "vitest";
 import { InteractiveMode } from "../src/modes/interactive/interactive-mode.ts";
 
+/**
+ * Minimal context shape that satisfies the onSubmit closure for a plain
+ * (non-slash, non-bash) message on an idle, non-compacting session.
+ *
+ * `defaultEditor` is an own property so it shadows the `get defaultEditor()`
+ * prototype getter; `setupEditorSubmitHandler` writes `onSubmit` onto it.
+ * `active` is an own property so `this.active.*` reads work without the real
+ * AgentPane/focusedId machinery.
+ */
 type SubmitContext = {
-	defaultEditor: { onSubmit?: (text: string) => void };
+	defaultEditor: { onSubmit?: (text: string) => Promise<void> };
 	editor: {
 		addToHistory?: (text: string) => void;
 		setText: (text: string) => void;
 	};
-	session: {
+	active: {
 		isCompacting: boolean;
 		isStreaming: boolean;
-		isBashRunning: boolean;
-		prompt: (text: string, options?: unknown) => Promise<void>;
+		session: {
+			isBashRunning: boolean;
+			prompt: (text: string, options?: unknown) => Promise<void>;
+		};
 	};
+	isPaneCommand: (text: string) => boolean;
 	flushPendingBashComponents: () => void;
-	onInputCallback?: (text: string) => void;
-	pendingUserInputs: string[];
-};
-
-type InputContext = {
-	onInputCallback?: (text: string) => void;
-	pendingUserInputs: string[];
+	showError: (msg: string) => void;
 };
 
 type InteractiveModePrivate = {
 	setupEditorSubmitHandler(this: SubmitContext): void;
-	getUserInput(this: InputContext): Promise<string>;
 };
 
 const interactiveModePrototype = InteractiveMode.prototype as unknown as InteractiveModePrivate;
@@ -37,36 +42,45 @@ function createSubmitContext(): SubmitContext {
 			addToHistory: vi.fn(),
 			setText: vi.fn(),
 		},
-		session: {
+		active: {
 			isCompacting: false,
 			isStreaming: false,
-			isBashRunning: false,
-			prompt: vi.fn(async () => {}),
+			session: {
+				isBashRunning: false,
+				prompt: vi.fn(async () => {}),
+			},
 		},
+		isPaneCommand: vi.fn(() => false),
 		flushPendingBashComponents: vi.fn(),
-		pendingUserInputs: [],
+		showError: vi.fn(),
 	};
 }
 
-describe("InteractiveMode startup input", () => {
-	it("queues a normal prompt submitted before the input callback is installed", async () => {
+describe("InteractiveMode onSubmit — idle session dispatch", () => {
+	it("calls active.session.prompt() directly for a plain message on an idle session", async () => {
 		const context = createSubmitContext();
 		interactiveModePrototype.setupEditorSubmitHandler.call(context);
 
-		await context.defaultEditor.onSubmit?.(" early prompt ");
+		await context.defaultEditor.onSubmit?.(" hello world ");
 
-		expect(context.pendingUserInputs).toEqual(["early prompt"]);
+		expect(context.active.session.prompt).toHaveBeenCalledWith("hello world");
 		expect(context.flushPendingBashComponents).toHaveBeenCalledTimes(1);
-		expect(context.editor.addToHistory).toHaveBeenCalledWith("early prompt");
+		expect(context.editor.addToHistory).toHaveBeenCalledWith("hello world");
 	});
 
-	it("returns queued startup input before installing a new input callback", async () => {
-		const context: InputContext = {
-			pendingUserInputs: ["queued prompt"],
-		};
+	it("surfaces prompt() rejections via showError", async () => {
+		const context = createSubmitContext();
+		const boom = new Error("no model selected");
+		context.active.session.prompt = vi.fn(async () => {
+			throw boom;
+		});
+		interactiveModePrototype.setupEditorSubmitHandler.call(context);
 
-		await expect(interactiveModePrototype.getUserInput.call(context)).resolves.toBe("queued prompt");
-		expect(context.onInputCallback).toBeUndefined();
-		expect(context.pendingUserInputs).toEqual([]);
+		await context.defaultEditor.onSubmit?.("hello");
+
+		// Give the fire-and-forget .catch() a microtask to run
+		await Promise.resolve();
+
+		expect(context.showError).toHaveBeenCalledWith("no model selected");
 	});
 });
