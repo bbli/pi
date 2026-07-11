@@ -292,8 +292,7 @@ export class InteractiveMode {
 	private keybindings: KeybindingsManager;
 	private version: string;
 	private isInitialized = false;
-	private onInputCallback?: (text: string) => void;
-	private pendingUserInputs: string[] = [];
+
 	private loadingAnimation: Loader | undefined = undefined;
 	private readonly defaultWorkingMessage = "Working...";
 	private readonly defaultHiddenThinkingLabel = "Thinking...";
@@ -856,16 +855,8 @@ export class InteractiveMode {
 			}
 		}
 
-		// Main interactive loop
-		while (true) {
-			const userInput = await this.getUserInput();
-			try {
-				await this.active.session.prompt(userInput);
-			} catch (error: unknown) {
-				const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-				this.showError(errorMessage);
-			}
-		}
+		// Keep run() suspended until shutdown() calls process.exit().
+		await new Promise<never>(() => {});
 	}
 
 	private async checkForPackageUpdates(): Promise<string[]> {
@@ -2816,13 +2807,10 @@ export class InteractiveMode {
 			// Normal message submission
 			// First, move any pending bash components to chat
 			this.flushPendingBashComponents();
-
-			if (this.onInputCallback) {
-				this.onInputCallback(text);
-			} else {
-				this.pendingUserInputs.push(text);
-			}
 			this.editor.addToHistory?.(text);
+			void this.active.session.prompt(text).catch((error: unknown) => {
+				this.showError(error instanceof Error ? error.message : "Unknown error occurred");
+			});
 		};
 	}
 
@@ -3592,20 +3580,6 @@ export class InteractiveMode {
 			const times = compactionCount === 1 ? "1 time" : `${compactionCount} times`;
 			this.showStatus(`Session compacted ${times}`);
 		}
-	}
-
-	async getUserInput(): Promise<string> {
-		const queuedInput = this.pendingUserInputs.shift();
-		if (queuedInput !== undefined) {
-			return queuedInput;
-		}
-
-		return new Promise((resolve) => {
-			this.onInputCallback = (text: string) => {
-				this.onInputCallback = undefined;
-				resolve(text);
-			};
-		});
 	}
 
 	private rebuildChatFromMessages(): void {
