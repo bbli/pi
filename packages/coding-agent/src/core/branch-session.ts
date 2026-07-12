@@ -117,6 +117,34 @@ function seedBranchContext(branchSession: AgentSession, mainSession: AgentSessio
 }
 
 /**
+ * Step 3a — Wire the injectEvery subscription onto a branch session.
+ * Validates the turns value and installs a turn_end subscriber that steers
+ * a reminder message every `turns` completed turns.
+ * Returns the unsubscribe function, or undefined if nothing was wired.
+ */
+function wireInjectEvery(
+	branchSession: AgentSession,
+	injectEvery: { turns: number; message: string } | undefined,
+	label: string,
+): (() => void) | undefined {
+	if (!injectEvery) return undefined;
+	const { turns, message } = injectEvery;
+	if (!Number.isFinite(turns) || turns <= 0) {
+		console.warn(`[branch:${label}] injectEvery.turns must be a finite positive number, got ${turns}; skipping`);
+		return undefined;
+	}
+	let turnCount = 0;
+	return branchSession.subscribe((event) => {
+		if (event.type !== "turn_end") return;
+		turnCount++;
+		if (turnCount % turns === 0) {
+			debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
+			void branchSession.steer(message);
+		}
+	});
+}
+
+/**
  * Step 5 — Abort and optionally dispose the branch session.
  * When keepAlive is true (e.g. --keep-branch-sessions flag), only abort is
  * called so the session remains inspectable after the run.
@@ -185,25 +213,8 @@ export async function runBranchSession(
 			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
 		}
 
-		// Step 3a: wire injectEvery — inject a follow-up user message every N turns.
-		if (options.injectEvery) {
-			const { turns, message } = options.injectEvery;
-			if (!Number.isFinite(turns) || turns <= 0) {
-				console.warn(
-					`[branch:${label}] injectEvery.turns must be a finite positive number, got ${turns}; skipping`,
-				);
-			} else {
-				let turnCount = 0;
-				_unsubInjectEvery = branchSession.subscribe((event) => {
-					if (event.type !== "turn_end") return;
-					turnCount++;
-					if (turnCount % turns === 0) {
-						debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
-						void branchSession.steer(message);
-					}
-				});
-			}
-		}
+		// Step 3a: wire injectEvery
+		_unsubInjectEvery = wireInjectEvery(branchSession, options.injectEvery, label);
 
 		// Step 3b: wire abort signal — if the caller cancels, abort the branch session too.
 		// Without this the branch session runs to completion even after the parent turn is aborted,
@@ -247,22 +258,24 @@ export async function runBranchSession(
  *
  * A `session_done(procedure)` tool is automatically injected into the branch
  * session. When the session calls it, the loop exits and the procedure string
- * is returned. Between turns, `options.getUserInput` is called with the
- * session's last text output and the current abort signal; returning undefined
- * or an empty string exits the loop. An optional `options.maxTurns` caps the
- * number of user-input rounds.
+ * is returned. Between turns, the user is prompted for input via
+ * `options.ctx.ui.input()`. When the user cancels, maxTurns is reached, or
+ * `options.ctx` is not provided, the loop exits and a fallback message is
+ * returned instead.
  *
- * Returns the procedure string if session_done was called, or undefined if
- * the loop exited without a result (user cancelled, maxTurns reached, abort).
+ * Returns the procedure string if session_done was called, or a fallback
+ * message indicating the session could not produce a result.
  */
 export async function newBranchSession(
 	prompt: string,
 	options: NewBranchSessionOptions,
 	mainSession: AgentSession,
 	manager?: AgentManager,
-): Promise<string | undefined> {
-	if (!prompt.trim()) return undefined;
-	if (!mainSession.model) return undefined;
+): Promise<string> {
+	const fallback = "Could not find a procedure. Take a step back and consider a different approach.";
+
+	if (!prompt.trim()) return fallback;
+	if (!mainSession.model) return fallback;
 
 	const label = options.label ?? "branch";
 
@@ -315,30 +328,13 @@ export async function newBranchSession(
 			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
 		}
 
-		if (options.injectEvery) {
-			const { turns, message } = options.injectEvery;
-			if (!Number.isFinite(turns) || turns <= 0) {
-				console.warn(
-					`[branch:${label}] injectEvery.turns must be a finite positive number, got ${turns}; skipping`,
-				);
-			} else {
-				let turnCount = 0;
-				_unsubInjectEvery = branchSession.subscribe((event) => {
-					if (event.type !== "turn_end") return;
-					turnCount++;
-					if (turnCount % turns === 0) {
-						debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
-						void branchSession.steer(message);
-					}
-				});
-			}
-		}
+		_unsubInjectEvery = wireInjectEvery(branchSession, options.injectEvery, label);
 
 		const abortSignal = options.abortSignal;
 		if (abortSignal) {
 			if (abortSignal.aborted) {
 				debugLog(`[branch:${label}] aborted before start`);
-				return undefined;
+				return fallback;
 			}
 			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
 		}
@@ -350,7 +346,7 @@ export async function newBranchSession(
 		const fullPrompt = prependText ? `${prependText}\n\n${prompt}` : prompt;
 		await branchSession.prompt(fullPrompt, { source: "extension" });
 
-		const { maxTurns, getUserInput } = options;
+		const { maxTurns, ctx } = options;
 		let iteration = 0;
 		while (!done) {
 			if (abortSignal?.aborted) break;
@@ -358,9 +354,16 @@ export async function newBranchSession(
 				debugLog(`[branch:${label}] loop: maxTurns (${maxTurns}) reached, exiting`);
 				break;
 			}
+			if (!ctx) break; // No UI context — cannot collect user input
 			iteration++;
 			const lastText = branchSession.lastAssistantText ?? "";
-			const userInput = await getUserInput(lastText, abortSignal);
+			const contextMessage = lastText || "Research needs your input.";
+			ctx.ui.notify(contextMessage, "info");
+			const userInput = await ctx.ui.input(
+				"Your response:",
+				undefined,
+				abortSignal ? { signal: abortSignal } : undefined,
+			);
 			if (!userInput || abortSignal?.aborted) break;
 			debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars), iteration ${iteration}`);
 			await branchSession.prompt(userInput, { source: "extension" });
@@ -372,5 +375,5 @@ export async function newBranchSession(
 		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
 	}
 
-	return done ? procedureResult : undefined;
+	return done ? (procedureResult ?? fallback) : fallback;
 }

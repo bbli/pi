@@ -1193,25 +1193,24 @@ export interface BranchSessionOptions {
  *
  * The branch session runs until:
  * - The session calls `session_done(procedure)` → returns the procedure string.
- * - `getUserInput` returns undefined or an empty string → returns undefined.
- * - `maxTurns` is reached → returns undefined.
- * - The abort signal fires → returns undefined.
+ * - User dismisses the input dialog (ctx.ui.input returns undefined/empty) → returns a fallback message.
+ * - `maxTurns` is reached → returns a fallback message.
+ * - The abort signal fires → returns a fallback message.
+ * - `ctx` is not provided → returns a fallback message immediately after the first turn.
  *
  * Inherits all BranchSessionOptions fields.
  */
 export interface NewBranchSessionOptions extends BranchSessionOptions {
 	/**
-	 * Called between branch session turns when session_done has not been called.
-	 * Receives the branch session's last text output and the current abort signal.
-	 * Return a non-empty string to use as the next prompt, or undefined/empty to
-	 * exit the loop.
+	 * Extension context used to collect user input between branch session turns.
+	 * When provided, the branch session can ask the user questions via ctx.ui.input().
+	 * When omitted, the loop exits after the first turn that does not call session_done.
 	 */
-	getUserInput: (lastText: string, signal: AbortSignal | undefined) => Promise<string | undefined>;
+	ctx?: ExtensionContext;
 	/**
 	 * Maximum number of user-input rounds before the loop exits unconditionally.
-	 * Each round is one getUserInput call + one branchSession.prompt() call.
-	 * When omitted, the loop runs until session_done is called or getUserInput
-	 * returns undefined.
+	 * Each round is one ctx.ui.input() call + one branchSession.prompt() call.
+	 * When omitted, the loop runs until session_done is called or the user cancels.
 	 */
 	maxTurns?: number;
 }
