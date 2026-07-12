@@ -121,8 +121,27 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 			return text;
 		},
 
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-			// Phase 3 — user raise (Phases 1 and 2 added in subsequent commits)
+		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+			const prompt = buildPrompt(params);
+
+			// Phase 1 — skill files
+			const phase1 = await pi.runBranchSession(prompt, {
+				seedContext: false,
+				tools: ["read"],
+				systemPrompt: PHASE1_SYSTEM_PROMPT,
+				systemPromptOverride: true,
+				abortSignal: signal,
+				label: "procedure/skills",
+			});
+
+			if (phase1 && !phase1.trimStart().startsWith("NO_MATCH")) {
+				return {
+					content: [{ type: "text" as const, text: `source: skill\n\n${phase1}` }],
+					details: {},
+				};
+			}
+
+			// Phase 3 — user raise (Phase 2 added in next commit)
 			const userQuestion = buildUserQuestion(params);
 			ctx.ui.notify(userQuestion, "info");
 			return {
