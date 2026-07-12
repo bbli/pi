@@ -132,11 +132,11 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 					injectEvery: { turns: 5, message: PROCEDURE_REMINDER },
 					loop: {
 						getUserInput: async (lastText: string) => {
-							// lastText is the branch session's last reply — its question to the user.
-							// Show it via notify, then collect the user's response.
-							if (lastText) {
-								ctx.ui.notify(lastText, "info");
-							}
+							// Show the branch session's last reply (its question) via notify,
+							// then collect the user's response. Use a fallback when lastText is
+							// empty so the user always sees context before the input dialog.
+							const contextMessage = lastText || "Research is asking for your input.";
+							ctx.ui.notify(contextMessage, "info");
 							const answer = await ctx.ui.input("Research needs your input:");
 							return answer ?? undefined;
 						},

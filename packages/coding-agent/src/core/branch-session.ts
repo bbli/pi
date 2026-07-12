@@ -278,7 +278,7 @@ export async function runBranchSession(
 				if (abortSignal?.aborted) break;
 				const lastText = branchSession.lastAssistantText ?? "";
 				const userInput = await options.loop.getUserInput(lastText);
-				if (userInput === undefined || abortSignal?.aborted) break;
+				if (!userInput || abortSignal?.aborted) break;
 				debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars)`);
 				await branchSession.prompt(userInput, { source: "extension" });
 			}
