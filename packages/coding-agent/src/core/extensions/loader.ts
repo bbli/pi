@@ -38,7 +38,6 @@ import type {
 	GuidelineDefinition,
 	LoadExtensionsResult,
 	MessageRenderer,
-	NewBranchSessionOptions,
 	ProviderConfig,
 	RegisteredCommand,
 	ToolDefinition,
@@ -329,7 +328,7 @@ function createExtensionAPI(
 			return runtime.runBranchSession(prompt, options);
 		},
 
-		newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string> {
+		newBranchSession(prompt: string, options: BranchSessionOptions): Promise<string> {
 			runtime.assertActive();
 			return runtime.newBranchSession(prompt, options);
 		},

@@ -99,6 +99,7 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			onUpdate?.({ content: [{ type: "text" as const, text: "Researching procedure..." }] });
+			ctx.ui.notify("Switch to the 'procedure' pane (/agent) to answer questions if needed.", "info");
 
 			let result: string;
 			try {
@@ -110,7 +111,6 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 					abortSignal: signal,
 					label: "procedure",
 					injectEvery: { turns: 5, message: PROCEDURE_REMINDER },
-					ctx,
 				});
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);

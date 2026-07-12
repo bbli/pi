@@ -1187,34 +1187,6 @@ export interface BranchSessionOptions {
 	injectEvery?: { turns: number; message: string };
 }
 
-/**
- * Options for pi.newBranchSession() — a branch session with an interactive
- * user-input loop and a built-in `session_done(procedure)` tool.
- *
- * The branch session runs until:
- * - The session calls `session_done(procedure)` → returns the procedure string.
- * - User dismisses the input dialog (ctx.ui.input returns undefined/empty) → returns a fallback message.
- * - `maxTurns` is reached → returns a fallback message.
- * - The abort signal fires → returns a fallback message.
- * - `ctx` is not provided → returns a fallback message immediately after the first turn.
- *
- * Inherits all BranchSessionOptions fields.
- */
-export interface NewBranchSessionOptions extends BranchSessionOptions {
-	/**
-	 * Extension context used to collect user input between branch session turns.
-	 * When provided, the branch session can ask the user questions via ctx.ui.input().
-	 * When omitted, the loop exits after the first turn that does not call session_done.
-	 */
-	ctx?: ExtensionContext;
-	/**
-	 * Maximum number of user-input rounds before the loop exits unconditionally.
-	 * Each round is one ctx.ui.input() call + one branchSession.prompt() call.
-	 * When omitted, the loop runs until session_done is called or the user cancels.
-	 */
-	maxTurns?: number;
-}
-
 /** A guideline registered via registerGuideline(). Evaluated at turn_end. */
 export interface GuidelineDefinition {
 	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
@@ -1405,17 +1377,13 @@ export interface ExtensionAPI {
 	 */
 	runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined>;
 	/**
-	 * Run an interactive branch session with a built-in user-input loop and
-	 * `session_done(procedure)` tool. Returns the procedure string when
-	 * session_done is called, or undefined if the loop exits without a result.
+	 * Run a branch session with a built-in `session_done(procedure)` tool.
+	 * Blocks until the session calls session_done or the abort signal fires.
+	 * The user can interact with the branch session by switching focus to its
+	 * pane via /agent. Returns the procedure string, or a fallback message if
+	 * the abort signal fires before session_done is called.
 	 */
-	/**
-	 * Run an interactive branch session with a built-in user-input loop and
-	 * `session_done(procedure)` tool. Returns the procedure string when
-	 * session_done is called, or a fallback message if the loop exits without
-	 * a result.
-	 */
-	newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string>;
+	newBranchSession(prompt: string, options: BranchSessionOptions): Promise<string>;
 
 	// =========================================================================
 	// Actions
@@ -1741,7 +1709,7 @@ export interface ExtensionActions {
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
 	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
-	newBranchSession: (prompt: string, options: NewBranchSessionOptions) => Promise<string>;
+	newBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string>;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**

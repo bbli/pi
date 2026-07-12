@@ -101,7 +101,6 @@ export type {
 	MessageUpdateEvent,
 	ModelSelectEvent,
 	ModelSelectSource,
-	NewBranchSessionOptions,
 	// Provider Registration
 	ProviderConfig,
 	ProviderModelConfig,

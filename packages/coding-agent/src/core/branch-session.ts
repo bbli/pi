@@ -21,7 +21,7 @@ import type { AgentManager } from "./agent-manager.ts";
 import type { AgentSession } from "./agent-session.ts";
 import { debugLog } from "./debug.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
-import { type BranchSessionOptions, defineTool, type NewBranchSessionOptions } from "./extensions/types.ts";
+import { type BranchSessionOptions, defineTool } from "./extensions/types.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
@@ -254,21 +254,20 @@ export async function runBranchSession(
 }
 
 /**
- * Run an interactive branch session with a built-in user-input loop.
+ * Run a branch session with a built-in `session_done(procedure)` tool.
  *
- * A `session_done(procedure)` tool is automatically injected into the branch
- * session. When the session calls it, the loop exits and the procedure string
- * is returned. Between turns, the user is prompted for input via
- * `options.ctx.ui.input()`. When the user cancels, maxTurns is reached, or
- * `options.ctx` is not provided, the loop exits and a fallback message is
- * returned instead.
+ * Blocks until the branch session calls session_done or the abort signal fires.
+ * The user can drive the branch session by switching focus to its pane via
+ * /agent; their replies flow through the normal editor submit path directly
+ * to the branch session's prompt(). The caller's execute() stays blocked,
+ * keeping the main session awaiting the tool result.
  *
- * Returns the procedure string if session_done was called, or a fallback
- * message indicating the session could not produce a result.
+ * Returns the procedure string when session_done is called, or a fallback
+ * message if the abort signal fires before session_done is called.
  */
 export async function newBranchSession(
 	prompt: string,
-	options: NewBranchSessionOptions,
+	options: BranchSessionOptions,
 	mainSession: AgentSession,
 	manager?: AgentManager,
 ): Promise<string> {
@@ -279,13 +278,13 @@ export async function newBranchSession(
 
 	const label = options.label ?? "branch";
 
-	// Closure variables written by the session_done tool and read by the loop.
-	let done = false;
-	let procedureResult: string | undefined;
+	// Promise resolved by session_done (with the procedure) or by abort (with undefined).
+	let resolveDone!: (result: string | undefined) => void;
+	const donePromise = new Promise<string | undefined>((resolve) => {
+		resolveDone = resolve;
+	});
 
-	// Inject the session_done tool before session creation so it appears in
-	// the tool allowlist and the branch session's system prompt.
-	const effectiveOptions: NewBranchSessionOptions = {
+	const effectiveOptions: BranchSessionOptions = {
 		...options,
 		customTools: [
 			...(options.customTools ?? []),
@@ -304,8 +303,7 @@ export async function newBranchSession(
 					}),
 				}),
 				execute: async (_id, params) => {
-					procedureResult = params.procedure;
-					done = true;
+					resolveDone(params.procedure);
 					return {
 						content: [{ type: "text" as const, text: "Procedure recorded. Session complete." }],
 						details: {},
@@ -338,7 +336,14 @@ export async function newBranchSession(
 				debugLog(`[branch:${label}] aborted before start`);
 				return fallback;
 			}
-			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
+			abortSignal.addEventListener(
+				"abort",
+				() => {
+					void branchSession.abort();
+					resolveDone(undefined);
+				},
+				{ once: true },
+			);
 		}
 
 		const prependText = options.systemPrompt && !options.systemPromptOverride ? options.systemPrompt : undefined;
@@ -348,34 +353,11 @@ export async function newBranchSession(
 		const fullPrompt = prependText ? `${prependText}\n\n${prompt}` : prompt;
 		await branchSession.prompt(fullPrompt, { source: "extension" });
 
-		const { maxTurns, ctx } = options;
-		let iteration = 0;
-		while (!done) {
-			if (abortSignal?.aborted) break;
-			if (maxTurns !== undefined && iteration >= maxTurns) {
-				debugLog(`[branch:${label}] loop: maxTurns (${maxTurns}) reached, exiting`);
-				break;
-			}
-			if (!ctx) break; // No UI context — cannot collect user input
-			iteration++;
-			const lastText = branchSession.lastAssistantText ?? "";
-			const contextMessage = lastText || "Research needs your input.";
-			ctx.ui.notify(contextMessage, "info");
-			const userInput = await ctx.ui.input(
-				"Your response:",
-				undefined,
-				abortSignal ? { signal: abortSignal } : undefined,
-			);
-			if (!userInput || abortSignal?.aborted) break;
-			debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars), iteration ${iteration}`);
-			await branchSession.prompt(userInput, { source: "extension" });
-		}
-
-		debugLog(`[branch:${label}] session complete, done=${done}, result.length=${procedureResult?.length ?? 0}`);
+		const result = await donePromise;
+		debugLog(`[branch:${label}] session complete, result.length=${result?.length ?? 0}`);
+		return result ?? fallback;
 	} finally {
 		_unsubInjectEvery?.();
 		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
 	}
-
-	return done ? (procedureResult ?? fallback) : fallback;
 }
