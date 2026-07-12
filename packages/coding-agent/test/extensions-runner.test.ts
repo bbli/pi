@@ -77,6 +77,7 @@ describe("ExtensionRunner", () => {
 		getThinkingLevel: () => "off",
 		setThinkingLevel: () => {},
 		runBranchSession: async () => undefined,
+		newBranchSession: async () => undefined,
 		getGuidelines: () => [],
 		getContinuations: () => [],
 		injectUserMessage: () => {},

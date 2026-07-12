@@ -470,6 +470,7 @@ export class ExtensionRunner {
 		this.runtime.getThinkingLevel = actions.getThinkingLevel;
 		this.runtime.setThinkingLevel = actions.setThinkingLevel;
 		this.runtime.runBranchSession = actions.runBranchSession;
+		this.runtime.newBranchSession = actions.newBranchSession;
 		this.runtime.getGuidelines = actions.getGuidelines;
 		this.runtime.getContinuations = actions.getContinuations;
 		this.runtime.injectUserMessage = actions.injectUserMessage;

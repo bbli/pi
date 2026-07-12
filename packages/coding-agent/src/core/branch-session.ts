@@ -21,7 +21,7 @@ import type { AgentManager } from "./agent-manager.ts";
 import type { AgentSession } from "./agent-session.ts";
 import { debugLog } from "./debug.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
-import { type BranchSessionOptions, defineTool } from "./extensions/types.ts";
+import { type BranchSessionOptions, defineTool, type NewBranchSessionOptions } from "./extensions/types.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
@@ -149,7 +149,7 @@ async function cleanupBranchSession(
 }
 
 // ---------------------------------------------------------------------------
-// Public entry point
+// Public entry points
 // ---------------------------------------------------------------------------
 
 /**
@@ -168,46 +168,8 @@ export async function runBranchSession(
 
 	const label = options.label ?? "branch";
 
-	// Loop state — mutated by the session_done tool's execute() when loop mode is active.
-	let done = false;
-	let procedureResult: string | undefined;
-
-	// Build effective options. In loop mode, inject the session_done tool so the
-	// branch session can signal completion and write its result. Must be done before
-	// createBranchAgentSession so session_done appears in the tool allowlist.
-	const effectiveOptions: BranchSessionOptions = options.loop
-		? {
-				...options,
-				customTools: [
-					...(options.customTools ?? []),
-					defineTool({
-						name: "session_done",
-						label: "Session Done",
-						description:
-							"Call this when you have a complete procedure ready to return. " +
-							"Include a Confidence: high/medium/low line in the procedure text. " +
-							"Only call this when you have actual steps to provide.",
-						parameters: Type.Object({
-							procedure: Type.String({
-								description: "The complete procedure text to return to the caller.",
-							}),
-						}),
-						execute: async (_id, params) => {
-							procedureResult = params.procedure;
-							done = true;
-							return {
-								content: [{ type: "text" as const, text: "Procedure recorded. Session complete." }],
-								details: {},
-								terminate: true,
-							};
-						},
-					}),
-				],
-			}
-		: options;
-
 	// Step 1: create session
-	const branchSession = await createBranchAgentSession(effectiveOptions, mainSession);
+	const branchSession = await createBranchAgentSession(options, mainSession);
 
 	let registeredId: string | undefined;
 	let text: string | undefined;
@@ -256,7 +218,7 @@ export async function runBranchSession(
 			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
 		}
 
-		// Step 3c: run the initial prompt.
+		// Step 3c: run the prompt.
 		// When systemPromptOverride is false (default): options.systemPrompt is prepended
 		// to the first user-turn message so the system prompt stays identical to root's
 		// for KV cache consistency.
@@ -269,33 +231,8 @@ export async function runBranchSession(
 		const fullPrompt = prependText ? `${prependText}\n\n${prompt}` : prompt;
 		await branchSession.prompt(fullPrompt, { source: "extension" });
 
-		// Step 3d (loop mode): continue prompting with user input until session_done is
-		// called. The session_done tool (injected above) sets done=true and stores the
-		// procedure. Between turns, getUserInput is called with the branch session's last
-		// text output so the user can respond to any questions.
-		if (options.loop) {
-			const { maxTurns } = options.loop;
-			let iteration = 0;
-			while (!done) {
-				if (abortSignal?.aborted) break;
-				if (maxTurns !== undefined && iteration >= maxTurns) {
-					debugLog(`[branch:${label}] loop: maxTurns (${maxTurns}) reached, exiting`);
-					break;
-				}
-				iteration++;
-				const lastText = branchSession.lastAssistantText ?? "";
-				const userInput = await options.loop.getUserInput(lastText, abortSignal);
-				if (!userInput || abortSignal?.aborted) break;
-				debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars), iteration ${iteration}`);
-				await branchSession.prompt(userInput, { source: "extension" });
-			}
-		}
-
-		// Step 4: capture result.
-		// In loop mode: return the procedure stored by session_done, or undefined if the
-		// loop exited without session_done being called (user cancelled / no answer found).
-		// In single-turn mode: return lastAssistantText as before (no behaviour change).
-		text = options.loop ? (done ? procedureResult : undefined) : branchSession.lastAssistantText;
+		// Step 4: capture last assistant text
+		text = branchSession.lastAssistantText;
 		debugLog(`[branch:${label}] session complete, text.length=${text?.length ?? 0}`);
 	} finally {
 		// Step 5: cleanup
@@ -303,4 +240,137 @@ export async function runBranchSession(
 		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
 	}
 	return text;
+}
+
+/**
+ * Run an interactive branch session with a built-in user-input loop.
+ *
+ * A `session_done(procedure)` tool is automatically injected into the branch
+ * session. When the session calls it, the loop exits and the procedure string
+ * is returned. Between turns, `options.getUserInput` is called with the
+ * session's last text output and the current abort signal; returning undefined
+ * or an empty string exits the loop. An optional `options.maxTurns` caps the
+ * number of user-input rounds.
+ *
+ * Returns the procedure string if session_done was called, or undefined if
+ * the loop exited without a result (user cancelled, maxTurns reached, abort).
+ */
+export async function newBranchSession(
+	prompt: string,
+	options: NewBranchSessionOptions,
+	mainSession: AgentSession,
+	manager?: AgentManager,
+): Promise<string | undefined> {
+	if (!prompt.trim()) return undefined;
+	if (!mainSession.model) return undefined;
+
+	const label = options.label ?? "branch";
+
+	// Closure variables written by the session_done tool and read by the loop.
+	let done = false;
+	let procedureResult: string | undefined;
+
+	// Inject the session_done tool before session creation so it appears in
+	// the tool allowlist and the branch session's system prompt.
+	const effectiveOptions: NewBranchSessionOptions = {
+		...options,
+		customTools: [
+			...(options.customTools ?? []),
+			defineTool({
+				name: "session_done",
+				label: "Session Done",
+				description:
+					"Call this when you have a complete procedure ready to return. " +
+					"Include a Confidence: high/medium/low line in the procedure text. " +
+					"Only call this when you have actual steps to provide.",
+				parameters: Type.Object({
+					procedure: Type.String({
+						description: "The complete procedure text to return to the caller.",
+					}),
+				}),
+				execute: async (_id, params) => {
+					procedureResult = params.procedure;
+					done = true;
+					return {
+						content: [{ type: "text" as const, text: "Procedure recorded. Session complete." }],
+						details: {},
+						terminate: true,
+					};
+				},
+			}),
+		],
+	};
+
+	const branchSession = await createBranchAgentSession(effectiveOptions, mainSession);
+
+	let registeredId: string | undefined;
+	let _unsubInjectEvery: (() => void) | undefined;
+	try {
+		if (options.seedContext !== false) {
+			seedBranchContext(branchSession, mainSession);
+		}
+
+		if (manager) {
+			registeredId = crypto.randomUUID();
+			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
+		}
+
+		if (options.injectEvery) {
+			const { turns, message } = options.injectEvery;
+			if (!Number.isFinite(turns) || turns <= 0) {
+				console.warn(
+					`[branch:${label}] injectEvery.turns must be a finite positive number, got ${turns}; skipping`,
+				);
+			} else {
+				let turnCount = 0;
+				_unsubInjectEvery = branchSession.subscribe((event) => {
+					if (event.type !== "turn_end") return;
+					turnCount++;
+					if (turnCount % turns === 0) {
+						debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
+						void branchSession.steer(message);
+					}
+				});
+			}
+		}
+
+		const abortSignal = options.abortSignal;
+		if (abortSignal) {
+			if (abortSignal.aborted) {
+				debugLog(`[branch:${label}] aborted before start`);
+				return undefined;
+			}
+			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
+		}
+
+		const prependText = options.systemPrompt && !options.systemPromptOverride ? options.systemPrompt : undefined;
+		if (prependText) {
+			debugLog(`[branch:${label}] systemPrompt prepended (${prependText.length} chars)`);
+		}
+		const fullPrompt = prependText ? `${prependText}\n\n${prompt}` : prompt;
+		await branchSession.prompt(fullPrompt, { source: "extension" });
+
+		const { maxTurns, getUserInput } = options;
+		let iteration = 0;
+		while (!done) {
+			if (abortSignal?.aborted) break;
+			if (maxTurns !== undefined && iteration >= maxTurns) {
+				debugLog(`[branch:${label}] loop: maxTurns (${maxTurns}) reached, exiting`);
+				break;
+			}
+			iteration++;
+			const lastText = branchSession.lastAssistantText ?? "";
+			const userInput = await getUserInput(lastText, abortSignal);
+			if (!userInput || abortSignal?.aborted) break;
+			debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars), iteration ${iteration}`);
+			await branchSession.prompt(userInput, { source: "extension" });
+		}
+
+		debugLog(`[branch:${label}] session complete, done=${done}, result.length=${procedureResult?.length ?? 0}`);
+	} finally {
+		_unsubInjectEvery?.();
+		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
+	}
+
+	return done ? procedureResult : undefined;
 }

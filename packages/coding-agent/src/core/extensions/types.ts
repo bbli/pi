@@ -1185,33 +1185,35 @@ export interface BranchSessionOptions {
 	 * focused on their task.
 	 */
 	injectEvery?: { turns: number; message: string };
+}
+
+/**
+ * Options for pi.newBranchSession() — a branch session with an interactive
+ * user-input loop and a built-in `session_done(procedure)` tool.
+ *
+ * The branch session runs until:
+ * - The session calls `session_done(procedure)` → returns the procedure string.
+ * - `getUserInput` returns undefined or an empty string → returns undefined.
+ * - `maxTurns` is reached → returns undefined.
+ * - The abort signal fires → returns undefined.
+ *
+ * Inherits all BranchSessionOptions fields.
+ */
+export interface NewBranchSessionOptions extends BranchSessionOptions {
 	/**
-	 * When set, runBranchSession enters multi-turn loop mode. A built-in
-	 * `session_done(procedure)` tool is automatically injected into the branch
-	 * session. When the branch session calls `session_done`, the loop exits and
-	 * the procedure string is returned by runBranchSession.
-	 *
-	 * Between turns where `session_done` has not been called, `loop.getUserInput`
-	 * is called with the branch session's last text output. Return a string to
-	 * use as the next prompt, or undefined to exit the loop (runBranchSession
-	 * returns undefined in that case).
+	 * Called between branch session turns when session_done has not been called.
+	 * Receives the branch session's last text output and the current abort signal.
+	 * Return a non-empty string to use as the next prompt, or undefined/empty to
+	 * exit the loop.
 	 */
-	loop?: {
-		/**
-		 * Called between branch session turns when session_done has not been called.
-		 * Receives the branch session's last text output and the current abort signal.
-		 * Return a non-empty string to use as the next prompt, or undefined/empty to
-		 * exit the loop (runBranchSession returns undefined in that case).
-		 */
-		getUserInput: (lastText: string, signal: AbortSignal | undefined) => Promise<string | undefined>;
-		/**
-		 * Maximum number of user-input rounds before the loop exits unconditionally.
-		 * Each round is one getUserInput call + one branchSession.prompt() call.
-		 * When omitted, the loop runs until session_done is called or getUserInput
-		 * returns undefined.
-		 */
-		maxTurns?: number;
-	};
+	getUserInput: (lastText: string, signal: AbortSignal | undefined) => Promise<string | undefined>;
+	/**
+	 * Maximum number of user-input rounds before the loop exits unconditionally.
+	 * Each round is one getUserInput call + one branchSession.prompt() call.
+	 * When omitted, the loop runs until session_done is called or getUserInput
+	 * returns undefined.
+	 */
+	maxTurns?: number;
 }
 
 /** A guideline registered via registerGuideline(). Evaluated at turn_end. */
@@ -1403,6 +1405,12 @@ export interface ExtensionAPI {
 	 * Sentinel parsing is the caller's responsibility.
 	 */
 	runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined>;
+	/**
+	 * Run an interactive branch session with a built-in user-input loop and
+	 * `session_done(procedure)` tool. Returns the procedure string when
+	 * session_done is called, or undefined if the loop exits without a result.
+	 */
+	newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string | undefined>;
 
 	// =========================================================================
 	// Actions
@@ -1728,6 +1736,7 @@ export interface ExtensionActions {
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
 	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
+	newBranchSession: (prompt: string, options: NewBranchSessionOptions) => Promise<string | undefined>;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**

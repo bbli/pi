@@ -90,7 +90,7 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 			"Call researchProcedure when you know WHAT data or access is needed but not HOW " +
 				"to obtain it — unknown SSH paths, log locations, CLI flags, or operational " +
 				"workflows not confirmed by code or logs already read in this session.",
-			"Do not guess SSH paths, log locations, or CLI flags for unfamiliar systems — " +
+			"DO NOT GUESS SSH paths, log locations, or CLI flags for unfamiliar systems — " +
 				"call researchProcedure instead.",
 			"researchProcedure returns a procedure for you to follow or present to the user. " +
 				"If it returns source: user-required, surface the included question to the user " +
@@ -122,7 +122,7 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 
 			let result: string | undefined;
 			try {
-				result = await pi.runBranchSession(prompt, {
+				result = await pi.newBranchSession(prompt, {
 					seedContext: false,
 					tools: ["read", "bash"],
 					systemPrompt: UNIFIED_SYSTEM_PROMPT,
@@ -130,18 +130,16 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 					abortSignal: signal,
 					label: "procedure",
 					injectEvery: { turns: 5, message: PROCEDURE_REMINDER },
-					loop: {
-						getUserInput: async (lastText: string, signal: AbortSignal | undefined) => {
-							// Show the branch session's last reply (its question) via notify,
-							// then collect the user's response. Use a fallback when lastText is
-							// empty so the user always sees context before the input dialog.
-							// Pass the abort signal so Escape dismisses the dialog immediately
-							// without requiring a second keypress.
-							const contextMessage = lastText || "Research is asking for your input.";
-							ctx.ui.notify(contextMessage, "info");
-							const answer = await ctx.ui.input("Research needs your input:", undefined, { signal });
-							return answer ?? undefined;
-						},
+					getUserInput: async (lastText: string, signal: AbortSignal | undefined) => {
+						// Show the branch session's last reply (its question) via notify,
+						// then collect the user's response. Use a fallback when lastText is
+						// empty so the user always sees context before the input dialog.
+						// Pass the abort signal so Escape dismisses the dialog immediately
+						// without requiring a second keypress.
+						const contextMessage = lastText || "Research is asking for your input.";
+						ctx.ui.notify(contextMessage, "info");
+						const answer = await ctx.ui.input("Research needs your input:", undefined, { signal });
+						return answer ?? undefined;
 					},
 				});
 			} catch (err) {

@@ -40,7 +40,7 @@ import { sleep } from "../utils/sleep.ts";
 import type { AgentManager } from "./agent-manager.ts";
 import { formatNoApiKeyFoundMessage, formatNoModelSelectedMessage } from "./auth-guidance.ts";
 import { type BashResult, executeBashWithOperations } from "./bash-executor.ts";
-import { runBranchSession } from "./branch-session.ts";
+import { newBranchSession, runBranchSession } from "./branch-session.ts";
 import {
 	type CompactionResult,
 	calculateContextTokens,
@@ -2322,6 +2322,10 @@ export class AgentSession {
 				runBranchSession: (prompt, options) => {
 					const keepAlive = options.keepAlive ?? runner.getFlagValues().get("keep-branch-sessions") === true;
 					return runBranchSession(prompt, { ...options, keepAlive }, this, this._agentManager);
+				},
+				newBranchSession: (prompt, options) => {
+					const keepAlive = options.keepAlive ?? runner.getFlagValues().get("keep-branch-sessions") === true;
+					return newBranchSession(prompt, { ...options, keepAlive }, this, this._agentManager);
 				},
 				getGuidelines: () => this._extensionRunner.getAllGuidelines(),
 				getContinuations: () => this._extensionRunner.getAllContinuations(),

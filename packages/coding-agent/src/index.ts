@@ -102,6 +102,7 @@ export type {
 	LsToolCallEvent,
 	MessageRenderer,
 	MessageRenderOptions,
+	NewBranchSessionOptions,
 	ProviderConfig,
 	ProviderModelConfig,
 	ReadToolCallEvent,

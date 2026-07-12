@@ -38,6 +38,7 @@ import type {
 	GuidelineDefinition,
 	LoadExtensionsResult,
 	MessageRenderer,
+	NewBranchSessionOptions,
 	ProviderConfig,
 	RegisteredCommand,
 	ToolDefinition,
@@ -152,6 +153,7 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		getThinkingLevel: notInitialized,
 		setThinkingLevel: notInitialized,
 		runBranchSession: notInitialized,
+		newBranchSession: notInitialized,
 		getGuidelines: notInitialized,
 		getContinuations: notInitialized,
 		setGoal: notInitialized,
@@ -325,6 +327,11 @@ function createExtensionAPI(
 		runBranchSession(prompt: string, options: BranchSessionOptions): Promise<string | undefined> {
 			runtime.assertActive();
 			return runtime.runBranchSession(prompt, options);
+		},
+
+		newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string | undefined> {
+			runtime.assertActive();
+			return runtime.newBranchSession(prompt, options);
 		},
 
 		// Flag access - checks extension registered it, reads from runtime
