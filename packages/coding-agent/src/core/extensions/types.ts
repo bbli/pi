@@ -1185,6 +1185,20 @@ export interface BranchSessionOptions {
 	 * focused on their task.
 	 */
 	injectEvery?: { turns: number; message: string };
+	/**
+	 * When set, runBranchSession enters multi-turn loop mode. A built-in
+	 * `session_done(procedure)` tool is automatically injected into the branch
+	 * session. When the branch session calls `session_done`, the loop exits and
+	 * the procedure string is returned by runBranchSession.
+	 *
+	 * Between turns where `session_done` has not been called, `loop.getUserInput`
+	 * is called with the branch session's last text output. Return a string to
+	 * use as the next prompt, or undefined to exit the loop (runBranchSession
+	 * returns undefined in that case).
+	 */
+	loop?: {
+		getUserInput: (lastText: string) => Promise<string | undefined>;
+	};
 }
 
 /** A guideline registered via registerGuideline(). Evaluated at turn_end. */

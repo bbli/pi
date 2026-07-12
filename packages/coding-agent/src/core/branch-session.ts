@@ -16,11 +16,12 @@
  */
 
 import * as crypto from "node:crypto";
+import { Type } from "typebox";
 import type { AgentManager } from "./agent-manager.ts";
 import type { AgentSession } from "./agent-session.ts";
 import { debugLog } from "./debug.ts";
 import { createExtensionRuntime } from "./extensions/loader.ts";
-import type { BranchSessionOptions } from "./extensions/types.ts";
+import { type BranchSessionOptions, defineTool } from "./extensions/types.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
@@ -167,8 +168,46 @@ export async function runBranchSession(
 
 	const label = options.label ?? "branch";
 
+	// Loop state — mutated by the session_done tool's execute() when loop mode is active.
+	let done = false;
+	let procedureResult: string | undefined;
+
+	// Build effective options. In loop mode, inject the session_done tool so the
+	// branch session can signal completion and write its result. Must be done before
+	// createBranchAgentSession so session_done appears in the tool allowlist.
+	const effectiveOptions: BranchSessionOptions = options.loop
+		? {
+				...options,
+				customTools: [
+					...(options.customTools ?? []),
+					defineTool({
+						name: "session_done",
+						label: "Session Done",
+						description:
+							"Call this when you have a complete procedure ready to return. " +
+							"Include a Confidence: high/medium/low line in the procedure text. " +
+							"Only call this when you have actual steps to provide.",
+						parameters: Type.Object({
+							procedure: Type.String({
+								description: "The complete procedure text to return to the caller.",
+							}),
+						}),
+						execute: async (_id, params) => {
+							procedureResult = params.procedure;
+							done = true;
+							return {
+								content: [{ type: "text" as const, text: "Procedure recorded. Session complete." }],
+								details: {},
+								terminate: true,
+							};
+						},
+					}),
+				],
+			}
+		: options;
+
 	// Step 1: create session
-	const branchSession = await createBranchAgentSession(options, mainSession);
+	const branchSession = await createBranchAgentSession(effectiveOptions, mainSession);
 
 	let registeredId: string | undefined;
 	let text: string | undefined;
@@ -217,7 +256,7 @@ export async function runBranchSession(
 			abortSignal.addEventListener("abort", () => void branchSession.abort(), { once: true });
 		}
 
-		// Step 3c: run the prompt.
+		// Step 3c: run the initial prompt.
 		// When systemPromptOverride is false (default): options.systemPrompt is prepended
 		// to the first user-turn message so the system prompt stays identical to root's
 		// for KV cache consistency.
@@ -230,8 +269,26 @@ export async function runBranchSession(
 		const fullPrompt = prependText ? `${prependText}\n\n${prompt}` : prompt;
 		await branchSession.prompt(fullPrompt, { source: "extension" });
 
-		// Step 4: capture last assistant text
-		text = branchSession.lastAssistantText;
+		// Step 3d (loop mode): continue prompting with user input until session_done is
+		// called. The session_done tool (injected above) sets done=true and stores the
+		// procedure. Between turns, getUserInput is called with the branch session's last
+		// text output so the user can respond to any questions.
+		if (options.loop) {
+			while (!done) {
+				if (abortSignal?.aborted) break;
+				const lastText = branchSession.lastAssistantText ?? "";
+				const userInput = await options.loop.getUserInput(lastText);
+				if (userInput === undefined || abortSignal?.aborted) break;
+				debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars)`);
+				await branchSession.prompt(userInput, { source: "extension" });
+			}
+		}
+
+		// Step 4: capture result.
+		// In loop mode: return the procedure stored by session_done, or undefined if the
+		// loop exited without session_done being called (user cancelled / no answer found).
+		// In single-turn mode: return lastAssistantText as before (no behaviour change).
+		text = options.loop ? (done ? procedureResult : undefined) : branchSession.lastAssistantText;
 		debugLog(`[branch:${label}] session complete, text.length=${text?.length ?? 0}`);
 	} finally {
 		// Step 5: cleanup
