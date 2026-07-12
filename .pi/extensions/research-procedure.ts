@@ -70,11 +70,14 @@ function buildPrompt(params: { goal: string; system: string; context?: string })
 	return prompt;
 }
 
-function buildUserQuestion(params: { goal: string; system: string }): string {
-	return (
+function buildUserQuestion(params: { goal: string; system: string; context?: string }): string {
+	let question =
 		`How do I ${params.goal} on ${params.system}? ` +
-		`Please provide the exact steps, access method, or path needed.`
-	);
+		`Please provide the exact steps, access method, or path needed.`;
+	if (params.context) {
+		question += `\n\nContext already established: ${params.context}`;
+	}
+	return question;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,37 +128,63 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 			const prompt = buildPrompt(params);
 
 			// Phase 1 — skill files
-			const phase1 = await pi.runBranchSession(prompt, {
-				seedContext: false,
-				tools: ["read"],
-				systemPrompt: PHASE1_SYSTEM_PROMPT,
-				systemPromptOverride: true,
-				abortSignal: signal,
-				label: "procedure/skills",
-			});
+			let phase1: string | undefined;
+			try {
+				phase1 = await pi.runBranchSession(prompt, {
+					seedContext: false,
+					tools: ["read"],
+					systemPrompt: PHASE1_SYSTEM_PROMPT,
+					systemPromptOverride: true,
+					abortSignal: signal,
+					label: "procedure/skills",
+				});
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return {
+					content: [{ type: "text" as const, text: `researchProcedure Phase 1 (skills) failed: ${msg}` }],
+					details: {},
+				};
+			}
 
-			if (phase1 && !phase1.trimStart().startsWith("NO_MATCH")) {
+			if (phase1 && !phase1.includes("NO_MATCH")) {
 				return {
 					content: [{ type: "text" as const, text: `source: skill\n\n${phase1}` }],
 					details: {},
 				};
 			}
 
-			// Phase 2 — reasoning + web
-			const phase2 = await pi.runBranchSession(prompt, {
-				seedContext: false,
-				tools: ["bash"],
-				systemPrompt: PHASE2_SYSTEM_PROMPT,
-				systemPromptOverride: true,
-				abortSignal: signal,
-				label: "procedure/reasoning",
-			});
+			if (signal?.aborted) {
+				return { content: [{ type: "text" as const, text: "(cancelled)" }], details: {} };
+			}
 
-			if (phase2 && !phase2.trimStart().startsWith("UNKNOWN")) {
+			// Phase 2 — reasoning + web
+			let phase2: string | undefined;
+			try {
+				phase2 = await pi.runBranchSession(prompt, {
+					seedContext: false,
+					tools: ["bash"],
+					systemPrompt: PHASE2_SYSTEM_PROMPT,
+					systemPromptOverride: true,
+					abortSignal: signal,
+					label: "procedure/reasoning",
+				});
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return {
+					content: [{ type: "text" as const, text: `researchProcedure Phase 2 (reasoning) failed: ${msg}` }],
+					details: {},
+				};
+			}
+
+			if (phase2 && !phase2.includes("UNKNOWN")) {
 				return {
 					content: [{ type: "text" as const, text: `source: reasoning\n\n${phase2}` }],
 					details: {},
 				};
+			}
+
+			if (signal?.aborted) {
+				return { content: [{ type: "text" as const, text: "(cancelled)" }], details: {} };
 			}
 
 			// Phase 3 — user raise
