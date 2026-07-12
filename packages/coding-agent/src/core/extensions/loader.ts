@@ -329,7 +329,7 @@ function createExtensionAPI(
 			return runtime.runBranchSession(prompt, options);
 		},
 
-		newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string | undefined> {
+		newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string> {
 			runtime.assertActive();
 			return runtime.newBranchSession(prompt, options);
 		},

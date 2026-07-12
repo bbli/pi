@@ -1409,7 +1409,13 @@ export interface ExtensionAPI {
 	 * `session_done(procedure)` tool. Returns the procedure string when
 	 * session_done is called, or undefined if the loop exits without a result.
 	 */
-	newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string | undefined>;
+	/**
+	 * Run an interactive branch session with a built-in user-input loop and
+	 * `session_done(procedure)` tool. Returns the procedure string when
+	 * session_done is called, or a fallback message if the loop exits without
+	 * a result.
+	 */
+	newBranchSession(prompt: string, options: NewBranchSessionOptions): Promise<string>;
 
 	// =========================================================================
 	// Actions
@@ -1735,7 +1741,7 @@ export interface ExtensionActions {
 	getThinkingLevel: GetThinkingLevelHandler;
 	setThinkingLevel: SetThinkingLevelHandler;
 	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
-	newBranchSession: (prompt: string, options: NewBranchSessionOptions) => Promise<string | undefined>;
+	newBranchSession: (prompt: string, options: NewBranchSessionOptions) => Promise<string>;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**
