@@ -124,26 +124,30 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 			return text;
 		},
 
-		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const prompt = buildPrompt(params);
 
 			// Phase 1 — skill files
+			// Skip entirely when no skills are loaded (avoids a needless branch session round-trip)
 			let phase1: string | undefined;
-			try {
-				phase1 = await pi.runBranchSession(prompt, {
-					seedContext: false,
-					tools: ["read"],
-					systemPrompt: PHASE1_SYSTEM_PROMPT,
-					systemPromptOverride: true,
-					abortSignal: signal,
-					label: "procedure/skills",
-				});
-			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
-				return {
-					content: [{ type: "text" as const, text: `researchProcedure Phase 1 (skills) failed: ${msg}` }],
-					details: {},
-				};
+			if (ctx.getSystemPrompt().includes("<available_skills>")) {
+				onUpdate?.({ content: [{ type: "text" as const, text: "Searching skill files..." }] });
+				try {
+					phase1 = await pi.runBranchSession(prompt, {
+						seedContext: false,
+						tools: ["read"],
+						systemPrompt: PHASE1_SYSTEM_PROMPT,
+						systemPromptOverride: true,
+						abortSignal: signal,
+						label: "procedure/skills",
+					});
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					return {
+						content: [{ type: "text" as const, text: `researchProcedure Phase 1 (skills) failed: ${msg}` }],
+						details: {},
+					};
+				}
 			}
 
 			if (phase1 && !phase1.includes("NO_MATCH")) {
@@ -158,6 +162,7 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 			}
 
 			// Phase 2 — reasoning + web
+			onUpdate?.({ content: [{ type: "text" as const, text: "Consulting documentation..." }] });
 			let phase2: string | undefined;
 			try {
 				phase2 = await pi.runBranchSession(prompt, {
