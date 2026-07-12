@@ -6,13 +6,15 @@
  * locations, CLI flags, or operational workflows not confirmed by code already
  * read in the session.
  *
- * Three-phase search, stopping at the first successful result:
- *   Phase 1 — skill files: branch session with read tool reads the
- *             <available_skills> block and extracts a matching procedure.
- *   Phase 2 — reasoning + web: branch session with bash tool reasons from
- *             training knowledge, consulting docs/internet if confidence is low.
- *   Phase 3 — user raise: returns a targeted question for the agent to surface
- *             in conversation, with a TUI notification.
+ * A single branch session handles all phases in order:
+ *   1. Skills — reads matching skill files from <available_skills>
+ *   2. Knowledge — reasons from training, uses bash for docs/internet if needed
+ *   3. User — asks the user directly when the system is internal/proprietary
+ *
+ * The branch session calls session_done(procedure) when it has a result.
+ * Between turns, getUserInput relays the branch session's questions to the user
+ * via ctx.ui.input() and feeds the answers back as the next prompt.
+ * injectEvery: 5 keeps the session on track for longer investigations.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -20,43 +22,33 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 // ---------------------------------------------------------------------------
-// Branch session system prompts
+// Branch session prompts
 // ---------------------------------------------------------------------------
 
-const PHASE1_SYSTEM_PROMPT = `\
-You are a procedure lookup assistant. Your only job is to determine whether any \
-loaded skill file contains a procedure relevant to the goal given by the user.
-
-The <available_skills> block appended to this prompt lists the loaded skill files \
-with their file locations and descriptions. If any skill appears relevant to the \
-goal, use the read tool to load that file and extract a concrete, actionable procedure.
-
-When you find a relevant procedure, output:
-Source: skill — <skill name>
-Confidence: high | medium | low
-<step-by-step procedure, prerequisites, warnings>
-
-When no loaded skill covers the goal, output exactly this and nothing else:
-NO_MATCH`;
-
-const PHASE2_SYSTEM_PROMPT = `\
-You are a procedure research assistant. Your only job is to produce a concrete \
+const UNIFIED_SYSTEM_PROMPT = `\
+You are a procedure research assistant. Your job is to find or produce a concrete, \
 step-by-step procedure for the goal given by the user.
 
-Work in this order:
-1. Reason from your training knowledge. Include a Confidence line \
-   (high / medium / low) reflecting how certain you are these steps are \
-   correct for this specific system.
-2. If your confidence is low, use bash to consult documentation — \
-   man pages, --help flags, or curl to public documentation sites.
+Work through these steps in order:
+1. SKILLS: Check the <available_skills> block in this prompt. If any skill file \
+   covers this goal, use the read tool to load it and extract the procedure.
+2. KNOWLEDGE: If no skill covers it, reason from your training knowledge and produce \
+   a procedure. Include a Confidence: high/medium/low line.
+3. DOCUMENTATION: If your confidence is low, use bash to consult man pages, --help \
+   flags, or public documentation (curl to authoritative sources).
+4. USER: If you cannot produce reliable steps — for example the system is internal \
+   or proprietary — ask the user directly. They will reply and you can continue.
 
-When you have steps to provide, output:
-Confidence: high | medium | low
-<step-by-step procedure with copy-pasteable commands, prerequisites, warnings>
+When you have a complete procedure ready to return, call session_done with the full \
+procedure text. Include a Confidence: high/medium/low line in the procedure.
 
-When you genuinely cannot produce steps — for example the system is internal \
-and undocumented publicly — output exactly this and nothing else:
-UNKNOWN`;
+Do not call session_done with a question or a statement that you cannot help. \
+Instead, write the question or request as your reply and the user will respond.`;
+
+const PROCEDURE_REMINDER = `\
+Are you still working toward finding a procedure? \
+If you have one ready, call session_done now. \
+If you need information from the user, ask your question directly as a reply.`;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -126,86 +118,59 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const prompt = buildPrompt(params);
+			onUpdate?.({ content: [{ type: "text" as const, text: "Researching procedure..." }] });
 
-			// Phase 1 — skill files
-			// Skip entirely when no skills are loaded (avoids a needless branch session round-trip)
-			let phase1: string | undefined;
-			if (ctx.getSystemPrompt().includes("<available_skills>")) {
-				onUpdate?.({ content: [{ type: "text" as const, text: "Searching skill files..." }] });
-				try {
-					phase1 = await pi.runBranchSession(prompt, {
-						seedContext: false,
-						tools: ["read"],
-						systemPrompt: PHASE1_SYSTEM_PROMPT,
-						systemPromptOverride: true,
-						abortSignal: signal,
-						label: "procedure/skills",
-					});
-				} catch (err) {
-					const msg = err instanceof Error ? err.message : String(err);
-					return {
-						content: [{ type: "text" as const, text: `researchProcedure Phase 1 (skills) failed: ${msg}` }],
-						details: {},
-					};
-				}
-			}
-
-			if (phase1 && !phase1.includes("NO_MATCH")) {
-				return {
-					content: [{ type: "text" as const, text: `source: skill\n\n${phase1}` }],
-					details: {},
-				};
-			}
-
-			if (signal?.aborted) {
-				return { content: [{ type: "text" as const, text: "(cancelled)" }], details: {} };
-			}
-
-			// Phase 2 — reasoning + web
-			onUpdate?.({ content: [{ type: "text" as const, text: "Consulting documentation..." }] });
-			let phase2: string | undefined;
+			let result: string | undefined;
 			try {
-				phase2 = await pi.runBranchSession(prompt, {
+				result = await pi.runBranchSession(prompt, {
 					seedContext: false,
-					tools: ["bash"],
-					systemPrompt: PHASE2_SYSTEM_PROMPT,
+					tools: ["read", "bash"],
+					systemPrompt: UNIFIED_SYSTEM_PROMPT,
 					systemPromptOverride: true,
 					abortSignal: signal,
-					label: "procedure/reasoning",
+					label: "procedure",
+					injectEvery: { turns: 5, message: PROCEDURE_REMINDER },
+					loop: {
+						getUserInput: async (lastText: string) => {
+							// lastText is the branch session's last reply — its question to the user.
+							// Show it via notify, then collect the user's response.
+							if (lastText) {
+								ctx.ui.notify(lastText, "info");
+							}
+							const answer = await ctx.ui.input("Research needs your input:");
+							return answer ?? undefined;
+						},
+					},
 				});
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				return {
-					content: [{ type: "text" as const, text: `researchProcedure Phase 2 (reasoning) failed: ${msg}` }],
+					content: [{ type: "text" as const, text: `researchProcedure failed: ${msg}` }],
 					details: {},
 				};
 			}
 
-			if (phase2 && !phase2.includes("UNKNOWN")) {
+			if (!result) {
+				// Branch session exited without calling session_done —
+				// user cancelled or session genuinely could not help.
+				const userQuestion = buildUserQuestion(params);
+				ctx.ui.notify(userQuestion, "info");
 				return {
-					content: [{ type: "text" as const, text: `source: reasoning\n\n${phase2}` }],
+					content: [
+						{
+							type: "text" as const,
+							text:
+								`source: user-required\n\n` +
+								`researchProcedure could not find a procedure.\n\n` +
+								`Please ask the user:\n${userQuestion}`,
+						},
+					],
 					details: {},
 				};
 			}
 
-			if (signal?.aborted) {
-				return { content: [{ type: "text" as const, text: "(cancelled)" }], details: {} };
-			}
-
-			// Phase 3 — user raise
-			const userQuestion = buildUserQuestion(params);
-			ctx.ui.notify(userQuestion, "info");
 			return {
-				content: [
-					{
-						type: "text" as const,
-						text:
-							`source: user-required\n\n` +
-							`researchProcedure could not find a procedure in loaded skills ` +
-							`or from general knowledge.\n\n` +
-							`Please ask the user:\n${userQuestion}`,
-					},
-				],
+				content: [{ type: "text" as const, text: result }],
 				details: {},
 			};
 		},
