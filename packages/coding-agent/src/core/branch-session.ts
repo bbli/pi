@@ -295,7 +295,9 @@ export async function newBranchSession(
 				description:
 					"Call this when you have a complete procedure ready to return. " +
 					"Include a Confidence: high/medium/low line in the procedure text. " +
-					"Only call this when you have actual steps to provide.",
+					"Only call this when you have actual steps to provide. " +
+					"If you have exhausted all options including asking the user, " +
+					"call this with your best-effort answer and Confidence: low.",
 				parameters: Type.Object({
 					procedure: Type.String({
 						description: "The complete procedure text to return to the caller.",
