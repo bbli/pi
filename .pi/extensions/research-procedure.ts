@@ -141,7 +141,24 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 				};
 			}
 
-			// Phase 3 — user raise (Phase 2 added in next commit)
+			// Phase 2 — reasoning + web
+			const phase2 = await pi.runBranchSession(prompt, {
+				seedContext: false,
+				tools: ["bash"],
+				systemPrompt: PHASE2_SYSTEM_PROMPT,
+				systemPromptOverride: true,
+				abortSignal: signal,
+				label: "procedure/reasoning",
+			});
+
+			if (phase2 && !phase2.trimStart().startsWith("UNKNOWN")) {
+				return {
+					content: [{ type: "text" as const, text: `source: reasoning\n\n${phase2}` }],
+					details: {},
+				};
+			}
+
+			// Phase 3 — user raise
 			const userQuestion = buildUserQuestion(params);
 			ctx.ui.notify(userQuestion, "info");
 			return {
