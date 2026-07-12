@@ -131,13 +131,15 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 					label: "procedure",
 					injectEvery: { turns: 5, message: PROCEDURE_REMINDER },
 					loop: {
-						getUserInput: async (lastText: string) => {
+						getUserInput: async (lastText: string, signal: AbortSignal | undefined) => {
 							// Show the branch session's last reply (its question) via notify,
 							// then collect the user's response. Use a fallback when lastText is
 							// empty so the user always sees context before the input dialog.
+							// Pass the abort signal so Escape dismisses the dialog immediately
+							// without requiring a second keypress.
 							const contextMessage = lastText || "Research is asking for your input.";
 							ctx.ui.notify(contextMessage, "info");
-							const answer = await ctx.ui.input("Research needs your input:");
+							const answer = await ctx.ui.input("Research needs your input:", undefined, { signal });
 							return answer ?? undefined;
 						},
 					},

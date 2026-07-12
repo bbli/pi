@@ -274,12 +274,19 @@ export async function runBranchSession(
 		// procedure. Between turns, getUserInput is called with the branch session's last
 		// text output so the user can respond to any questions.
 		if (options.loop) {
+			const { maxTurns } = options.loop;
+			let iteration = 0;
 			while (!done) {
 				if (abortSignal?.aborted) break;
+				if (maxTurns !== undefined && iteration >= maxTurns) {
+					debugLog(`[branch:${label}] loop: maxTurns (${maxTurns}) reached, exiting`);
+					break;
+				}
+				iteration++;
 				const lastText = branchSession.lastAssistantText ?? "";
-				const userInput = await options.loop.getUserInput(lastText);
+				const userInput = await options.loop.getUserInput(lastText, abortSignal);
 				if (!userInput || abortSignal?.aborted) break;
-				debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars)`);
+				debugLog(`[branch:${label}] loop: user replied (${userInput.length} chars), iteration ${iteration}`);
 				await branchSession.prompt(userInput, { source: "extension" });
 			}
 		}

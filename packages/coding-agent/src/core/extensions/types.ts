@@ -1197,7 +1197,20 @@ export interface BranchSessionOptions {
 	 * returns undefined in that case).
 	 */
 	loop?: {
-		getUserInput: (lastText: string) => Promise<string | undefined>;
+		/**
+		 * Called between branch session turns when session_done has not been called.
+		 * Receives the branch session's last text output and the current abort signal.
+		 * Return a non-empty string to use as the next prompt, or undefined/empty to
+		 * exit the loop (runBranchSession returns undefined in that case).
+		 */
+		getUserInput: (lastText: string, signal: AbortSignal | undefined) => Promise<string | undefined>;
+		/**
+		 * Maximum number of user-input rounds before the loop exits unconditionally.
+		 * Each round is one getUserInput call + one branchSession.prompt() call.
+		 * When omitted, the loop runs until session_done is called or getUserInput
+		 * returns undefined.
+		 */
+		maxTurns?: number;
 	};
 }
 
