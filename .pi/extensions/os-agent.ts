@@ -127,12 +127,16 @@ After all slices are committed, briefly note what was done and return to the ori
 
 
 const RESEARCH_UNCERTAINTIES_PROMPT_BODY = `You have unresolved questions or uncertainties \
-in this conversation. Use the researchConversationQuestion tool to investigate each distinct \
-question in its own focused subagent before proceeding — this surfaces answers without \
-polluting the main context window with exploratory reads.
+in this conversation. Investigate each distinct question in its own focused subagent \
+before proceeding — this surfaces answers without polluting the main context window \
+with exploratory reads.
 
 For each unresolved question or uncertainty:
-1. Call researchConversationQuestion(question) with a precise, self-contained question.
+1. Choose the right tool based on the nature of the question:
+   - researchConversationQuestion(question) — for codebase questions: gaps, unverified \
+     assumptions, or uncertainties that can be answered by reading code, files, or logs.
+   - researchProcedure(goal) — for system-specific operational unknowns: SSH paths, log \
+     locations, CLI flags, access workflows, or procedures not confirmed by code in this session.
 2. Read the returned findings.
 3. Repeat for each remaining question.
 4. Once you have the findings, apply them to the current task before continuing. \
@@ -506,40 +510,32 @@ Once you have read the relevant code and formed a grounded hypothesis, apply tha
 understanding to decide your next action. Reflect on any gaps the code reveals — \
 they may reframe the problem or suggest a different approach.`;
 
-const ASSUMPTION_CHALLENGED_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED — Something in this conversation \
-contradicts your current understanding. Return to first principles \
-and rebuild your hypothesis before continuing. \
-Skip only if this specific contradiction has already been acknowledged and your \
-working hypothesis explicitly revised in response.]
+const REGROUND_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: REGROUND — The current investigation has lost solid \
+footing and needs to be rebuilt from what is actually known. Step back before continuing. \
+Skip only if the specific issue described below has already been acknowledged and your \
+working understanding explicitly revised in response.]
 
-A background monitor has detected that something in this conversation \
-contradicts or undermines a position or assumption you previously stated. Your current \
-hypothesis should be treated as invalidated.
+A background monitor has detected that the investigation needs to reground:
 
-**The specific assumption or position that was invalidated:**
-{{content}}
+**{{content}}**
 
-Before collecting any further evidence or continuing the investigation, \
+Before collecting any further evidence or continuing, \
 consider working through this sequence:
 
-1. **Take a step back.** State explicitly what you now know for certain, what \
-you were assuming, and which assumptions the new evidence has invalidated. \
-Keep this grounded — "known" means observed or confirmed, not merely \
-plausible.
-2. **Identify what you need to look up.** From that inventory, decide which \
-questions or areas need investigation before you can form a reliable new \
-hypothesis. Call researchConversationQuestion for those — batch multiple \
-questions into one turn so they run in parallel. Do not proceed to step 3 \
-until the findings are in.
-3. **Form one or more revised hypotheses** grounded in what is now known plus \
-the research findings. For each, present a callpath diagram marking confirmed \
-steps, assumed steps, and where your previous model broke down. Only then \
-proceed — investigating the hypothesis, not fitting a hypothesis to evidence \
-collected afterward.
+1. **Take a step back.** State explicitly what you now know for certain vs. what you \
+were assuming. Identify which assumptions the detected issue has invalidated or cast \
+in doubt. Keep this grounded — "known" means observed or confirmed, not merely plausible.
+2. **Identify what you need to look up.** From that inventory, decide which questions \
+need investigation before you can form a reliable understanding. Use \
+researchConversationQuestion for codebase questions and researchProcedure for \
+operational unknowns — batch multiple questions into one turn so they run in parallel. \
+Do not proceed to step 3 until the findings are in.
+3. **Form a revised hypothesis or plan** grounded in what is now known plus the \
+research findings. Present a callpath diagram marking confirmed steps, assumed steps, \
+and where your previous model broke down. Only then proceed.
 
-A good debugging session always moves from hypothesis to evidence, not from \
-evidence to hypothesis.`;
+A good investigation moves from evidence to hypothesis, not from assumption to action.`;
 
 const RESUME_TASK_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK — An advisory workflow has completed \
@@ -862,7 +858,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 		"3. A Phase 5 / Uncertainty & Confidence Assessment block where Overall Confidence is rated " +
 		"   Medium or Low, or where any evidence gap or unconfirmed step is listed with a [ ] or [?] marker. " +
 		"Do NOT trigger if any of these are true: " +
-		"- The researchConversationQuestion tool was already called after the uncertainties appeared. " +
+		"- The researchConversationQuestion or researchProcedure tool was already called after the uncertainties appeared. " +
 		"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES] or " +
 		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES] message already follows the uncertainties. " +
 		"- The questions were answered by the user or resolved through direct context. " +
@@ -897,29 +893,44 @@ export default function osAgent(pi: ExtensionAPI): void {
 	});
 
 	pi.registerGuideline({
-		id: "assumption-challenged",
+		id: "reground",
 		triggerPrompt:
-			"Has anything in the conversation presented information, evidence, or an argument " +
-			"that contradicts or undermines a position, hypothesis, or assumption the agent " +
-			"stated earlier in the conversation? " +
-			"Strong signals this APPLIES: " +
-			"- The user says the agent's diagnosis or hypothesis is wrong and explains why. " +
-			"- The user provides log lines, test results, or code that contradict the agent's " +
-			"  stated understanding. " +
-			"- The user corrects a factual claim about system behavior, architecture, or " +
-			"  component interactions. " +
-			"- The agent predicted X would happen and the user reports Y happened instead. " +
+      "Does the current conversation show any of the following signs that the agent " +                       
+      "needs to step back and rebuild a grounded understanding before continuing? " +                         
+			"Representative examples of when this applies include, but are not limited to: " +
+			"(1) ASSUMPTION CONTRADICTED: Information, evidence, or an argument has been " +
+			"    presented that contradicts or undermines a position, hypothesis, or assumption " +
+			"    the agent stated earlier. Strong signals: the user says the diagnosis is wrong " +
+			"    and explains why; the user provides log lines, test results, or code that " +
+			"    contradict the agent's stated understanding; the agent predicted X and the user " +
+			"    reports Y happened instead. " +
+			"(2) REPEATED FAILED ATTEMPTS: The user has reported that a fix or change the agent " +
+			"    made did not resolve the problem, and this has happened more than once for the " +
+			"    same issue. Strong signals: the user says something is 'still' broken after a " +
+			"    fix; the agent has made multiple fix attempts on the same issue with none " +
+			"    confirmed working. " +
+			"(3) SCOPE ESCALATED: The task has grown significantly beyond what the original " +
+			"    request implied. Strong signals: what started as a change to one file now " +
+			"    touches many layers or subsystems; the agent is investigating areas not " +
+			"    mentioned or implied by the original task. " +
+			"(4) SPECULATING WITHOUT EVIDENCE: The agent's most recent output makes central " +
+			"    claims through heavy hedging ('it might be', 'perhaps', 'probably') without " +
+			"    grounding them in something directly read or confirmed in this conversation. " +
+			"    Strong signals: the agent proposes a cause or mechanism without having read " +
+			"    the code or logs that would confirm it. " +
 			"Strong signals this does NOT apply: " +
 			"- The user corrects a minor detail (typo, wrong port, filename) that does not " +
 			"  affect the agent's overall model. " +
-			"- The user asks a clarifying question without asserting a contradiction. " +
-			"- The user expresses uncertainty without providing contradicting evidence. " +
-			"- A [SYSTEM GUIDELINE INSTRUCTIONS: ASSUMPTION_CHALLENGED] message already appears " +
-			"  in the conversation after the most recent contradicting message. " +
-			"When calling injectGuideline for this condition, set the `content` argument to the " +
-			"specific assumption or position that was contradicted, quoted or paraphrased from the conversation.",
-		injectPrompt: ASSUMPTION_CHALLENGED_PROMPT,
-		label: "advisory:assumption-challenged",
+			"- The user asks a clarifying question or expresses uncertainty without asserting " +
+			"  a contradiction. " +
+			"- The agent has not yet attempted any fix (for condition 2). " +
+			"- Hedged claims are peripheral and do not affect the core approach (for condition 4). " +
+			"- A [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in the " +
+			"  conversation after the most recent triggering event. " +
+			"When calling injectGuideline, set the content argument to a brief description of " +
+			"which condition applies and what specifically was detected.",
+		injectPrompt: REGROUND_PROMPT,
+		label: "advisory:reground",
 	});
 
 	pi.registerGuideline({
