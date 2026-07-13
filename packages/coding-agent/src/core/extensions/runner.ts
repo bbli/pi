@@ -588,7 +588,7 @@ export class ExtensionRunner {
 	}
 
 	/** Maximum characters shown in the footer status for the goal display. */
-	private static readonly _GOAL_DISPLAY_MAX = 60;
+	private static readonly _GOAL_DISPLAY_MAX = 120;
 
 	/** Set or clear the session goal. Clears footer status when undefined. */
 	setGoal(text: string | undefined): void {

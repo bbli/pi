@@ -16,7 +16,6 @@
  *   - No active goal
  *   - A continuation advisory already fired this cycle (event.continuationFired)
  *   - The branch session returns NONE or unparseable output
- *   - All generated questions already appear verbatim in the conversation
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -150,18 +149,6 @@ function formatQuestions(questions: Question[], goal: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Deduplication: drop questions already answered verbatim in the conversation
-// ---------------------------------------------------------------------------
-
-function serializeMessages(messages: readonly unknown[]): string {
-	return JSON.stringify(messages);
-}
-
-function alreadyInConversation(question: string, serialized: string): boolean {
-	return serialized.includes(question);
-}
-
-// ---------------------------------------------------------------------------
 // Extension entry point
 // ---------------------------------------------------------------------------
 
@@ -192,12 +179,7 @@ export default function questionGenerator(pi: ExtensionAPI): void {
 		const questions = parseQuestions(raw);
 		if (questions.length === 0) return;
 
-		// Drop questions whose text already appears in the conversation
-		const serialized = serializeMessages(event.messages);
-		const fresh = questions.filter((q) => !alreadyInConversation(q.question, serialized));
-		if (fresh.length === 0) return;
-
-		const formatted = formatQuestions(fresh, goal);
+		const formatted = formatQuestions(questions, goal);
 		pi.sendUserMessage(formatted, { deliverAs: "followUp" });
 	});
 }
