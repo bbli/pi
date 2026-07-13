@@ -16,6 +16,7 @@ import { createExtensionRuntime } from "./extensions/loader.ts";
 import type { ResourceLoader } from "./resource-loader.ts";
 import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
+import { makeInjectMessageTool } from "./tools/inject-message.ts";
 import { makeResearchTool } from "./tools/research.ts";
 
 // ============================================================================
@@ -279,6 +280,8 @@ export class AgentManager {
 		if (context.messages.length > 0) {
 			session.agent.state.messages = [...context.messages];
 		}
+
+		session.addBuiltinTool(makeInjectMessageTool(root));
 
 		const userCount = this.getAll().filter((r) => r.kind === "user").length;
 		const label = `agent-${userCount + 1}`;
