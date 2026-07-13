@@ -93,10 +93,15 @@ function parseQuestions(raw: string): Question[] {
 	for (const block of blocks) {
 		const lines = block.trim().split("\n");
 		const fields: Record<string, string> = {};
+		let lastKey: string | null = null;
 		for (const line of lines) {
 			const match = line.match(/^(TYPE|PRIORITY|QUESTION|WHY):\s*(.+)$/i);
 			if (match) {
-				fields[match[1].toUpperCase()] = match[2].trim();
+				lastKey = match[1].toUpperCase();
+				fields[lastKey] = match[2].trim();
+			} else if (lastKey && line.trim()) {
+				// continuation line — append to previous field
+				fields[lastKey] += " " + line.trim();
 			}
 		}
 
@@ -166,11 +171,21 @@ export default function questionGenerator(pi: ExtensionAPI): void {
 		if (!goal) return;
 		if (event.continuationFired) return;
 
-		const raw = await pi.runBranchSession(buildPrompt(goal), {
-			seedContext: true,
-			tools: [],
-			label: "question-gen",
-		});
+		let raw: string | undefined;
+		try {
+			raw = await pi.runBranchSession(buildPrompt(goal), {
+				seedContext: true,
+				tools: [],
+				label: "question-gen",
+			});
+		} catch (err) {
+			console.error(
+				`[question-generator] runBranchSession failed: ${
+					err instanceof Error ? err.message : String(err)
+				}`,
+			);
+			return;
+		}
 
 		if (!raw) return;
 
