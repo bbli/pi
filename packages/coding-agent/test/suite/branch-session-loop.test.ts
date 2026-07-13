@@ -45,6 +45,44 @@ describe("newBranchSession", () => {
 		expect(result).toBe("Step 1: do X\nConfidence: high");
 	});
 
+	it("calls onWaiting when the first turn completes without session_done", async () => {
+		const harness = await createHarness();
+		harnesses.push(harness);
+
+		// Branch asks a question, no session_done.
+		harness.setResponses([fauxAssistantMessage("What system are you on?")]);
+
+		// onWaiting fires after branchSession.prompt() returns without session_done.
+		// Abort from within the callback — this is the only reliable way to unblock
+		// donePromise in a test without a real user interaction, because aborting
+		// before newBranchSession reaches branchSession.prompt() hits the early-return
+		// guard and skips onWaiting entirely.
+		const controller = new AbortController();
+		const onWaiting = vi.fn().mockImplementation(() => controller.abort());
+		const result = await newBranchSession(
+			"prompt",
+			{ tools: [], seedContext: false, abortSignal: controller.signal, onWaiting },
+			harness.session,
+		);
+
+		expect(onWaiting).toHaveBeenCalledOnce();
+		expect(result).toBe("Could not find a procedure. Take a step back and consider a different approach.");
+	});
+
+	it("does not call onWaiting when session_done fires on the first turn", async () => {
+		const harness = await createHarness();
+		harnesses.push(harness);
+
+		harness.setResponses([
+			fauxAssistantMessage(fauxToolCall("session_done", { procedure: "Step 1\nConfidence: high" })),
+		]);
+
+		const onWaiting = vi.fn();
+		await newBranchSession("prompt", { tools: [], seedContext: false, onWaiting }, harness.session);
+
+		expect(onWaiting).not.toHaveBeenCalled();
+	});
+
 	it("returns fallback message when abort signal fires before session_done", async () => {
 		const harness = await createHarness();
 		harnesses.push(harness);

@@ -283,6 +283,7 @@ export async function newBranchSession(
 	const donePromise = new Promise<string | undefined>((resolve) => {
 		resolveDone = resolve;
 	});
+	let sessionDoneCalled = false;
 
 	const effectiveOptions: BranchSessionOptions = {
 		...options,
@@ -303,6 +304,7 @@ export async function newBranchSession(
 					}),
 				}),
 				execute: async (_id, params) => {
+					sessionDoneCalled = true;
 					resolveDone(params.procedure);
 					return {
 						content: [{ type: "text" as const, text: "Procedure recorded. Session complete." }],
@@ -352,6 +354,10 @@ export async function newBranchSession(
 		}
 		const fullPrompt = prependText ? `${prependText}\n\n${prompt}` : prompt;
 		await branchSession.prompt(fullPrompt, { source: "extension" });
+
+		if (!sessionDoneCalled) {
+			options.onWaiting?.();
+		}
 
 		const result = await donePromise;
 		debugLog(`[branch:${label}] session complete, result.length=${result?.length ?? 0}`);

@@ -1185,6 +1185,12 @@ export interface BranchSessionOptions {
 	 * focused on their task.
 	 */
 	injectEvery?: { turns: number; message: string };
+	/**
+	 * Called after the first branch session turn completes without session_done
+	 * being called — meaning the branch needs further user input to produce a
+	 * result. Use this to notify the user to switch to the branch pane.
+	 */
+	onWaiting?: () => void;
 }
 
 /** A guideline registered via registerGuideline(). Evaluated at turn_end. */
