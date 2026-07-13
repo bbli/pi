@@ -655,6 +655,8 @@ export interface AgentStartEvent {
 export interface AgentEndEvent {
 	type: "agent_end";
 	messages: AgentMessage[];
+	/** True if a continuation advisory fired this cycle and was injected as a followUp. */
+	continuationFired: boolean;
 }
 
 /** Fired at the start of each turn */

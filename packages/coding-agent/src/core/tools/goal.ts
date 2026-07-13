@@ -3,6 +3,44 @@ import type { ExtensionRunner } from "../extensions/runner.ts";
 import { defineTool } from "../extensions/types.ts";
 
 /**
+ * Creates the set_goal built-in tool definition.
+ *
+ * The LLM calls this at the start of a session once it understands the user's
+ * goal. Setting a goal enables the question generator and tracks progress.
+ */
+export function createSetGoalToolDefinition(runner: ExtensionRunner) {
+	return defineTool({
+		name: "set_goal",
+		label: "Set Goal",
+		description:
+			"Set the current session goal. Call this early in the conversation once you understand " +
+			"the user's objective, so progress can be tracked and blocking questions surfaced. " +
+			"Pass an empty string to clear the goal.",
+		parameters: Type.Object({
+			goal: Type.String({
+				description: "The session goal, stated clearly and concisely. Pass empty string to clear.",
+			}),
+		}),
+		execute: async (_toolCallId, params, _signal, _onUpdate, ctx) => {
+			const text = params.goal.trim();
+			runner.setGoal(text || undefined);
+			if (text) {
+				ctx.ui.notify(`Goal set: ${text.slice(0, 60)}${text.length > 60 ? "\u2026" : ""}`, "info");
+				return {
+					content: [{ type: "text" as const, text: `Goal set: ${text}` }],
+					details: undefined,
+				};
+			}
+			ctx.ui.notify("Goal cleared.", "info");
+			return {
+				content: [{ type: "text" as const, text: "Goal cleared." }],
+				details: undefined,
+			};
+		},
+	});
+}
+
+/**
  * Creates the goal_satisfied built-in tool definition.
  *
  * The tool is always registered in the main agent's tool list. The LLM calls it

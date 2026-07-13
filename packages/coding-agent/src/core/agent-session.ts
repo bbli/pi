@@ -93,7 +93,7 @@ import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
-import { createGoalSatisfiedToolDefinition } from "./tools/goal.ts";
+import { createGoalSatisfiedToolDefinition, createSetGoalToolDefinition } from "./tools/goal.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
 
@@ -2537,13 +2537,13 @@ export class AgentSession {
 		this._bindExtensionCore(this._extensionRunner);
 		this._applyExtensionBindings(this._extensionRunner);
 
-		// Register the goal_satisfied built-in tool, wired to the current runner so
-		// the LLM can signal completion of the active /goal.
+		// Register the goal_satisfied and set_goal built-in tools, wired to the current runner.
 		this._baseToolDefinitions.set("goal_satisfied", createGoalSatisfiedToolDefinition(this._extensionRunner));
+		this._baseToolDefinitions.set("set_goal", createSetGoalToolDefinition(this._extensionRunner));
 
 		const defaultActiveToolNames = this._baseToolsOverride
 			? Object.keys(this._baseToolsOverride)
-			: ["read", "bash", "edit", "write", "goal_satisfied"];
+			: ["read", "bash", "edit", "write", "goal_satisfied", "set_goal"];
 		const baseActiveToolNames = options.activeToolNames ?? defaultActiveToolNames;
 		this._refreshToolRegistry({
 			activeToolNames: baseActiveToolNames,
