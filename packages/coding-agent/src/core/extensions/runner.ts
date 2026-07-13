@@ -353,15 +353,9 @@ export function makeInjectGuidelineTool(
 			id: Type.String({ description: "The guideline or continuation ID to inject (e.g. 'code-workflow')." }),
 			reason: Type.String({
 				description:
-					"One concise sentence citing the specific observation in the conversation that makes this condition clearly true.",
+					"One concise sentence citing the specific observation in the conversation that makes this condition clearly true. " +
+					"This is prepended above the injected prompt so the main session sees the triggering observation.",
 			}),
-			content: Type.Optional(
-				Type.String({
-					description:
-						"Optional dynamic value substituted into the guideline's inject prompt wherever {{content}} appears. " +
-						"Use when the guideline's trigger prompt instructs you to supply a specific value (e.g. the assumption that was challenged).",
-				}),
-			),
 		}),
 		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
 			const rawPrompt = promptById.get(params.id);
@@ -369,7 +363,7 @@ export function makeInjectGuidelineTool(
 				console.error(`injectGuideline unknown id=${params.id}`);
 				return { content: [{ type: "text" as const, text: `unknown id: ${params.id}` }], details: undefined };
 			}
-			const prompt = params.content !== undefined ? rawPrompt.replaceAll("{{content}}", params.content) : rawPrompt;
+			const prompt = `[Advisory observation: ${params.reason}]\n\n${rawPrompt}`;
 			debugLog(`injectGuideline id=${params.id} reason="${params.reason.slice(0, 120)}" chars=${prompt.length}`);
 			onInject(prompt);
 			return { content: [{ type: "text" as const, text: "injected" }], details: undefined };

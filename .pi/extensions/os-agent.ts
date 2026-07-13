@@ -477,9 +477,8 @@ investigation in this conversation, or if a [SYSTEM GUIDELINE INSTRUCTIONS: RESE
 message already appears in the conversation for the current investigation.]
 
 A background monitor has detected that you appear to be about to take an action \
-without first reading the relevant source code.
-
-The specific action: {{content}}
+without first reading the relevant source code. The specific action is described in \
+the advisory observation above.
 
 Acting without grounding yourself in the code produces wasted effort: log searches \
 find nothing useful because you did not know what to look for; code edits miss callers \
@@ -516,9 +515,8 @@ footing and needs to be rebuilt from what is actually known. Step back before co
 Skip only if the specific issue described below has already been acknowledged and your \
 working understanding explicitly revised in response.]
 
-A background monitor has detected that the investigation needs to reground:
-
-**{{content}}**
+A background monitor has detected that the investigation needs to reground. \
+The specific issue is described in the advisory observation above.
 
 Before collecting any further evidence or continuing, \
 consider working through this sequence:
@@ -547,8 +545,8 @@ FLESH_OUT] or [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] is also present in
 turn and has not yet been completed — complete those first, then return here.]
 
 A background monitor detected that an advisory workflow — CODE_WORKFLOW, FLESH_OUT, \
-or CODE_REVIEW — has completed, and the following earlier task may not yet have been \
-resumed: {{content}}
+or CODE_REVIEW — has completed, and an earlier task may not yet have been resumed. \
+The specific prior task is described in the advisory observation above.
 
 If this applies to your situation, consider resuming from where you left off — \
 applying any relevant findings from the advisory — as the natural next step.
@@ -885,9 +883,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- The action is a simple, bounded lookup where no code context is needed. " +
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION] message already appears " +
 			"  in the conversation for the current investigation. " +
-			"When calling injectGuideline for this condition, set the `content` argument to a brief " +
-			"description of the specific action the agent appears about to take " +
-			"(e.g. 'grep logs for error X', 'edit parser.ts', 'run diagnostic command Y').",
+			"In the `reason` argument, include a brief description of the specific action the agent " +
+			"appears about to take (e.g. 'grep logs for error X', 'edit parser.ts', 'run diagnostic command Y').",
 		injectPrompt: RESEARCH_BEFORE_ACTION_PROMPT,
 		label: "advisory:research-before-action",
 	});
@@ -927,8 +924,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- Hedged claims are peripheral and do not affect the core approach (for condition 4). " +
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in the " +
 			"  conversation after the most recent triggering event. " +
-			"When calling injectGuideline, set the content argument to a brief description of " +
-			"which condition applies and what specifically was detected.",
+			"In the `reason` argument, include a brief description of which condition applies and what specifically was detected.",
 		injectPrompt: REGROUND_PROMPT,
 		label: "advisory:reground",
 	});
@@ -1056,9 +1052,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"in the conversation after the most recent [SYSTEM CONTINUATION INSTRUCTIONS: CODE_WORKFLOW], " +
 			"[SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT], or " +
 			"[SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW]. " +
-			"When calling injectGuideline for this condition, set the `content` argument to a brief " +
-			"description of the prior task that was interrupted, quoted or paraphrased from " +
-			"the agent's note at the start of the advisory workflow.",
+			"In the `reason` argument, include a brief description of the prior task that was interrupted, " +
+			"quoted or paraphrased from the agent's note at the start of the advisory workflow.",
 		injectPrompt: RESUME_TASK_PROMPT,
 		label: "advisory:resume-task",
 	});

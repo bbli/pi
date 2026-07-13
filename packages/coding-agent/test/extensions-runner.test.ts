@@ -960,7 +960,7 @@ describe("ExtensionRunner", () => {
 				{} as never,
 			);
 
-			expect(injected).toEqual(["inject-payload"]);
+			expect(injected).toEqual(["[Advisory observation: assistant listed open questions]\n\ninject-payload"]);
 			expect((result.content[0] as { text: string } | undefined)?.text).toBe("injected");
 		});
 
@@ -1130,7 +1130,7 @@ describe("ExtensionRunner", () => {
 
 			// Only the continuation should be injected, not the goal
 			expect(injected).toHaveLength(1);
-			expect(injected[0]).toBe("inject-c1");
+			expect(injected[0]).toBe("[Advisory observation: test]\n\ninject-c1");
 		});
 
 		it("injects goal after continuation queue is fully drained", async () => {
@@ -1165,7 +1165,7 @@ describe("ExtensionRunner", () => {
 
 			// Cycle 1: continuation fires, goal suppressed
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			expect(injected).toEqual(["inject-c1"]);
+			expect(injected).toEqual(["[Advisory observation: test]\n\ninject-c1"]);
 
 			// Cycle 2: no continuation fires, goal fires
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
@@ -1279,12 +1279,15 @@ describe("ExtensionRunner", () => {
 			// First agent_end: branch session fires c1+c2, first task (c1) is immediately injected.
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(branchSessionCalls).toBe(1);
-			expect(injected).toEqual(["inject-c1"]);
+			expect(injected).toEqual(["[Advisory observation: test reason]\n\ninject-c1"]);
 
 			// Second agent_end: task c2 still pending — branch session must NOT run.
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(branchSessionCalls).toBe(1);
-			expect(injected).toEqual(["inject-c1", "inject-c2"]);
+			expect(injected).toEqual([
+				"[Advisory observation: test reason]\n\ninject-c1",
+				"[Advisory observation: test reason]\n\ninject-c2",
+			]);
 		});
 
 		it("skips the branch session while tasks are pending", async () => {
@@ -1320,17 +1323,24 @@ describe("ExtensionRunner", () => {
 			// First agent_end: branch session fires all three, injects c1.
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(branchSessionCalls).toBe(1);
-			expect(injected).toEqual(["inject-c1"]);
+			expect(injected).toEqual(["[Advisory observation: test reason]\n\ninject-c1"]);
 
 			// Second agent_end: c2 and c3 still pending — branch session skipped, c2 injected.
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(branchSessionCalls).toBe(1);
-			expect(injected).toEqual(["inject-c1", "inject-c2"]);
+			expect(injected).toEqual([
+				"[Advisory observation: test reason]\n\ninject-c1",
+				"[Advisory observation: test reason]\n\ninject-c2",
+			]);
 
 			// Third agent_end: c3 still pending — branch session skipped, c3 injected.
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(branchSessionCalls).toBe(1);
-			expect(injected).toEqual(["inject-c1", "inject-c2", "inject-c3"]);
+			expect(injected).toEqual([
+				"[Advisory observation: test reason]\n\ninject-c1",
+				"[Advisory observation: test reason]\n\ninject-c2",
+				"[Advisory observation: test reason]\n\ninject-c3",
+			]);
 		});
 
 		it("re-evaluates after tasks are drained", async () => {
@@ -1364,7 +1374,7 @@ describe("ExtensionRunner", () => {
 			// First agent_end: branch session fires c1 (queued + injected immediately).
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(branchSessionCalls).toBe(1);
-			expect(injected).toEqual(["inject-c1"]);
+			expect(injected).toEqual(["[Advisory observation: test reason]\n\ninject-c1"]);
 
 			// Second agent_end: task list empty, branch session re-evaluates immediately.
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
