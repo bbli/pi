@@ -12,7 +12,7 @@ import type { AgentSession } from "../agent-session.ts";
 import { debugLog } from "../debug.ts";
 import { defineTool, type ToolDefinition } from "../extensions/types.ts";
 
-export function makeInjectMessageTool(rootSession: AgentSession, label: string): ToolDefinition {
+export function makeInjectMessageTool(rootSession: AgentSession): ToolDefinition {
 	return defineTool({
 		name: "injectMessage",
 		label: "Inject Message",
@@ -37,7 +37,7 @@ export function makeInjectMessageTool(rootSession: AgentSession, label: string):
 					details: undefined,
 				};
 			}
-			const text = `[User observation from ${label}: ${params.message}]`;
+			const text = `[User observation: ${params.message}]`;
 			const via = rootSession.isStreaming ? "steer" : "sendUserMessage";
 			debugLog(`[injectMessage] via=${via} chars=${text.length}`);
 			if (rootSession.isStreaming) {
