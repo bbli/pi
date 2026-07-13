@@ -31,8 +31,15 @@ export function makeInjectMessageTool(rootSession: AgentSession): ToolDefinition
 			}),
 		}),
 		execute: async (_toolCallId, params, _signal, _onUpdate, _ctx) => {
+			if (!params.message.trim()) {
+				return {
+					content: [{ type: "text" as const, text: "error: message must not be empty" }],
+					details: undefined,
+				};
+			}
 			const text = `[User observation: ${params.message}]`;
-			debugLog(`[injectMessage] injecting chars=${text.length}`);
+			const via = rootSession.isStreaming ? "steer" : "sendUserMessage";
+			debugLog(`[injectMessage] via=${via} chars=${text.length}`);
 			if (rootSession.isStreaming) {
 				await rootSession.steer(text);
 			} else {

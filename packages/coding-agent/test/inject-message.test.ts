@@ -33,12 +33,25 @@ describe("makeInjectMessageTool", () => {
 		expect((result.content[0] as { text: string }).text).toBe("injected");
 	});
 
-	it("wraps the message with [User observation: ...] prefix", async () => {
+	it("returns error and does not inject for an empty message", async () => {
 		const root = makeRootSession(false);
 		const tool = makeInjectMessageTool(root);
 
-		await tool.execute("c1", { message: "the cache is never invalidated" }, undefined, undefined, {} as never);
+		const result = await tool.execute("c1", { message: "" }, undefined, undefined, {} as never);
 
-		expect(root.sendUserMessage).toHaveBeenCalledWith("[User observation: the cache is never invalidated]");
+		expect(root.sendUserMessage).not.toHaveBeenCalled();
+		expect(root.steer).not.toHaveBeenCalled();
+		expect((result.content[0] as { text: string }).text).toBe("error: message must not be empty");
+	});
+
+	it("returns error and does not inject for a whitespace-only message", async () => {
+		const root = makeRootSession(false);
+		const tool = makeInjectMessageTool(root);
+
+		const result = await tool.execute("c1", { message: "   " }, undefined, undefined, {} as never);
+
+		expect(root.sendUserMessage).not.toHaveBeenCalled();
+		expect(root.steer).not.toHaveBeenCalled();
+		expect((result.content[0] as { text: string }).text).toBe("error: message must not be empty");
 	});
 });
