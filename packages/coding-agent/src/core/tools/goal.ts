@@ -16,6 +16,13 @@ export function createSetGoalToolDefinition(runner: ExtensionRunner) {
 			"Set the current session goal. Call this early in the conversation once you understand " +
 			"the user's objective, so progress can be tracked and blocking questions surfaced. " +
 			"Pass an empty string to clear the goal.",
+		promptGuidelines: [
+			"When you receive a user request and understand the session's objective, call set_goal " +
+				"immediately with a concise statement of the goal before taking any other action. " +
+				"This enables question generation and goal tracking for the session.",
+			"Do not call set_goal speculatively or repeatedly — call it once when the goal is clear, " +
+				"and call it again only if the user explicitly changes the objective.",
+		],
 		parameters: Type.Object({
 			goal: Type.String({
 				description: "The session goal, stated clearly and concisely. Pass empty string to clear.",
