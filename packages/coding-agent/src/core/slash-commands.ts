@@ -40,7 +40,7 @@ export const BUILTIN_SLASH_COMMANDS: ReadonlyArray<BuiltinSlashCommand> = [
 	{ name: "resume", description: "Resume a different session" },
 	{
 		name: "goal",
-		description: "Set or view session goal (re-injected as follow-up at agent_end when no continuations fire)",
+		description: "Set or view session goal (enables question-generator at agent_end when no continuations fire)",
 	},
 	{
 		name: "learn",

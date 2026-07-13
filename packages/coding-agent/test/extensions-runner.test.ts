@@ -17,7 +17,6 @@ import type {
 	ExtensionUIContext,
 	ProviderConfig,
 	TurnEndEvent,
-	TurnStartEvent,
 } from "../src/core/extensions/types.ts";
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
 import { ModelRegistry } from "../src/core/model-registry.ts";
@@ -1055,41 +1054,41 @@ describe("ExtensionRunner", () => {
 			return { runner, injected };
 		};
 
-		it("injects goal as followUp when advisory is disabled and no continuation fires", async () => {
+		// Goal injection via injectUserMessage was removed. The question-generator
+		// extension now handles goal-related followUps via pi.sendUserMessage.
+		// These tests verify the runner itself does not call injectUserMessage for goals.
+
+		it("does not call injectUserMessage for goal (question-generator handles injection)", async () => {
 			const { runner, injected } = makeRunner();
 			runner.setGoal("Summarize what you did");
 
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 
-			expect(injected).toHaveLength(1);
-			expect(injected[0]?.text).toContain("[GOAL] Summarize what you did");
-			expect(injected[0]?.text).toContain("goal_satisfied");
-			expect(injected[0]?.mode).toBe("followUp");
+			expect(injected).toHaveLength(0);
 		});
 
-		it("re-injects goal on every agent_end until markGoalSatisfied is called", async () => {
+		it("markGoalSatisfied clears the goal", async () => {
 			const { runner, injected } = makeRunner();
 			runner.setGoal("Do X");
-
-			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			expect(injected).toHaveLength(2);
+			expect(runner.getGoal()).toBe("Do X");
 
 			runner.markGoalSatisfied();
+			expect(runner.getGoal()).toBeUndefined();
+
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			expect(injected).toHaveLength(2); // no third injection
+			expect(injected).toHaveLength(0);
 		});
 
-		it("setGoal(undefined) stops injection", async () => {
+		it("setGoal(undefined) clears the goal", async () => {
 			const { runner, injected } = makeRunner();
 			runner.setGoal("Do Y");
-
-			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			expect(injected).toHaveLength(1);
+			expect(runner.getGoal()).toBe("Do Y");
 
 			runner.setGoal(undefined);
+			expect(runner.getGoal()).toBeUndefined();
+
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			expect(injected).toHaveLength(1); // no second injection
+			expect(injected).toHaveLength(0);
 		});
 
 		it("does not inject when no goal is set", async () => {
@@ -1167,73 +1166,31 @@ describe("ExtensionRunner", () => {
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(injected).toEqual(["[Advisory observation: test]\n\ninject-c1"]);
 
-			// Cycle 2: no continuation fires, goal fires
+			// Cycle 2: no continuation fires, goal is NOT injected via injectUserMessage
+			// (the question-generator extension handles this via sendUserMessage instead)
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			expect(injected).toHaveLength(2);
-			expect(injected[1]).toContain("[GOAL] My goal");
+			expect(injected).toHaveLength(1); // still only the continuation from cycle 1
 		});
 
-		it("injects goal as steer on every 15th turn start", async () => {
-			const { runner, injected } = makeRunner();
+		it("emits continuationFired: false when goal is set and no continuation fires", async () => {
+			const extCode = `
+				export default function(pi) {
+					pi.on("agent_end", (event) => {
+						globalThis.__testCapturedContinuationFired = event.continuationFired;
+					});
+				}
+			`;
+			fs.writeFileSync(path.join(extensionsDir, "capture-agent-end.ts"), extCode);
+
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+			runner.bindCore(extensionActions, extensionContextActions);
 			runner.setGoal("My goal");
 
-			const turnEvent: TurnStartEvent = { type: "turn_start", turnIndex: 0, timestamp: 0 };
-			for (let i = 0; i < 14; i++) {
-				await runner.emitTurnStart(turnEvent);
-			}
-			expect(injected).toHaveLength(0);
-
-			await runner.emitTurnStart(turnEvent);
-			expect(injected).toHaveLength(1);
-			expect(injected[0]?.mode).toBe("steer");
-			expect(injected[0]?.text).toContain("[GOAL] My goal");
-			expect(injected[0]?.text).toContain("goal_satisfied");
-		});
-
-		it("_goalTurnCount persists across agent_end boundaries", async () => {
-			const { runner, injected } = makeRunner();
-			runner.setGoal("My goal");
-
-			const turnEvent: TurnStartEvent = { type: "turn_start", turnIndex: 0, timestamp: 0 };
-			for (let i = 0; i < 14; i++) {
-				await runner.emitTurnStart(turnEvent);
-			}
-			// agent_end fires a followUp injection but does not reset the turn counter
+			(globalThis as Record<string, unknown>).__testCapturedContinuationFired = undefined;
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
-			const countAfterAgentEnd = injected.length; // followUp from agent_end
-			expect(injected.every((i) => i.mode === "followUp")).toBe(true);
 
-			// 15th turn globally — steer must fire
-			await runner.emitTurnStart(turnEvent);
-			expect(injected).toHaveLength(countAfterAgentEnd + 1);
-			expect(injected[injected.length - 1]?.mode).toBe("steer");
-		});
-
-		it("counter resets when goal is replaced via setGoal", async () => {
-			const { runner, injected } = makeRunner();
-			runner.setGoal("Goal A");
-
-			const turnEvent: TurnStartEvent = { type: "turn_start", turnIndex: 0, timestamp: 0 };
-			for (let i = 0; i < 14; i++) {
-				await runner.emitTurnStart(turnEvent);
-			}
-			expect(injected).toHaveLength(0); // no steer yet
-
-			// Replace the goal — counter should reset to 0
-			runner.setGoal("Goal B");
-
-			// 14 more turns under Goal B — still no steer (counter restarted)
-			for (let i = 0; i < 14; i++) {
-				await runner.emitTurnStart(turnEvent);
-			}
-			expect(injected).toHaveLength(0);
-
-			// 15th turn under Goal B — steer fires with new goal text
-			await runner.emitTurnStart(turnEvent);
-			expect(injected).toHaveLength(1);
-			expect(injected[0]?.mode).toBe("steer");
-			expect(injected[0]?.text).toContain("Goal B");
-			expect(injected[0]?.text).not.toContain("Goal A");
+			expect((globalThis as Record<string, unknown>).__testCapturedContinuationFired).toBe(false);
 		});
 	});
 
