@@ -281,11 +281,10 @@ export class AgentManager {
 			session.agent.state.messages = [...context.messages];
 		}
 
-		session.addBuiltinTool(makeInjectMessageTool(root));
-
 		const userCount = this.getAll().filter((r) => r.kind === "user").length;
 		const label = `agent-${userCount + 1}`;
 		const id = randomUUID();
+		session.addBuiltinTool(makeInjectMessageTool(root, label));
 		this.register({ id, label, kind: "user", session });
 		return this.get(id)!;
 	}
