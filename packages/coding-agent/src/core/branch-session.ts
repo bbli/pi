@@ -203,7 +203,11 @@ export async function runBranchSession(
 			registeredId = crypto.randomUUID();
 			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
 			// Set kept state at registration time so AgentManager.onDone() honours it on completion.
-			if (mainSession.extensionRunner.getEffectiveKeepAlive(label)) {
+			const shouldKeep = mainSession.extensionRunner.getEffectiveKeepAlive(label);
+			debugLog(
+				`[branch:${label}] keepAlive=${shouldKeep} (master=${mainSession.extensionRunner.getKeepAliveEnabled()})`,
+			);
+			if (shouldKeep) {
 				manager.setKept(registeredId, true);
 			}
 		}
@@ -323,7 +327,11 @@ export async function newBranchSession(
 		if (manager) {
 			registeredId = crypto.randomUUID();
 			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
-			if (mainSession.extensionRunner.getEffectiveKeepAlive(label)) {
+			const shouldKeep = mainSession.extensionRunner.getEffectiveKeepAlive(label);
+			debugLog(
+				`[branch:${label}] keepAlive=${shouldKeep} (master=${mainSession.extensionRunner.getKeepAliveEnabled()})`,
+			);
+			if (shouldKeep) {
 				manager.setKept(registeredId, true);
 			}
 		}
