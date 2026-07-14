@@ -524,14 +524,20 @@ consider working through this sequence:
 1. **Take a step back.** State explicitly what you now know for certain vs. what you \
 were assuming. Identify which assumptions the detected issue has invalidated or cast \
 in doubt. Keep this grounded — "known" means observed or confirmed, not merely plausible.
-2. **Identify what you need to look up.** From that inventory, decide which questions \
-need investigation before you can form a reliable understanding. Use \
+2. **Identify what you need to look up** — but first check the advisory observation \
+above. If it indicates circular or repeated research (the investigation has been \
+calling researchConversationQuestion repeatedly without making progress), skip \
+calling any research tools in this step. The evidence is already in the conversation; \
+the issue is unprocessed information, not missing information. Audit what is already \
+known rather than collecting more. If the advisory observation indicates a different \
+condition, proceed normally: decide which questions need investigation, use \
 researchConversationQuestion for codebase questions and researchProcedure for \
-operational unknowns — batch multiple questions into one turn so they run in parallel. \
-Do not proceed to step 3 until the findings are in.
-3. **Form a revised hypothesis or plan** grounded in what is now known plus the \
-research findings. Present a callpath diagram marking confirmed steps, assumed steps, \
-and where your previous model broke down. Only then proceed.
+operational unknowns, and batch multiple questions into one turn.
+3. **Form a revised hypothesis or plan** grounded in what is now known. Present a \
+callpath diagram marking confirmed steps, assumed steps, and where your previous \
+model broke down. If the advisory observation indicated circular research: commit to \
+your best-available hypothesis now, even if some uncertainty remains — further \
+research at this point is more likely to extend the loop than to resolve it. Only then proceed.
 
 A good investigation moves from evidence to hypothesis, not from assumption to action.`;
 
