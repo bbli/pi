@@ -938,14 +938,13 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"    Weak signal (does not apply on its own): two or three researchConversationQuestion " +
 			"    calls batched within a single turn — batching parallel questions is the correct " +
 			"    usage pattern and is not a sign of circular research. " +
-			"(6) GOAL DRIFT: first, find the currently active goal by locating the most recent " +
-			"    set_goal tool call result or [GOAL] text in the conversation. If no goal is " +
-			"    set, this condition does not apply. Then compare the agent's recent tool calls " +
-			"    and reasoning against that specific goal text. Strong signals: the agent has " +
-			"    been reading files, running commands, or reasoning about an area that is " +
-			"    several steps removed from the stated goal across multiple consecutive turns, " +
-			"    with no visible explanation of why the current detour is necessary to achieve " +
-			"    that specific goal. " +
+			"(6) GOAL DRIFT: call get_goal to retrieve the active goal text. If it returns " +
+			"    empty, this condition does not apply. Otherwise compare the returned goal " +
+			"    text against the agent's recent tool calls and reasoning. Strong signals: " +
+			"    the agent has been reading files, running commands, or reasoning about an " +
+			"    area that is several steps removed from the stated goal across multiple " +
+			"    consecutive turns, with no visible explanation of why the current detour " +
+			"    is necessary to achieve that specific goal. " +
 			"    Weak signals (do not apply on their own): the agent is doing exploratory " +
 			"    work that is plausibly preparatory; the goal is broad and the work could " +
 			"    reasonably fall within it; the agent explicitly noted why the current area " +
@@ -965,8 +964,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in the " +
 			"  conversation after the most recent triggering event. " +
 			"In the `reason` argument, include a brief description of which condition applies " +
-			"and what specifically was detected — for condition 6, quote the active goal text " +
-			"and describe what the agent was actually doing instead.",
+			"and what specifically was detected — for condition 6, include the goal text " +
+			"returned by get_goal and describe what the agent was actually doing instead.",
 		injectPrompt: REGROUND_PROMPT,
 		label: "advisory:reground",
 	});

@@ -371,6 +371,28 @@ export function makeInjectGuidelineTool(
 	});
 }
 
+/**
+ * Creates the get_goal tool for advisory evaluator branch sessions.
+ * The evaluator calls this to retrieve the active goal text before composing
+ * a reason string for injectGuideline — particularly for condition 6 (goal drift)
+ * where the reason must quote the actual goal.
+ */
+export function makeGetGoalTool(runner: ExtensionRunner) {
+	return defineTool({
+		name: "get_goal",
+		label: "Get Goal",
+		description:
+			"Returns the currently active session goal text, or an empty string if no goal is set. " +
+			"Call this before injecting a goal-drift advisory so you can include the actual goal " +
+			"text in the reason parameter of injectGuideline.",
+		parameters: Type.Object({}),
+		execute: async () => ({
+			content: [{ type: "text" as const, text: runner.getGoal() ?? "" }],
+			details: undefined,
+		}),
+	});
+}
+
 export class ExtensionRunner {
 	private extensions: Extension[];
 	private runtime: ExtensionRuntime;
@@ -692,6 +714,7 @@ export class ExtensionRunner {
 				tools: ["read", "grep", "find", "ls"],
 				customTools: [
 					makeInjectGuidelineTool(guidelines, (prompt) => this.runtime.injectUserMessage(prompt, "steer")),
+					makeGetGoalTool(this),
 				],
 				label: "advisory:guidelines",
 				seedContext: true,
@@ -746,7 +769,10 @@ export class ExtensionRunner {
 				systemPrompt,
 				systemPromptOverride: true,
 				tools: ["read", "grep", "find", "ls"],
-				customTools: [makeInjectGuidelineTool(continuations, (prompt) => this._continuationTasks.push(prompt))],
+				customTools: [
+					makeInjectGuidelineTool(continuations, (prompt) => this._continuationTasks.push(prompt)),
+					makeGetGoalTool(this),
+				],
 				label: "advisory:continuations",
 				seedContext: true,
 				injectEvery: { turns: 3, message: ADVISORY_REMINDER_TEXT },
