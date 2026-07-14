@@ -17,11 +17,13 @@ export function createSetGoalToolDefinition(runner: ExtensionRunner) {
 			"the user's objective, so progress can be tracked and blocking questions surfaced. " +
 			"Pass an empty string to clear the goal.",
 		promptGuidelines: [
-			"When you receive a user request and understand the session's objective, call set_goal " +
-				"immediately with a concise statement of the goal before taking any other action. " +
-				"This enables question generation and goal tracking for the session.",
-			"Do not call set_goal speculatively or repeatedly — call it once when the goal is clear, " +
-				"and call it again only if the user explicitly changes the objective.",
+			"When you receive a user request and understand the session's objective, consider " +
+				"calling set_goal with a concise statement of that objective. This enables question " +
+				"generation and goal tracking. It tends to apply for multi-step tasks with a clear " +
+				"end state — debugging, investigation, implementation. It may not be needed for a " +
+				"quick lookup or a one-turn clarifying question.",
+			"Call set_goal at most once per distinct objective — call it again only if the user " +
+				"explicitly redirects the task to a different goal.",
 		],
 		parameters: Type.Object({
 			goal: Type.String({
@@ -59,8 +61,8 @@ export function createGoalSatisfiedToolDefinition(runner: ExtensionRunner) {
 		name: "goal_satisfied",
 		label: "Goal Satisfied",
 		description:
-			"Mark the current session goal as completed. Call this when the goal " +
-			"injected via [GOAL] has been fully addressed. Do not call this " +
+			"Mark the current session goal as completed. Call this when the active " +
+			"session goal has been fully addressed. Do not call this " +
 			"speculatively — only call it when the goal is genuinely met.",
 		parameters: Type.Object({}),
 		execute: async (_toolCallId, _params, _signal, _onUpdate, ctx) => {
