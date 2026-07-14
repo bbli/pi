@@ -525,19 +525,25 @@ consider working through this sequence:
 were assuming. Identify which assumptions the detected issue has invalidated or cast \
 in doubt. Keep this grounded — "known" means observed or confirmed, not merely plausible.
 2. **Identify what you need to look up** — but first check the advisory observation \
-above. If it indicates circular or repeated research (the investigation has been \
-calling researchConversationQuestion repeatedly without making progress), skip \
-calling any research tools in this step. The evidence is already in the conversation; \
-the issue is unprocessed information, not missing information. Audit what is already \
-known rather than collecting more. If the advisory observation indicates a different \
-condition, proceed normally: decide which questions need investigation, use \
-researchConversationQuestion for codebase questions and researchProcedure for \
-operational unknowns, and batch multiple questions into one turn.
+above. \
+   - If it indicates circular or repeated research: skip calling any research tools. \
+The evidence is already in the conversation; the issue is unprocessed information, \
+not missing information. Audit what is already known rather than collecting more. \
+   - If it indicates goal drift: skip calling research tools. Instead, re-read the \
+stated goal and identify specifically what the goal requires next — the question is \
+not what is unknown but whether the current direction reconnects to the goal. \
+   - Otherwise: decide which questions need investigation, use researchConversationQuestion \
+for codebase questions and researchProcedure for operational unknowns, and batch \
+multiple questions into one turn.
 3. **Form a revised hypothesis or plan** grounded in what is now known. Present a \
 callpath diagram marking confirmed steps, assumed steps, and where your previous \
-model broke down. If the advisory observation indicated circular research: commit to \
-your best-available hypothesis now, even if some uncertainty remains — further \
-research at this point is more likely to extend the loop than to resolve it. Only then proceed.
+model broke down. \
+   - If the advisory observation indicated circular research: commit to your \
+best-available hypothesis now, even if some uncertainty remains — further research \
+at this point is more likely to extend the loop than to resolve it. \
+   - If the advisory observation indicated goal drift: state what the active goal is, \
+explain how the recent work does or does not connect to it, and form a plan that \
+addresses the goal directly. Only then proceed.
 
 A good investigation moves from evidence to hypothesis, not from assumption to action.`;
 
@@ -932,6 +938,18 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"    Weak signal (does not apply on its own): two or three researchConversationQuestion " +
 			"    calls batched within a single turn — batching parallel questions is the correct " +
 			"    usage pattern and is not a sign of circular research. " +
+			"(6) GOAL DRIFT: first, find the currently active goal by locating the most recent " +
+			"    set_goal tool call result or [GOAL] text in the conversation. If no goal is " +
+			"    set, this condition does not apply. Then compare the agent's recent tool calls " +
+			"    and reasoning against that specific goal text. Strong signals: the agent has " +
+			"    been reading files, running commands, or reasoning about an area that is " +
+			"    several steps removed from the stated goal across multiple consecutive turns, " +
+			"    with no visible explanation of why the current detour is necessary to achieve " +
+			"    that specific goal. " +
+			"    Weak signals (do not apply on their own): the agent is doing exploratory " +
+			"    work that is plausibly preparatory; the goal is broad and the work could " +
+			"    reasonably fall within it; the agent explicitly noted why the current area " +
+			"    is relevant to the goal. " +
 			"Strong signals this does NOT apply: " +
 			"- The user corrects a minor detail (typo, wrong port, filename) that does not " +
 			"  affect the agent's overall model. " +
@@ -941,9 +959,14 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- Hedged claims are peripheral and do not affect the core approach (for condition 4). " +
 			"- researchConversationQuestion calls are batched in a single turn or address " +
 			"  clearly distinct topics with findings visibly applied between them (for condition 5). " +
+			"- No goal is set in the conversation, or the agent's recent work is plausibly " +
+			"  preparatory to the goal even if not directly about it, or the agent has " +
+			"  explicitly explained why the current area is relevant (for condition 6). " +
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in the " +
 			"  conversation after the most recent triggering event. " +
-			"In the `reason` argument, include a brief description of which condition applies and what specifically was detected.",
+			"In the `reason` argument, include a brief description of which condition applies " +
+			"and what specifically was detected — for condition 6, quote the active goal text " +
+			"and describe what the agent was actually doing instead.",
 		injectPrompt: REGROUND_PROMPT,
 		label: "advisory:reground",
 	});
