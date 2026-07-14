@@ -915,6 +915,17 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"    grounding them in something directly read or confirmed in this conversation. " +
 			"    Strong signals: the agent proposes a cause or mechanism without having read " +
 			"    the code or logs that would confirm it. " +
+			"(5) CIRCULAR RESEARCH: researchConversationQuestion has been called repeatedly " +
+			"    across recent turns in a way that appears circular or unproductive. " +
+			"    Strong signals: the agent asks similar or overlapping questions in successive " +
+			"    calls; prior research findings are visible in the conversation but the agent " +
+			"    calls researchConversationQuestion again without having visibly applied those " +
+			"    findings to advance the investigation; three or more calls appear in the recent " +
+			"    conversation and the investigation does not appear to have made forward progress " +
+			"    between them. " +
+			"    Weak signal (does not apply on its own): two or three researchConversationQuestion " +
+			"    calls batched within a single turn — batching parallel questions is the correct " +
+			"    usage pattern and is not a sign of circular research. " +
 			"Strong signals this does NOT apply: " +
 			"- The user corrects a minor detail (typo, wrong port, filename) that does not " +
 			"  affect the agent's overall model. " +
@@ -922,6 +933,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"  a contradiction. " +
 			"- The agent has not yet attempted any fix (for condition 2). " +
 			"- Hedged claims are peripheral and do not affect the core approach (for condition 4). " +
+			"- researchConversationQuestion calls are batched in a single turn or address " +
+			"  clearly distinct topics with findings visibly applied between them (for condition 5). " +
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in the " +
 			"  conversation after the most recent triggering event. " +
 			"In the `reason` argument, include a brief description of which condition applies and what specifically was detected.",
