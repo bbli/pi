@@ -121,7 +121,7 @@ import { ModelSelectorComponent } from "./components/model-selector.ts";
 import { type AuthSelectorProvider, OAuthSelectorComponent } from "./components/oauth-selector.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
-import { SettingsSelectorComponent } from "./components/settings-selector.ts";
+import { KeepSettingsComponent, SettingsSelectorComponent } from "./components/settings-selector.ts";
 import { SkillInvocationMessageComponent } from "./components/skill-invocation-message.ts";
 import { ToolExecutionComponent } from "./components/tool-execution.ts";
 import { TreeSelectorComponent } from "./components/tree-selector.ts";
@@ -2600,7 +2600,7 @@ export class InteractiveMode {
 					this.showStatus(`Keep branch sessions: ${enabled ? "on" : "off"}`);
 				} else {
 					this.editor.setText("");
-					await this.showKeepSelector();
+					this.showKeepSelector();
 				}
 				return;
 			}
@@ -4474,9 +4474,43 @@ export class InteractiveMode {
 		});
 	}
 
-	private async showKeepSelector(): Promise<void> {
-		// Step 3: replaced with per-type KeepSettingsComponent.
-		this.showStatus("Use /settings:keep on | off, or open /settings for the full menu.");
+	private showKeepSelector(): void {
+		const runner = this.resources.extensionRunner;
+		this.showSelector((done) => {
+			const component = new KeepSettingsComponent(
+				runner.getKeepAliveEnabled(),
+				(label) => runner.getKeepAliveTypeEnabled(label),
+				(enabled) => {
+					// Master toggle changed.
+					runner.setKeepAliveEnabled(enabled);
+					for (const record of this.manager.getAll()) {
+						if (record.kind === "branch") {
+							this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
+						}
+					}
+					this.footer.setKeepBranchSessions(enabled);
+					this.ui.requestRender();
+				},
+				(label, enabled) => {
+					// Per-type toggle changed.
+					runner.setKeepAliveTypeEnabled(label, enabled);
+					if (runner.getKeepAliveEnabled()) {
+						// Retroactively apply to existing sessions of this type.
+						for (const record of this.manager.getAll()) {
+							if (record.kind === "branch" && record.label === label) {
+								this.manager.setKept(record.id, enabled);
+							}
+						}
+					}
+					this.ui.requestRender();
+				},
+				() => {
+					done();
+					this.ui.requestRender();
+				},
+			);
+			return { component, focus: component.getSettingsList() };
+		});
 	}
 
 	private async handleModelCommand(searchTerm?: string): Promise<void> {

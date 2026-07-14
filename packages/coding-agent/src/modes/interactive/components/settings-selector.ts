@@ -138,6 +138,79 @@ class WarningSettingsSubmenu extends Container {
 	}
 }
 
+/** Session types controllable via the keep-alive per-type map. */
+const KEEP_ALIVE_SESSION_TYPES: ReadonlyArray<{ label: string; display: string; description: string }> = [
+	{ label: "research", display: "Research", description: "researchConversationQuestion sessions" },
+	{ label: "procedure", display: "Procedure", description: "researchProcedure sessions" },
+	{ label: "question-gen", display: "Question generator", description: "question-generator sessions" },
+	{ label: "advisory:guidelines", display: "Guidelines advisor", description: "advisory guideline sessions" },
+	{ label: "advisory:continuations", display: "Continuations advisor", description: "advisory continuation sessions" },
+];
+
+/**
+ * Top-level TUI component for the /settings:keep per-type menu.
+ * Shows the master keep-alive toggle and individual per-type toggles.
+ * Open via showSelector in interactive-mode.
+ */
+export class KeepSettingsComponent extends Container {
+	private settingsList: SettingsList;
+
+	constructor(
+		keepAliveEnabled: boolean,
+		getTypeEnabled: (label: string) => boolean,
+		onMasterChange: (enabled: boolean) => void,
+		onTypeChange: (label: string, enabled: boolean) => void,
+		onCancel: () => void,
+	) {
+		super();
+
+		const items: SettingItem[] = [
+			{
+				id: "master",
+				label: "Keep branch sessions",
+				description: "Master toggle — keeps all enabled session types after completion",
+				currentValue: keepAliveEnabled ? "enabled" : "disabled",
+				values: ["enabled", "disabled"],
+			},
+			{ id: "section", label: "── Session types ──", currentValue: "" },
+			...KEEP_ALIVE_SESSION_TYPES.map((t) => ({
+				id: t.label,
+				label: t.display,
+				description: t.description,
+				currentValue: getTypeEnabled(t.label) ? "enabled" : "disabled",
+				values: ["enabled", "disabled"],
+			})),
+		];
+
+		this.settingsList = new SettingsList(
+			items,
+			Math.min(items.length + 2, 12),
+			getSettingsListTheme(),
+			(id, newValue) => {
+				const enabled = newValue === "enabled";
+				if (id === "master") {
+					onMasterChange(enabled);
+				} else if (id !== "section") {
+					onTypeChange(id, enabled);
+				}
+			},
+			onCancel,
+		);
+
+		this.addChild(new DynamicBorder());
+		this.addChild(this.settingsList);
+		this.addChild(new DynamicBorder());
+	}
+
+	getSettingsList(): SettingsList {
+		return this.settingsList;
+	}
+
+	handleInput(data: string): void {
+		this.settingsList.handleInput(data);
+	}
+}
+
 class SelectSubmenu extends Container {
 	private selectList: SelectList;
 
