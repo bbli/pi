@@ -295,6 +295,16 @@ function createExtensionAPI(
 			return runtime.getAdvisoryEnabled();
 		},
 
+		setQuestionGenEnabled(enabled: boolean): void {
+			runtime.assertActive();
+			runtime.setQuestionGenEnabled(enabled);
+		},
+
+		getQuestionGenEnabled(): boolean {
+			runtime.assertActive();
+			return runtime.getQuestionGenEnabled();
+		},
+
 		setGuidelineEnabled(id: string, enabled: boolean): void {
 			runtime.assertActive();
 			runtime.setGuidelineEnabled(id, enabled);
