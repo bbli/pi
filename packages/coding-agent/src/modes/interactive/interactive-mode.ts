@@ -2584,18 +2584,24 @@ export class InteractiveMode {
 				this.editor.setText("");
 				return;
 			}
-			if (text === "/settings:keep") {
+			if (text === "/settings:keep" || text.startsWith("/settings:keep ")) {
+				const arg = text.slice("/settings:keep".length).trim().toLowerCase();
 				const runner = this.resources.extensionRunner;
-				const enabled = !runner.getKeepAliveEnabled();
-				runner.setKeepAliveEnabled(enabled);
-				for (const record of this.manager.getAll()) {
-					if (record.kind === "branch") {
-						this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
+				if (arg === "on" || arg === "off") {
+					const enabled = arg === "on";
+					runner.setKeepAliveEnabled(enabled);
+					for (const record of this.manager.getAll()) {
+						if (record.kind === "branch") {
+							this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
+						}
 					}
+					this.footer.setKeepBranchSessions(enabled);
+					this.editor.setText("");
+					this.showStatus(`Keep branch sessions: ${enabled ? "on" : "off"}`);
+				} else {
+					this.editor.setText("");
+					await this.showKeepSelector();
 				}
-				this.footer.setKeepBranchSessions(enabled);
-				this.editor.setText("");
-				this.showStatus(`Keep branch sessions: ${enabled ? "on" : "off"}`);
 				return;
 			}
 			if (text === "/scoped-models") {
@@ -4466,6 +4472,11 @@ export class InteractiveMode {
 			);
 			return { component: selector, focus: selector.getSettingsList() };
 		});
+	}
+
+	private async showKeepSelector(): Promise<void> {
+		// Step 3: replaced with per-type KeepSettingsComponent.
+		this.showStatus("Use /settings:keep on | off, or open /settings for the full menu.");
 	}
 
 	private async handleModelCommand(searchTerm?: string): Promise<void> {
