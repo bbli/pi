@@ -2586,18 +2586,10 @@ export class InteractiveMode {
 			}
 			if (text === "/settings:keep" || text.startsWith("/settings:keep ")) {
 				const arg = text.slice("/settings:keep".length).trim().toLowerCase();
-				const runner = this.resources.extensionRunner;
 				if (arg === "on" || arg === "off") {
-					const enabled = arg === "on";
-					runner.setKeepAliveEnabled(enabled);
-					for (const record of this.manager.getAll()) {
-						if (record.kind === "branch") {
-							this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
-						}
-					}
-					this.footer.setKeepBranchSessions(enabled);
+					this._applyKeepAliveEnabled(arg === "on");
 					this.editor.setText("");
-					this.showStatus(`Keep branch sessions: ${enabled ? "on" : "off"}`);
+					this.showStatus(`Keep branch sessions: ${arg === "on" ? "on" : "off"}`);
 				} else {
 					this.editor.setText("");
 					this.showKeepSelector();
@@ -4336,14 +4328,7 @@ export class InteractiveMode {
 						this.footer.setAutoCompactEnabled(enabled);
 					},
 					onKeepBranchSessionsChange: (enabled) => {
-						const runner = this.resources.extensionRunner;
-						runner.setKeepAliveEnabled(enabled);
-						for (const record of this.manager.getAll()) {
-							if (record.kind === "branch") {
-								this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
-							}
-						}
-						this.footer.setKeepBranchSessions(enabled);
+						this._applyKeepAliveEnabled(enabled);
 						debugLog(`[settings] keep-alive toggled: ${enabled}`);
 					},
 					onShowImagesChange: (enabled) => {
@@ -4474,6 +4459,45 @@ export class InteractiveMode {
 		});
 	}
 
+	/**
+	 * Apply the master keep-alive toggle: update runner state, retroactively setKept
+	 * on all branch sessions (disposing completed non-focused ones that are now
+	 * un-kept), and sync the footer indicator.
+	 */
+	private _applyKeepAliveEnabled(enabled: boolean): void {
+		const runner = this.resources.extensionRunner;
+		runner.setKeepAliveEnabled(enabled);
+		for (const record of this.manager.getAll()) {
+			if (record.kind === "branch") {
+				const kept = enabled && runner.getKeepAliveTypeEnabled(record.label);
+				this.manager.setKept(record.id, kept);
+				if (!kept && record.completed && this.manager.focusedRecord?.id !== record.id) {
+					this.manager.remove(record.id);
+				}
+			}
+		}
+		this.footer.setKeepBranchSessions(enabled);
+	}
+
+	/**
+	 * Apply a per-type keep-alive toggle: update runner state, then retroactively
+	 * setKept on matching branch sessions (disposing completed non-focused ones
+	 * that are now un-kept). Only retroactively acts when master is on.
+	 */
+	private _applyKeepAliveTypeChange(label: string, enabled: boolean): void {
+		const runner = this.resources.extensionRunner;
+		runner.setKeepAliveTypeEnabled(label, enabled);
+		if (!runner.getKeepAliveEnabled()) return;
+		for (const record of this.manager.getAll()) {
+			if (record.kind === "branch" && record.label === label) {
+				this.manager.setKept(record.id, enabled);
+				if (!enabled && record.completed && this.manager.focusedRecord?.id !== record.id) {
+					this.manager.remove(record.id);
+				}
+			}
+		}
+	}
+
 	private showKeepSelector(): void {
 		const runner = this.resources.extensionRunner;
 		this.showSelector((done) => {
@@ -4481,27 +4505,11 @@ export class InteractiveMode {
 				runner.getKeepAliveEnabled(),
 				(label) => runner.getKeepAliveTypeEnabled(label),
 				(enabled) => {
-					// Master toggle changed.
-					runner.setKeepAliveEnabled(enabled);
-					for (const record of this.manager.getAll()) {
-						if (record.kind === "branch") {
-							this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
-						}
-					}
-					this.footer.setKeepBranchSessions(enabled);
+					this._applyKeepAliveEnabled(enabled);
 					this.ui.requestRender();
 				},
 				(label, enabled) => {
-					// Per-type toggle changed.
-					runner.setKeepAliveTypeEnabled(label, enabled);
-					if (runner.getKeepAliveEnabled()) {
-						// Retroactively apply to existing sessions of this type.
-						for (const record of this.manager.getAll()) {
-							if (record.kind === "branch" && record.label === label) {
-								this.manager.setKept(record.id, enabled);
-							}
-						}
-					}
+					this._applyKeepAliveTypeChange(label, enabled);
 					this.ui.requestRender();
 				},
 				() => {
