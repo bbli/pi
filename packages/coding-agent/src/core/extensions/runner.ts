@@ -769,10 +769,7 @@ export class ExtensionRunner {
 				systemPrompt,
 				systemPromptOverride: true,
 				tools: ["read", "grep", "find", "ls"],
-				customTools: [
-					makeInjectGuidelineTool(continuations, (prompt) => this._continuationTasks.push(prompt)),
-					makeGetGoalTool(this),
-				],
+				customTools: [makeInjectGuidelineTool(continuations, (prompt) => this._continuationTasks.push(prompt))],
 				label: "advisory:continuations",
 				seedContext: true,
 				injectEvery: { turns: 3, message: ADVISORY_REMINDER_TEXT },
