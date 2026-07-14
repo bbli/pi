@@ -16,6 +16,7 @@ import type {
 	ExtensionContextActions,
 	ExtensionUIContext,
 	ProviderConfig,
+	ToolDefinition,
 	TurnEndEvent,
 } from "../src/core/extensions/types.ts";
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
@@ -77,6 +78,7 @@ describe("ExtensionRunner", () => {
 		setThinkingLevel: () => {},
 		runBranchSession: async () => undefined,
 		newBranchSession: async () => "",
+		makeInjectMessageTool: () => ({}) as unknown as ToolDefinition,
 		getGuidelines: () => [],
 		getContinuations: () => [],
 		injectUserMessage: () => {},

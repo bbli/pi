@@ -1392,6 +1392,13 @@ export interface ExtensionAPI {
 	 */
 	newBranchSession(prompt: string, options: BranchSessionOptions): Promise<string>;
 
+	/**
+	 * Return a ToolDefinition for the injectMessage tool wired to the current session.
+	 * Pass it in customTools when calling runBranchSession to let the branch session
+	 * surface findings or observations to the main session via injectMessage().
+	 */
+	makeInjectMessageTool(): ToolDefinition;
+
 	// =========================================================================
 	// Actions
 	// =========================================================================
@@ -1717,6 +1724,7 @@ export interface ExtensionActions {
 	setThinkingLevel: SetThinkingLevelHandler;
 	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
 	newBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string>;
+	makeInjectMessageTool: () => ToolDefinition;
 	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**

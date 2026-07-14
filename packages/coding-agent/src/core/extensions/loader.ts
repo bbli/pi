@@ -153,6 +153,7 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		setThinkingLevel: notInitialized,
 		runBranchSession: notInitialized,
 		newBranchSession: notInitialized,
+		makeInjectMessageTool: notInitialized,
 		getGuidelines: notInitialized,
 		getContinuations: notInitialized,
 		setGoal: notInitialized,
@@ -343,6 +344,11 @@ function createExtensionAPI(
 		newBranchSession(prompt: string, options: BranchSessionOptions): Promise<string> {
 			runtime.assertActive();
 			return runtime.newBranchSession(prompt, options);
+		},
+
+		makeInjectMessageTool(): ToolDefinition {
+			runtime.assertActive();
+			return runtime.makeInjectMessageTool();
 		},
 
 		// Flag access - checks extension registered it, reads from runtime

@@ -95,6 +95,7 @@ import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-promp
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createGoalSatisfiedToolDefinition, createSetGoalToolDefinition } from "./tools/goal.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
+import { makeInjectMessageTool } from "./tools/inject-message.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
 
 // ============================================================================
@@ -2325,6 +2326,7 @@ export class AgentSession {
 				newBranchSession: (prompt, options) => {
 					return newBranchSession(prompt, options, this, this._agentManager);
 				},
+				makeInjectMessageTool: () => makeInjectMessageTool(this),
 				getGuidelines: () => this._extensionRunner.getAllGuidelines(),
 				getContinuations: () => this._extensionRunner.getAllContinuations(),
 				injectUserMessage: (text, deliverAs) => {
