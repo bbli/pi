@@ -44,7 +44,7 @@ function buildPrompt(goal: string): string {
 	return `\
 Active goal: ${goal}
 
-PHASE 1 — BUILD UNDERSTANDING
+## PHASE 1 — BUILD UNDERSTANDING
 Read the full conversation. Establish:
   - What is the stated situation or problem?
   - What has the agent confirmed as fact vs. inferred or assumed without verification?
@@ -55,7 +55,7 @@ Read the full conversation. Establish:
 Output only the question blocks from PHASE 2 below. Do not output your \
 PHASE 1 reasoning.
 
-PHASE 2 — GENERATE QUESTIONS
+## PHASE 2 — GENERATE QUESTIONS
 Generate at most 3 questions that a user sitting next to the agent would ask \
 right now to help it make progress toward the goal. Frame each question as the \
 user speaking to the agent — direct, specific, and conversational.

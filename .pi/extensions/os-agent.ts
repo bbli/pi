@@ -519,6 +519,56 @@ Once you have read the relevant code and formed a grounded hypothesis, apply tha
 understanding to decide your next action. Reflect on any gaps the code reveals — \
 they may reframe the problem or suggest a different approach.`;
 
+const GATHER_EVIDENCE_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE \u2014 Before iterating further on your current \
+hypothesis, consider whether you have exhausted available direct evidence sources. \
+Skip only if you have already called researchProcedure or accessed new direct operational \
+data sources (system logs, infrastructure logs, remote machine logs) after forming your \
+current hypothesis.]
+
+A background monitor has detected that you have a working hypothesis but appear to be \
+continuing to iterate on the same evidence base. The specific pattern is described in \
+the advisory observation above.
+
+Iterating further on inference from the same evidence rarely changes the conclusion \u2014 \
+the hypothesis becomes more elaborate but not better grounded. Direct evidence is what \
+changes the conclusion.
+
+Before continuing, consider:
+- Are there direct evidence sources you have not yet accessed that would record the \
+  relevant system behavior directly? Examples: system journals on remote machines, \
+  service-specific logs, infrastructure event logs (NFS, storage, network), operational \
+  data captured at the time of the event.
+- If such sources exist but you don't know the paths or access method, consider using \
+  \`researchProcedure(goal)\` to find out how to reach them before drawing conclusions.
+- If the sources are accessible, consider going to get them directly via bash before \
+  another round of inference from what you already have.
+
+The key distinction: indirect evidence (code reading, inferring from adjacent logs) builds \
+a plausible hypothesis. Direct evidence (the specific log that records the exact event at \
+the exact time) confirms or refutes it. If direct evidence is available and not yet \
+accessed, another round of inference is unlikely to improve confidence on its own.
+
+This tends to apply when:
+- You have noted "I can't confirm X" without attempting to access a different log source
+- You have called researchConversationQuestion multiple times in succession without \
+  accessing new operational data
+- You have identified a potential direct evidence source but haven't attempted to access it
+- Your stated confidence is medium or low and there are plausible ways to strengthen it \
+  with direct evidence
+
+It is less applicable when:
+- You have already accessed all plausible direct evidence sources for this investigation
+- The investigation is purely code-focused with no operational components
+- The hypothesis already has high confidence with direct supporting evidence
+- The relevant evidence no longer exists or is inaccessible (e.g., the system is no \
+  longer in the state it was during the event)
+
+Once you have assessed what direct evidence is or isn't accessible, apply that to your \
+next action. If sources are accessible, go get them. If they are not, note explicitly \
+what evidence is missing and what that means for confidence \u2014 then continue with your \
+best-available hypothesis.\`;
+
 const REGROUND_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND — The current investigation has lost solid \
 footing and needs to be rebuilt from what is actually known. Step back before continuing. \
@@ -909,6 +959,38 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"appears about to take (e.g. 'grep logs for error X', 'edit parser.ts', 'run diagnostic command Y').",
 		injectPrompt: RESEARCH_BEFORE_ACTION_PROMPT,
 		label: "advisory:research-before-action",
+	});
+
+	pi.registerGuideline({
+		id: "gather-evidence",
+		triggerPrompt:
+			"Has the agent formed a working hypothesis or diagnosis about a system-level or operational " +
+			"issue, but there is remaining uncertainty \u2014 medium or low stated confidence, unconfirmed " +
+			"steps, or explicit gaps like 'I can't confirm X from the available logs' \u2014 AND the agent " +
+			"appears to be continuing to iterate on the same evidence base (repeated researchConversationQuestion " +
+			"calls, re-reading the same files, chaining inferences from existing data) without having " +
+			"attempted to access new direct evidence sources such as system logs on remote machines, " +
+			"service-specific logs, or infrastructure event logs? " +
+			"Strong signals this SHOULD trigger: " +
+			"- Agent has stated a hypothesis but rates confidence as medium or low, or lists unconfirmed steps or gaps. " +
+			"- Agent has noted a specific evidence gap: 'the logs don't show whether Y happened', 'I can't confirm X'. " +
+			"- Agent has made multiple consecutive researchConversationQuestion calls without running bash " +
+			"  commands or calling researchProcedure to access new operational data. " +
+			"- Agent has explicitly identified a potential direct evidence source (e.g., 'blade-level logs " +
+			"  would show the rescan events directly') but has not attempted to access it. " +
+			"Strong signals this should NOT trigger: " +
+			"- A [SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE] message already appears in this conversation. " +
+			"- Agent has already called researchProcedure or bash to access new operational data sources " +
+			"  after the current hypothesis was formed. " +
+			"- The investigation is purely code-focused with no operational or infrastructure components. " +
+			"- The hypothesis is high confidence with sufficient direct supporting evidence. " +
+			"- No hypothesis has been formed yet \u2014 the agent is still in initial exploration. " +
+			"In the `reason` argument, describe: (1) what iteration pattern the agent is in " +
+			"(e.g., 'repeated researchConversationQuestion calls about catalog behavior'), and " +
+			"(2) what direct evidence source appears untapped " +
+			"(e.g., 'blade-level NFS logs on ir1-ir7 that would show the rescan events directly').",
+		injectPrompt: GATHER_EVIDENCE_PROMPT,
+		label: "advisory:gather-evidence",
 	});
 
 	pi.registerGuideline({
