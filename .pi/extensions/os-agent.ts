@@ -127,11 +127,21 @@ After all slices are committed, briefly note what was done and return to the ori
 
 
 const RESEARCH_UNCERTAINTIES_PROMPT_BODY = `You have unresolved questions or uncertainties \
-in this conversation. Investigate each distinct question in its own focused subagent \
-before proceeding — this surfaces answers without polluting the main context window \
-with exploratory reads.
+in this conversation. Before investigating, apply a progress filter — research that won't \
+change your conclusion or next action is a distraction, not a step forward.
 
-For each unresolved question or uncertainty:
+**Progress filter — apply to each question before any tool call:**
+For each question or uncertainty, ask: "If I learn the answer, would it change my hypothesis, \
+recommended fix, or what I do next toward the goal?" Use the active goal if one was set \
+(via set_goal), or the implicit goal from the conversation.
+- If yes — it qualifies for investigation.
+- If no — it is a secondary or epistemic gap: note it briefly and skip it. \
+  Do not call any research tool for it.
+
+If no questions pass the filter, say so in one or two sentences and stop — \
+do not proceed to investigation.
+
+For each question that qualifies:
 1. Choose the right tool based on the nature of the question:
    - researchConversationQuestion(question) — for codebase questions: gaps, unverified \
      assumptions, or uncertainties that can be answered by reading code, files, or logs.
