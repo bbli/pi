@@ -1353,6 +1353,12 @@ export interface ExtensionAPI {
 	/** Whether the advisory system is currently enabled. */
 	getAdvisoryEnabled(): boolean;
 
+	/** Enable or disable the question generator at runtime. */
+	setQuestionGenEnabled(enabled: boolean): void;
+
+	/** Whether the question generator is currently enabled. */
+	getQuestionGenEnabled(): boolean;
+
 	/** Enable or disable a specific guideline by ID. Disabled guidelines are excluded from advisory evaluation. */
 	setGuidelineEnabled(id: string, enabled: boolean): void;
 
@@ -1781,6 +1787,10 @@ export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionAction
 	setAdvisoryEnabled: (enabled: boolean) => void;
 	/** Whether the advisory system is currently enabled. Self-wired by ExtensionRunner.bindCore(). */
 	getAdvisoryEnabled: () => boolean;
+	/** Enable or disable the question generator. Self-wired by ExtensionRunner.bindCore(). */
+	setQuestionGenEnabled: (enabled: boolean) => void;
+	/** Whether the question generator is currently enabled. Self-wired by ExtensionRunner.bindCore(). */
+	getQuestionGenEnabled: () => boolean;
 	/** Enable or disable a specific guideline. Self-wired by ExtensionRunner.bindCore(). */
 	setGuidelineEnabled: (id: string, enabled: boolean) => void;
 	/** Whether a specific guideline is enabled. Self-wired by ExtensionRunner.bindCore(). */

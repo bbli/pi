@@ -63,6 +63,7 @@ export class FooterComponent implements Component {
 	private autoCompactEnabled = true;
 	private keepBranchSessionsEnabled = false;
 	private advisoryEnabled = false;
+	private questionGenEnabled = false;
 	private session: AgentSession;
 	private footerData: ReadonlyFooterDataProvider;
 	private manager: FooterOrchestratorState;
@@ -91,6 +92,10 @@ export class FooterComponent implements Component {
 
 	setAdvisoryEnabled(enabled: boolean): void {
 		this.advisoryEnabled = enabled;
+	}
+
+	setQuestionGenEnabled(enabled: boolean): void {
+		this.questionGenEnabled = enabled;
 	}
 
 	/**
@@ -188,10 +193,11 @@ export class FooterComponent implements Component {
 		const autoIndicator = this.autoCompactEnabled ? " (auto)" : "";
 		const keepIndicator = this.keepBranchSessionsEnabled ? " (keep:on)" : " (keep:off)";
 		const advIndicator = this.advisoryEnabled ? " (adv:on)" : " (adv:off)";
+		const userIndicator = this.questionGenEnabled ? " (user:on)" : " (user:off)";
 		const contextPercentDisplay =
 			contextPercent === "?"
-				? `?/${formatTokens(contextWindow)}${autoIndicator}${keepIndicator}${advIndicator}`
-				: `${contextPercent}%/${formatTokens(contextWindow)}${autoIndicator}${keepIndicator}${advIndicator}`;
+				? `?/${formatTokens(contextWindow)}${autoIndicator}${keepIndicator}${advIndicator}${userIndicator}`
+				: `${contextPercent}%/${formatTokens(contextWindow)}${autoIndicator}${keepIndicator}${advIndicator}${userIndicator}`;
 		if (contextPercentValue > 90) {
 			contextPercentStr = theme.fg("error", contextPercentDisplay);
 		} else if (contextPercentValue > 70) {

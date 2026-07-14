@@ -288,6 +288,7 @@ export class InteractiveMode {
 	private footer: FooterComponent;
 	private footerDataProvider: FooterDataProvider;
 	private _unsubAdvisoryChange: (() => void) | undefined;
+	private _unsubQuestionGenChange: (() => void) | undefined;
 	// Stored so the same manager can be injected into custom editors, selectors, and extension UI.
 	private keybindings: KeybindingsManager;
 	private version: string;
@@ -465,6 +466,11 @@ export class InteractiveMode {
 		this.footer.setAdvisoryEnabled(this.resources.extensionRunner.getAdvisoryEnabled());
 		this._unsubAdvisoryChange = this.resources.extensionRunner.onAdvisoryChange((enabled) => {
 			this.footer.setAdvisoryEnabled(enabled);
+			this.ui.requestRender();
+		});
+		this.footer.setQuestionGenEnabled(this.resources.extensionRunner.getQuestionGenEnabled());
+		this._unsubQuestionGenChange = this.resources.extensionRunner.onQuestionGenChange((enabled) => {
+			this.footer.setQuestionGenEnabled(enabled);
 			this.ui.requestRender();
 		});
 
@@ -6200,6 +6206,8 @@ export class InteractiveMode {
 		this.clearExtensionTerminalInputListeners();
 		this._unsubAdvisoryChange?.();
 		this._unsubAdvisoryChange = undefined;
+		this._unsubQuestionGenChange?.();
+		this._unsubQuestionGenChange = undefined;
 		this.footer.dispose();
 		this.footerDataProvider.dispose();
 		this.active.unsubscribe();

@@ -160,6 +160,8 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		markGoalSatisfied: notInitialized,
 		setAdvisoryEnabled: notInitialized,
 		getAdvisoryEnabled: notInitialized,
+		setQuestionGenEnabled: notInitialized,
+		getQuestionGenEnabled: notInitialized,
 		setGuidelineEnabled: notInitialized,
 		getGuidelineEnabled: notInitialized,
 		setContinuationEnabled: notInitialized,
