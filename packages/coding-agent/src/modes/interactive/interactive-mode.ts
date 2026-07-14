@@ -5767,6 +5767,7 @@ export class InteractiveMode {
 
 		if (arg) {
 			runner.setGoal(arg);
+			runner.setQuestionGenEnabled(true);
 			this.chatContainer.addChild(new Spacer(1));
 			this.chatContainer.addChild(new Text(theme.fg("dim", `Goal set: ${arg}`), 1, 0));
 			this.ui.requestRender();
@@ -5787,6 +5788,7 @@ export class InteractiveMode {
 		}
 		const newGoal = result.trim();
 		runner.setGoal(newGoal || undefined);
+		if (newGoal) runner.setQuestionGenEnabled(true);
 		this.chatContainer.addChild(new Spacer(1));
 		if (newGoal) {
 			this.chatContainer.addChild(new Text(theme.fg("dim", `Goal set: ${newGoal}`), 1, 0));

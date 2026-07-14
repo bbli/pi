@@ -174,7 +174,48 @@ function formatQuestions(questions: Question[], goal: string): string {
 // ---------------------------------------------------------------------------
 
 export default function questionGenerator(pi: ExtensionAPI): void {
+	// --- /question-gen command ---
+
+	pi.registerCommand("question-gen", {
+		description: "Toggle question generator on or off: /question-gen [on|off]",
+		handler: async (args, ctx) => {
+			const arg = args.trim().toLowerCase();
+			if (arg === "on") {
+				pi.setQuestionGenEnabled(true);
+				ctx.ui.notify("[question-gen] enabled", "info");
+				return;
+			}
+			if (arg === "off") {
+				pi.setQuestionGenEnabled(false);
+				ctx.ui.notify("[question-gen] disabled", "warning");
+				return;
+			}
+			ctx.ui.notify(
+				`[question-gen] currently ${pi.getQuestionGenEnabled() ? "on" : "off"}`,
+				"info",
+			);
+		},
+	});
+
+	// --- --question-gen CLI flag ---
+
+	pi.registerFlag("question-gen", {
+		description: "Enable the question generator on startup",
+		type: "boolean",
+		default: false,
+	});
+
+	pi.on("session_start", (_event, ctx) => {
+		if (pi.getFlag("question-gen") === true) {
+			pi.setQuestionGenEnabled(true);
+			if (ctx.hasUI) ctx.ui.notify("[question-gen] enabled via --question-gen", "info");
+		}
+	});
+
+	// --- agent_end handler ---
+
 	pi.on("agent_end", async (event, _ctx) => {
+		if (!pi.getQuestionGenEnabled()) return;
 		const goal = pi.getGoal();
 		if (!goal) return;
 		if (event.continuationFired) return;
