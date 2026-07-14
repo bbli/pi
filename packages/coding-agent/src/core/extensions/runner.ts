@@ -425,10 +425,10 @@ export class ExtensionRunner {
 	private _advisoryEnabled = false;
 	/** Listeners notified whenever advisory enabled state changes. */
 	private _advisoryChangeListeners = new Set<(enabled: boolean) => void>();
-	/** Whether the question generator is enabled. Toggled via setQuestionGenEnabled(). */
-	private _questionGenEnabled = false;
-	/** Listeners notified whenever question generator enabled state changes. */
-	private _questionGenChangeListeners = new Set<(enabled: boolean) => void>();
+	/** Whether the act-as-user question generator is enabled. Toggled via setActAsUserEnabled(). */
+	private _actAsUserEnabled = false;
+	/** Listeners notified whenever act-as-user enabled state changes. */
+	private _actAsUserChangeListeners = new Set<(enabled: boolean) => void>();
 	/** IDs of guidelines disabled via setGuidelineEnabled(). */
 	private _disabledGuidelineIds = new Set<string>();
 	/** IDs of continuations disabled via setContinuationEnabled(). */
@@ -503,11 +503,11 @@ export class ExtensionRunner {
 			this.setAdvisoryEnabled(enabled);
 		};
 		this.runtime.getAdvisoryEnabled = () => this._advisoryEnabled;
-		// Self-wired: question generator state lives on the runner, not on agent-session.
-		this.runtime.setQuestionGenEnabled = (enabled: boolean) => {
-			this.setQuestionGenEnabled(enabled);
+		// Self-wired: act-as-user state lives on the runner, not on agent-session.
+		this.runtime.setActAsUserEnabled = (enabled: boolean) => {
+			this.setActAsUserEnabled(enabled);
 		};
-		this.runtime.getQuestionGenEnabled = () => this._questionGenEnabled;
+		this.runtime.getActAsUserEnabled = () => this._actAsUserEnabled;
 		// Self-wired: per-item guideline/continuation toggle state lives on the runner.
 		this.runtime.setGuidelineEnabled = (id, enabled) => this.setGuidelineEnabled(id, enabled);
 		this.runtime.getGuidelineEnabled = (id) => this.getGuidelineEnabled(id);
@@ -729,21 +729,21 @@ export class ExtensionRunner {
 		return () => this._advisoryChangeListeners.delete(cb);
 	}
 
-	/** Enable or disable the question generator at runtime. */
-	setQuestionGenEnabled(enabled: boolean): void {
-		this._questionGenEnabled = enabled;
-		for (const cb of this._questionGenChangeListeners) cb(enabled);
+	/** Enable or disable the act-as-user question generator at runtime. */
+	setActAsUserEnabled(enabled: boolean): void {
+		this._actAsUserEnabled = enabled;
+		for (const cb of this._actAsUserChangeListeners) cb(enabled);
 	}
 
-	/** Whether the question generator is currently enabled. */
-	getQuestionGenEnabled(): boolean {
-		return this._questionGenEnabled;
+	/** Whether the act-as-user question generator is currently enabled. */
+	getActAsUserEnabled(): boolean {
+		return this._actAsUserEnabled;
 	}
 
-	/** Subscribe to question generator enabled state changes. Returns an unsubscribe function. */
-	onQuestionGenChange(cb: (enabled: boolean) => void): () => void {
-		this._questionGenChangeListeners.add(cb);
-		return () => this._questionGenChangeListeners.delete(cb);
+	/** Subscribe to act-as-user enabled state changes. Returns an unsubscribe function. */
+	onActAsUserChange(cb: (enabled: boolean) => void): () => void {
+		this._actAsUserChangeListeners.add(cb);
+		return () => this._actAsUserChangeListeners.delete(cb);
 	}
 
 	/**

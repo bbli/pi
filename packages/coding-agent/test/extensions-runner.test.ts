@@ -1056,11 +1056,11 @@ describe("ExtensionRunner", () => {
 			return { runner, injected };
 		};
 
-		// Goal injection via injectUserMessage was removed. The question-generator
+		// Goal injection via injectUserMessage was removed. The act-as-user
 		// extension now handles goal-related followUps via pi.sendUserMessage.
 		// These tests verify the runner itself does not call injectUserMessage for goals.
 
-		it("does not call injectUserMessage for goal (question-generator handles injection)", async () => {
+		it("does not call injectUserMessage for goal (act-as-user handles injection)", async () => {
 			const { runner, injected } = makeRunner();
 			runner.setGoal("Summarize what you did");
 
@@ -1169,7 +1169,7 @@ describe("ExtensionRunner", () => {
 			expect(injected).toEqual(["[Advisory observation: test]\n\ninject-c1"]);
 
 			// Cycle 2: no continuation fires, goal is NOT injected via injectUserMessage
-			// (the question-generator extension handles this via sendUserMessage instead)
+			// (the act-as-user extension handles this via sendUserMessage instead)
 			await runner.emitAgentEnd({ type: "agent_end", messages: [] });
 			expect(injected).toHaveLength(1); // still only the continuation from cycle 1
 		});

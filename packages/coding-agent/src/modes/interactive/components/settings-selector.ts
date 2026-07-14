@@ -142,7 +142,7 @@ class WarningSettingsSubmenu extends Container {
 const KEEP_ALIVE_SESSION_TYPES: ReadonlyArray<{ label: string; display: string; description: string }> = [
 	{ label: "research", display: "Research", description: "researchConversationQuestion sessions" },
 	{ label: "procedure", display: "Procedure", description: "researchProcedure sessions" },
-	{ label: "question-gen", display: "Question generator", description: "question-generator sessions" },
+	{ label: "act-as-user", display: "Act as user", description: "act-as-user sessions" },
 	{ label: "advisory:guidelines", display: "Guidelines advisor", description: "advisory guideline sessions" },
 	{ label: "advisory:continuations", display: "Continuations advisor", description: "advisory continuation sessions" },
 ];

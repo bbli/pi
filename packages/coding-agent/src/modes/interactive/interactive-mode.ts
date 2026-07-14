@@ -288,7 +288,7 @@ export class InteractiveMode {
 	private footer: FooterComponent;
 	private footerDataProvider: FooterDataProvider;
 	private _unsubAdvisoryChange: (() => void) | undefined;
-	private _unsubQuestionGenChange: (() => void) | undefined;
+	private _unsubActAsUserChange: (() => void) | undefined;
 	// Stored so the same manager can be injected into custom editors, selectors, and extension UI.
 	private keybindings: KeybindingsManager;
 	private version: string;
@@ -468,9 +468,9 @@ export class InteractiveMode {
 			this.footer.setAdvisoryEnabled(enabled);
 			this.ui.requestRender();
 		});
-		this.footer.setQuestionGenEnabled(this.resources.extensionRunner.getQuestionGenEnabled());
-		this._unsubQuestionGenChange = this.resources.extensionRunner.onQuestionGenChange((enabled) => {
-			this.footer.setQuestionGenEnabled(enabled);
+		this.footer.setActAsUserEnabled(this.resources.extensionRunner.getActAsUserEnabled());
+		this._unsubActAsUserChange = this.resources.extensionRunner.onActAsUserChange((enabled) => {
+			this.footer.setActAsUserEnabled(enabled);
 			this.ui.requestRender();
 		});
 
@@ -5767,7 +5767,7 @@ export class InteractiveMode {
 
 		if (arg) {
 			runner.setGoal(arg);
-			runner.setQuestionGenEnabled(true);
+			runner.setActAsUserEnabled(true);
 			this.chatContainer.addChild(new Spacer(1));
 			this.chatContainer.addChild(new Text(theme.fg("dim", `Goal set: ${arg}`), 1, 0));
 			this.ui.requestRender();
@@ -5788,7 +5788,7 @@ export class InteractiveMode {
 		}
 		const newGoal = result.trim();
 		runner.setGoal(newGoal || undefined);
-		if (newGoal) runner.setQuestionGenEnabled(true);
+		if (newGoal) runner.setActAsUserEnabled(true);
 		this.chatContainer.addChild(new Spacer(1));
 		if (newGoal) {
 			this.chatContainer.addChild(new Text(theme.fg("dim", `Goal set: ${newGoal}`), 1, 0));
@@ -6208,8 +6208,8 @@ export class InteractiveMode {
 		this.clearExtensionTerminalInputListeners();
 		this._unsubAdvisoryChange?.();
 		this._unsubAdvisoryChange = undefined;
-		this._unsubQuestionGenChange?.();
-		this._unsubQuestionGenChange = undefined;
+		this._unsubActAsUserChange?.();
+		this._unsubActAsUserChange = undefined;
 		this.footer.dispose();
 		this.footerDataProvider.dispose();
 		this.active.unsubscribe();

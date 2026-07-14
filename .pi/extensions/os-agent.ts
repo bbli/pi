@@ -520,7 +520,7 @@ understanding to decide your next action. Reflect on any gaps the code reveals â
 they may reframe the problem or suggest a different approach.`;
 
 const GATHER_EVIDENCE_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE \u2014 Before iterating further on your current \
+[SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE Before iterating further on your current \
 hypothesis, consider whether you have exhausted available direct evidence sources. \
 Skip only if you have already called researchProcedure or accessed new direct operational \
 data sources (system logs, infrastructure logs, remote machine logs) after forming your \
@@ -530,7 +530,7 @@ A background monitor has detected that you have a working hypothesis but appear 
 continuing to iterate on the same evidence base. The specific pattern is described in \
 the advisory observation above.
 
-Iterating further on inference from the same evidence rarely changes the conclusion \u2014 \
+Iterating further on inference from the same evidence rarely changes the conclusion \
 the hypothesis becomes more elaborate but not better grounded. Direct evidence is what \
 changes the conclusion.
 
@@ -566,8 +566,8 @@ It is less applicable when:
 
 Once you have assessed what direct evidence is or isn't accessible, apply that to your \
 next action. If sources are accessible, go get them. If they are not, note explicitly \
-what evidence is missing and what that means for confidence \u2014 then continue with your \
-best-available hypothesis.\`;
+what evidence is missing and what that means for confidence then continue with your \
+best-available hypothesis.`;
 
 const REGROUND_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND â€” The current investigation has lost solid \

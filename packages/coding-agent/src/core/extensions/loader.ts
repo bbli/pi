@@ -161,8 +161,8 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		markGoalSatisfied: notInitialized,
 		setAdvisoryEnabled: notInitialized,
 		getAdvisoryEnabled: notInitialized,
-		setQuestionGenEnabled: notInitialized,
-		getQuestionGenEnabled: notInitialized,
+		setActAsUserEnabled: notInitialized,
+		getActAsUserEnabled: notInitialized,
 		setGuidelineEnabled: notInitialized,
 		getGuidelineEnabled: notInitialized,
 		setContinuationEnabled: notInitialized,
@@ -296,14 +296,14 @@ function createExtensionAPI(
 			return runtime.getAdvisoryEnabled();
 		},
 
-		setQuestionGenEnabled(enabled: boolean): void {
+		setActAsUserEnabled(enabled: boolean): void {
 			runtime.assertActive();
-			runtime.setQuestionGenEnabled(enabled);
+			runtime.setActAsUserEnabled(enabled);
 		},
 
-		getQuestionGenEnabled(): boolean {
+		getActAsUserEnabled(): boolean {
 			runtime.assertActive();
-			return runtime.getQuestionGenEnabled();
+			return runtime.getActAsUserEnabled();
 		},
 
 		setGuidelineEnabled(id: string, enabled: boolean): void {

@@ -79,49 +79,49 @@ If no blocking questions exist, stop without calling injectMessage.`;
 // Extension entry point
 // ---------------------------------------------------------------------------
 
-export default function questionGenerator(pi: ExtensionAPI): void {
-	// --- /question-gen command ---
+export default function actAsUser(pi: ExtensionAPI): void {
+	// --- /act-as-user command ---
 
-	pi.registerCommand("question-gen", {
-		description: "Toggle question generator on or off: /question-gen [on|off]",
+	pi.registerCommand("act-as-user", {
+		description: "Toggle act-as-user on or off: /act-as-user [on|off]",
 		handler: async (args, ctx) => {
 			const arg = args.trim().toLowerCase();
 			if (arg === "on") {
-				pi.setQuestionGenEnabled(true);
-				ctx.ui.notify("[question-gen] enabled", "info");
+				pi.setActAsUserEnabled(true);
+				ctx.ui.notify("[act-as-user] enabled", "info");
 				return;
 			}
 			if (arg === "off") {
-				pi.setQuestionGenEnabled(false);
-				ctx.ui.notify("[question-gen] disabled", "warning");
+				pi.setActAsUserEnabled(false);
+				ctx.ui.notify("[act-as-user] disabled", "warning");
 				return;
 			}
 			ctx.ui.notify(
-				`[question-gen] currently ${pi.getQuestionGenEnabled() ? "on" : "off"}`,
+				`[act-as-user] currently ${pi.getActAsUserEnabled() ? "on" : "off"}`,
 				"info",
 			);
 		},
 	});
 
-	// --- --question-gen CLI flag ---
+	// --- --act-as-user CLI flag ---
 
-	pi.registerFlag("question-gen", {
-		description: "Enable the question generator on startup",
+	pi.registerFlag("act-as-user", {
+		description: "Enable act-as-user on startup",
 		type: "boolean",
 		default: false,
 	});
 
 	pi.on("session_start", (_event, ctx) => {
-		if (pi.getFlag("question-gen") === true) {
-			pi.setQuestionGenEnabled(true);
-			if (ctx.hasUI) ctx.ui.notify("[question-gen] enabled via --question-gen", "info");
+		if (pi.getFlag("act-as-user") === true) {
+			pi.setActAsUserEnabled(true);
+			if (ctx.hasUI) ctx.ui.notify("[act-as-user] enabled via --act-as-user", "info");
 		}
 	});
 
 	// --- agent_end handler ---
 
 	pi.on("agent_end", async (event, _ctx) => {
-		if (!pi.getQuestionGenEnabled()) return;
+		if (!pi.getActAsUserEnabled()) return;
 		const goal = pi.getGoal();
 		if (!goal) return;
 		if (event.continuationFired) return;
@@ -132,14 +132,14 @@ export default function questionGenerator(pi: ExtensionAPI): void {
 				seedContext: true,
 				tools: ["read"],
 				customTools: [injectMessageTool],
-				label: "question-gen",
+				label: "act-as-user",
 				systemPrompt: BRANCH_SYSTEM_PROMPT,
 				systemPromptOverride: true,
 				injectEvery: { turns: 3, message: QUESTION_GEN_REMINDER },
 			});
 		} catch (err) {
 			console.error(
-				`[question-generator] runBranchSession failed: ${
+				`[act-as-user] runBranchSession failed: ${
 					err instanceof Error ? err.message : String(err)
 				}`,
 			);
