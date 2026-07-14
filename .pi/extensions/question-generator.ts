@@ -61,13 +61,19 @@ right now to help it make progress toward the goal. Frame each question as the \
 user speaking to the agent — direct, specific, and conversational.
 
 Prioritise in this order:
-  1. ASSUMPTION CHALLENGE — the agent stated or acted on something that was not \
+  1. GOAL DRIFT — the agent appears to be working on something that does not obviously \
+connect to the stated goal. Ask whether the current direction is still aligned.
+     Example: "The goal is to investigate X, but we have been looking at Y for several \
+turns — is Y actually necessary to resolve X, or have we drifted?"
+     This applies when the most recent work is in a different area than the goal implies, \
+not when the agent is doing legitimate exploratory work that is clearly related.
+  2. ASSUMPTION CHALLENGE — the agent stated or acted on something that was not \
 verified. Ask whether that assumption was actually confirmed before building on it.
      Example: "Did we actually confirm that X is the case, or did we assume it?"
-  2. BLOCKING UNKNOWN — something is needed to progress but how to obtain it is \
+  3. BLOCKING UNKNOWN — something is needed to progress but how to obtain it is \
 unknown: a log location, an SSH path, a CLI flag, a service name, an internal URL.
      Example: "Where are the test logs for a failed ir_test run?"
-  3. NEXT STEP CLARITY — the goal is clear but the path forward is untested or ambiguous.
+  4. NEXT STEP CLARITY — the goal is clear but the path forward is untested or ambiguous.
      Example: "Have we ruled out Y as a cause, or did we skip straight to Z?"
 
 For each question output exactly this block (no extra text between fields):
