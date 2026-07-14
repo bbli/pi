@@ -461,9 +461,7 @@ export class InteractiveMode {
 			this.ui.requestRender();
 		};
 		this.footer.setAutoCompactEnabled(this.resources.autoCompactionEnabled);
-		this.footer.setKeepBranchSessions(
-			this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
-		);
+		this.footer.setKeepBranchSessions(this.resources.extensionRunner.getKeepAliveEnabled());
 		this.footer.setAdvisoryEnabled(this.resources.extensionRunner.getAdvisoryEnabled());
 		this._unsubAdvisoryChange = this.resources.extensionRunner.onAdvisoryChange((enabled) => {
 			this.footer.setAdvisoryEnabled(enabled);
@@ -1643,9 +1641,7 @@ export class InteractiveMode {
 		configureHttpDispatcher(this.settingsManager.getHttpIdleTimeoutMs());
 		this.footer.setSession(this.resources);
 		this.footer.setAutoCompactEnabled(this.resources.autoCompactionEnabled);
-		this.footer.setKeepBranchSessions(
-			this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
-		);
+		this.footer.setKeepBranchSessions(this.resources.extensionRunner.getKeepAliveEnabled());
 		this.footerDataProvider.setCwd(this.sessionManager.getCwd());
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
 		this.ui.setShowHardwareCursor(this.settingsManager.getShowHardwareCursor());
@@ -2589,14 +2585,12 @@ export class InteractiveMode {
 				return;
 			}
 			if (text === "/settings:keep") {
-				const current = this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true;
-				const enabled = !current;
-				this.resources.extensionRunner.setFlagValue("keep-branch-sessions", enabled);
-				if (enabled) {
-					for (const record of this.manager.getAll()) {
-						if (record.kind === "branch") {
-							this.manager.setKept(record.id, true);
-						}
+				const runner = this.resources.extensionRunner;
+				const enabled = !runner.getKeepAliveEnabled();
+				runner.setKeepAliveEnabled(enabled);
+				for (const record of this.manager.getAll()) {
+					if (record.kind === "branch") {
+						this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
 					}
 				}
 				this.footer.setKeepBranchSessions(enabled);
@@ -4302,7 +4296,7 @@ export class InteractiveMode {
 			const selector = new SettingsSelectorComponent(
 				{
 					autoCompact: this.resources.autoCompactionEnabled,
-					keepBranchSessions: this.resources.extensionRunner.getFlagValues().get("keep-branch-sessions") === true,
+					keepBranchSessions: this.resources.extensionRunner.getKeepAliveEnabled(),
 					showImages: this.settingsManager.getShowImages(),
 					imageWidthCells: this.settingsManager.getImageWidthCells(),
 					autoResizeImages: this.settingsManager.getImageAutoResize(),
@@ -4336,18 +4330,15 @@ export class InteractiveMode {
 						this.footer.setAutoCompactEnabled(enabled);
 					},
 					onKeepBranchSessionsChange: (enabled) => {
-						this.resources.extensionRunner.setFlagValue("keep-branch-sessions", enabled);
-						if (enabled) {
-							// Retroactively protect all visible branch sessions — including those
-							// that have completed but are still displayed (completed=true, in registry).
-							for (const record of this.manager.getAll()) {
-								if (record.kind === "branch") {
-									this.manager.setKept(record.id, true);
-								}
+						const runner = this.resources.extensionRunner;
+						runner.setKeepAliveEnabled(enabled);
+						for (const record of this.manager.getAll()) {
+							if (record.kind === "branch") {
+								this.manager.setKept(record.id, enabled && runner.getKeepAliveTypeEnabled(record.label));
 							}
 						}
 						this.footer.setKeepBranchSessions(enabled);
-						debugLog(`[settings] keep-branch-sessions toggled: ${enabled}`);
+						debugLog(`[settings] keep-alive toggled: ${enabled}`);
 					},
 					onShowImagesChange: (enabled) => {
 						this.settingsManager.setShowImages(enabled);

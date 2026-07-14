@@ -1155,13 +1155,6 @@ export interface BranchSessionOptions {
 	 */
 	model?: Model<any>;
 	/**
-	 * If true, the session is aborted but not disposed after completion.
-	 * Useful for post-run inspection during debugging.
-	 * Controlled at the process level via the --keep-branch-sessions CLI flag;
-	 * callers can also set it explicitly.
-	 */
-	keepAlive?: boolean;
-	/**
 	 * If false, skip seeding the branch session with the main session's conversation
 	 * history. Defaults to true (full history is seeded).
 	 * Pass false for fully self-contained sessions that must not receive any prior

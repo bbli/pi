@@ -2320,12 +2320,10 @@ export class AgentSession {
 				getThinkingLevel: () => this.thinkingLevel,
 				setThinkingLevel: (level) => this.setThinkingLevel(level),
 				runBranchSession: (prompt, options) => {
-					const keepAlive = options.keepAlive ?? runner.getFlagValues().get("keep-branch-sessions") === true;
-					return runBranchSession(prompt, { ...options, keepAlive }, this, this._agentManager);
+					return runBranchSession(prompt, options, this, this._agentManager);
 				},
 				newBranchSession: (prompt, options) => {
-					const keepAlive = options.keepAlive ?? runner.getFlagValues().get("keep-branch-sessions") === true;
-					return newBranchSession(prompt, { ...options, keepAlive }, this, this._agentManager);
+					return newBranchSession(prompt, options, this, this._agentManager);
 				},
 				getGuidelines: () => this._extensionRunner.getAllGuidelines(),
 				getContinuations: () => this._extensionRunner.getAllContinuations(),

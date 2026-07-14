@@ -429,6 +429,10 @@ export class ExtensionRunner {
 	private _disabledGuidelineIds = new Set<string>();
 	/** IDs of continuations disabled via setContinuationEnabled(). */
 	private _disabledContinuationIds = new Set<string>();
+	/** Whether the keep-alive system is enabled (master toggle). */
+	private _keepAliveEnabled = false;
+	/** Labels of session types individually disabled from keep-alive. All types are kept when master is on and label not in this set. */
+	private _disabledKeepAliveLabels = new Set<string>();
 	/**
 	 * Continuation prompts queued for serial application across agent runs.
 	 * Populated by _runContinuationsSync; drained one entry per emitAgentEnd call.
@@ -671,6 +675,42 @@ export class ExtensionRunner {
 	/** Whether a specific continuation is enabled. Returns true for unknown IDs. */
 	getContinuationEnabled(id: string): boolean {
 		return !this._disabledContinuationIds.has(id);
+	}
+
+	/** Enable or disable the keep-alive master toggle. When disabled, no branch sessions are kept. */
+	setKeepAliveEnabled(enabled: boolean): void {
+		this._keepAliveEnabled = enabled;
+	}
+
+	/** Whether the keep-alive master toggle is on. */
+	getKeepAliveEnabled(): boolean {
+		return this._keepAliveEnabled;
+	}
+
+	/**
+	 * Enable or disable keep-alive for a specific session label.
+	 * Individual state is independent of the master toggle.
+	 */
+	setKeepAliveTypeEnabled(label: string, enabled: boolean): void {
+		if (enabled) this._disabledKeepAliveLabels.delete(label);
+		else this._disabledKeepAliveLabels.add(label);
+	}
+
+	/**
+	 * Whether a specific label is individually enabled for keep-alive.
+	 * Returns true by default (all types kept when master is on).
+	 * Does not reflect the master toggle — use getEffectiveKeepAlive() for that.
+	 */
+	getKeepAliveTypeEnabled(label: string): boolean {
+		return !this._disabledKeepAliveLabels.has(label);
+	}
+
+	/**
+	 * Whether a branch session with the given label should be kept.
+	 * Combines master toggle and per-type setting.
+	 */
+	getEffectiveKeepAlive(label: string): boolean {
+		return this._keepAliveEnabled && !this._disabledKeepAliveLabels.has(label);
 	}
 
 	/** Subscribe to advisory enabled state changes. Returns an unsubscribe function. */

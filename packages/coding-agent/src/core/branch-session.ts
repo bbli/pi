@@ -145,26 +145,17 @@ function wireInjectEvery(
 }
 
 /**
- * Step 5 — Abort and optionally dispose the branch session.
- * When keepAlive is true (e.g. --keep-branch-sessions flag), only abort is
- * called so the session remains inspectable after the run.
+ * Step 5 — Hand the branch session off to AgentManager once the prompt completes.
+ * AgentManager owns the keep-vs-dispose decision via record.kept and onDone().
+ * Falls back to direct abort+dispose when no manager is present.
  */
 async function cleanupBranchSession(
 	branchSession: AgentSession,
 	manager: AgentManager | undefined,
 	registeredId: string | undefined,
-	keepAlive: boolean,
 ): Promise<void> {
-	if (keepAlive) {
-		try {
-			await branchSession.abort();
-		} catch {
-			// ignore abort errors on teardown
-		}
-		return;
-	}
 	if (manager && registeredId) {
-		// onDone() defers disposal when the session is focused; removes immediately otherwise.
+		// onDone() checks record.kept: if true, aborts only; otherwise removes.
 		manager.onDone(registeredId);
 	} else {
 		try {
@@ -211,6 +202,10 @@ export async function runBranchSession(
 		if (manager) {
 			registeredId = crypto.randomUUID();
 			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
+			// Set kept state at registration time so AgentManager.onDone() honours it on completion.
+			if (mainSession.extensionRunner.getEffectiveKeepAlive(label)) {
+				manager.setKept(registeredId, true);
+			}
 		}
 
 		// Step 3a: wire injectEvery
@@ -246,9 +241,9 @@ export async function runBranchSession(
 		text = branchSession.lastAssistantText;
 		debugLog(`[branch:${label}] session complete, text.length=${text?.length ?? 0}`);
 	} finally {
-		// Step 5: cleanup
+		// Step 5: cleanup — AgentManager owns the keep-vs-dispose decision via record.kept.
 		_unsubInjectEvery?.();
-		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
+		await cleanupBranchSession(branchSession, manager, registeredId);
 	}
 	return text;
 }
@@ -328,6 +323,9 @@ export async function newBranchSession(
 		if (manager) {
 			registeredId = crypto.randomUUID();
 			manager.register({ id: registeredId, label, kind: "branch", session: branchSession });
+			if (mainSession.extensionRunner.getEffectiveKeepAlive(label)) {
+				manager.setKept(registeredId, true);
+			}
 		}
 
 		_unsubInjectEvery = wireInjectEvery(branchSession, options.injectEvery, label);
@@ -364,6 +362,6 @@ export async function newBranchSession(
 		return result ?? fallback;
 	} finally {
 		_unsubInjectEvery?.();
-		await cleanupBranchSession(branchSession, manager, registeredId, options.keepAlive ?? false);
+		await cleanupBranchSession(branchSession, manager, registeredId);
 	}
 }
