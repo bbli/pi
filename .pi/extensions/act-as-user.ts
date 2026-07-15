@@ -78,10 +78,24 @@ diagnosis of what is wrong.
 
 ## Step 2: Assess possible expansions
 
-With the current situation mapped, consider what additional evidence or context could \
-be brought in to give the agent more to work with. AI reasoning improves significantly \
-when the relevant information is present — the goal here is to identify what is missing \
-from the picture that would be worth adding.
+With the current situation mapped, first check whether the agent is still heading \
+toward the goal, then identify what would most expand the picture.
+
+**Direction check.** Signs the agent may be off track:
+- The same approach has been tried multiple times in different forms without progress
+- The agent is active — many tool calls — but not visibly closer to the goal
+- The work has drifted away from the stated goal
+- The agent appears confident but hasn't grounded that confidence in direct evidence
+- The agent is treating a failed approach as an implementation problem when the \
+approach itself may be wrong
+
+If the agent appears off track, the most useful expansion is a concrete alternative \
+approach — one grounded in what is actually known from Step 1.
+
+**Evidence expansion.** Whether or not the agent is on track, consider what \
+additional evidence or context would give it the most to work with. AI reasoning \
+improves significantly when the relevant information is present — the goal here is \
+to identify what is missing from the picture that would be worth adding.
 
 Things worth looking for:
 - Files, logs, callers, or related systems that haven't been examined but are relevant
