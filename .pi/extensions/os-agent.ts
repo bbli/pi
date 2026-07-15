@@ -1062,19 +1062,19 @@ export default function osAgent(pi: ExtensionAPI): void {
 		label: "advisory:reground",
 	});
 
-	pi.registerGuideline({
-		id: "research-uncertainties",
-		triggerPrompt: researchUncertaintiesTrigger,
-		injectPrompt: RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT,
-		label: "advisory:research-uncertainties",
-	});
-
-	pi.registerContinuation({
-		id: "research-uncertainties",
-		triggerPrompt: researchUncertaintiesTrigger,
-		injectPrompt: RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT,
-		label: "advisory:research-uncertainties",
-	});
+	// pi.registerGuideline({
+	// 	id: "research-uncertainties",
+	// 	triggerPrompt: researchUncertaintiesTrigger,
+	// 	injectPrompt: RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT,
+	// 	label: "advisory:research-uncertainties",
+	// });
+	//
+	// pi.registerContinuation({
+	// 	id: "research-uncertainties",
+	// 	triggerPrompt: researchUncertaintiesTrigger,
+	// 	injectPrompt: RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT,
+	// 	label: "advisory:research-uncertainties",
+	// });
 
 	// --- Continuations (agent_end, sync) ---
 
