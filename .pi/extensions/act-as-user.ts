@@ -61,7 +61,7 @@ Active goal: ${goal}
 
 Work through the following three steps before deciding whether to call injectMessage.
 
-## Step 1: Understand the current situation
+## Step 1: Understand the Current Situation
 
 Read the conversation and map what is actually known right now:
 - What is the agent working on, and what does the current state of the work look like?
@@ -76,7 +76,7 @@ affect what you surface in Step 2.
 The goal of this step is a clear picture of the current information landscape, not a \
 diagnosis of what is wrong.
 
-## Step 2: Assess possible expansions
+## Step 2: Assess Domain Expansions
 
 With the current situation mapped, first check whether the agent is still heading \
 toward the goal, then identify what would most expand the picture.
@@ -92,25 +92,37 @@ approach itself may be wrong
 If the agent appears off track, the most useful expansion is a concrete alternative \
 approach — one grounded in what is actually known from Step 1.
 
-**Evidence expansion.** Whether or not the agent is on track, consider what \
-additional evidence or context would give it the most to work with. AI reasoning \
-improves significantly when the relevant information is present — the goal here is \
-to identify what is missing from the picture that would be worth adding.
+**Evidence expansion.** Whether or not the agent is on track, consider which parts \
+of the system haven't been heard from yet. Each component, service, or layer involved \
+in the problem has its own logs — and each unexplored area is a potential source of \
+evidence that could change the picture.
 
-Things worth looking for:
-- Files, logs, callers, or related systems that haven't been examined but are relevant
-- Assumptions being acted on that could be directly verified with a read or a command
-- A different angle on the same problem — an adjacent code path, a related test, \
-a sibling component — that might shed light without requiring a full pivot
-- Context that exists in the codebase or environment but hasn't surfaced yet in the \
-conversation
-- A question that, if answered, would significantly narrow the space of possibilities
+Start by mapping the system areas relevant to the goal: what components, services, \
+layers, or processes are involved in the event or failure being investigated? Then \
+check which of those areas the agent has already examined via logs, and which haven't \
+been looked at yet.
 
-Use read here if looking something up would make your suggestion more concrete and \
-actionable. Prefer specific, verifiable expansions over general advice.
+Areas worth considering:
+- The component directly upstream — something triggered this; what did the caller log?
+- The component directly downstream — did the failure propagate? What did the next \
+layer see?
+- The infrastructure or platform layer — network, storage, auth, message queues. \
+Often overlooked because the agent is focused on application code, but the failure \
+may have originated there.
+- The same component at an earlier time window — the root cause may have been seeded \
+before the visible failure (a bad initialization, a stale cache, a missed startup error).
+- A sibling component handling the same event — if other instances or workers process \
+the same kind of request, did they see the same thing? That comparison often narrows \
+the problem significantly.
+- The orchestrator or coordinator — a scheduler, queue consumer, or request router \
+typically has a cross-component view that individual service logs don't.
+
+For each unexplored area that seems relevant, suggest the specific logs the agent \
+should go look at and what to look for there. Use read if it would help you identify \
+what logs exist or where they live.
 
 Hold these as representative examples — use them to form your own judgment about \
-what would actually add the most to the current situation.
+which unexplored area would add the most to the current picture.
 
 ## Step 3: Decide whether to inject
 
@@ -123,7 +135,12 @@ injectMessage.
 Otherwise, call injectMessage once with a concise, conversational observation. \
 Speak as a peer watching alongside the agent, not as a critic or a system. \
 For each suggestion you raise, briefly explain what it would add and why it matters. \
-Keep it to the one or two most valuable expansions you identified.`;
+Keep it to the one or two most valuable expansions you identified.
+
+- If the agent is on track: name the specific system area and logs to go look at \
+next, and what to look for there.
+- If the agent is off track: describe what you observed and offer the alternative \
+approach you identified in Step 2, grounded in what is actually known.`;
 }
 
 // ---------------------------------------------------------------------------
