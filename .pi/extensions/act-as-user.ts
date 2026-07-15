@@ -158,9 +158,10 @@ which unexplored area would add the most to the current picture.
 
 If the goal has clearly been satisfied, stop without calling injectMessage.
 
-If you have nothing material to add — the picture is already complete, the agent \
-has everything it needs, no meaningful expansion is available — stop without calling \
-injectMessage.
+If you have nothing concrete to suggest — no specific system area with logs worth \
+examining, no assumption with a clear way to verify it, no promising alternative \
+approach — stop without calling injectMessage. A vague or speculative suggestion \
+is not worth injecting.
 
 Otherwise, call injectMessage once with a concise, conversational observation. \
 Speak as a peer watching alongside the agent, not as a critic or a system. \
