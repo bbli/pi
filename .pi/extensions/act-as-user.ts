@@ -111,18 +111,31 @@ diagnosis of what is wrong.
 With the current situation mapped, first check whether the agent is still heading \
 toward the goal, then identify what would most expand the picture.
 
-**Direction check.** Signs the agent may be off track:
-- The same approach has been tried multiple times in different forms without progress
-- The agent is active — many tool calls — but not visibly closer to the goal
+**Direction check.** First, identify which of two distinct off-track patterns applies, \
+if either:
+
+*Circular research* — the agent has evidence but is not processing it:
+- The same files, logs, or questions are revisited across multiple turns with no new findings
+- Each turn gathers more evidence without synthesizing what's already there
+- The investigation is expanding rather than converging
+
+If this pattern applies: the right intervention is the opposite of more exploration. \
+Suggest that the agent stop gathering and synthesize what is already in the conversation. \
+The evidence is likely sufficient to commit to a best-available hypothesis — further \
+collection at this point extends the loop rather than resolves it. Skip the evidence \
+expansion section below and go directly to Step 3.
+
+*Wrong approach / goal drift* — the agent lacks evidence or is heading in the wrong direction:
+- The same approach has been tried in multiple forms without progress
 - The work has drifted away from the stated goal
 - The agent appears confident but hasn't grounded that confidence in direct evidence
 - The agent is treating a failed approach as an implementation problem when the \
 approach itself may be wrong
 
-If the agent appears off track, the most useful expansion is a concrete alternative \
-approach — one grounded in what is actually known from Step 1.
+If this pattern applies: the most useful expansion is a concrete alternative approach \
+or a redirect back to the goal — grounded in what is actually known from Step 1.
 
-**Evidence expansion.** Whether or not the agent is on track, consider which parts \
+**Evidence expansion.** If neither off-track pattern applies, consider which parts \
 of the system haven't been heard from yet. Each component, service, or layer involved \
 in the problem has its own logs — and each unexplored area is a potential source of \
 evidence that could change the picture.
@@ -147,7 +160,7 @@ the problem significantly.
 - The orchestrator or coordinator — a scheduler, queue consumer, or request router \
 typically has a cross-component view that individual service logs don't.
 
-For each unexplored area that seems relevant, suggest the specific logs the agent \
+**For each unexplored area that seems relevant, suggest the specific logs/keywords** the agent \
 should go look at and what to look for there. Use read if it would help you identify \
 what logs exist or where they live.
 
