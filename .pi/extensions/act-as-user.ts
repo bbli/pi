@@ -73,6 +73,36 @@ If there is something you do not understand — a file, a system, a term, a resu
 use read to look it up. Lean toward reading when a gap in your understanding would \
 affect what you surface in Step 2.
 
+Then draw an architectural diagram of your current understanding. Show the system \
+components, layers, or services involved and how they relate to the problem. Use a \
+component/layer diagram: each component as a labeled box stacked in call/dependency \
+order, with every arrow labeled with what actually passes across the boundary (an \
+event, an ID, a result, an error). Inside each box, name the real file and function \
+where known. Mark areas that are confirmed (evidence seen in the conversation) versus \
+assumed (inferred but not directly observed). For example:
+
+\`\`\`
+┌─── Service A ──────────────────────────────────────────┐
+│  handler.ts · processRequest(req)          [confirmed]  │
+│  reads from cache, falls back to DB                     │
+└────────────────────────┬───────────────────────────────┘
+                         │ userId (cache miss)
+                         ▼
+┌─── Cache layer ─────────────────────────────────────────┐
+│  cache.ts · get(key)                        [assumed]   │
+│  (logs not yet examined)                                │
+└────────────────────────┬───────────────────────────────┘
+                         │ null
+                         ▼
+┌─── Database layer ──────────────────────────────────────┐
+│  db.ts · fetchUser(userId)                 [confirmed]  │
+│  returns undefined — root cause?                        │
+└────────────────────────────────────────────────────────┘
+\`\`\`
+
+This diagram becomes the reference for Step 2 — the unexplored or assumed areas it \
+reveals are where the most useful expansions tend to be.
+
 The goal of this step is a clear picture of the current information landscape, not a \
 diagnosis of what is wrong.
 
