@@ -73,25 +73,33 @@ export async function removeFromLearnQueue(id: string): Promise<boolean> {
 /**
  * The analysis prompt injected at the start of a `pi --learn` session.
  * Sent as the first user message so the LLM immediately analyzes the
- * conversation history for guideline/continuation effectiveness.
+ * conversation history to build a mental model of the user's heuristics
+ * and expectations, then writes that knowledge to .pi/learnings/.
  */
 export const LEARN_ANALYSIS_PROMPT = `\
 ### System Role
-You are reviewing a past pi agent session to evaluate how well its automated guidelines and continuations performed, and to identify patterns in user responses that reveal gaps worth addressing. Work through the following three phases in order.
+You are reviewing a past pi agent session to build a mental model of what the user knows, how they think, and what they expect — knowledge the agent can draw on in future sessions to work more closely with how this user operates. Work through the following three phases in order.
 
-## Phase 1: Existing Continuations and Guidelines
+## Phase 1: User Message Impact
 
-For each \`[SYSTEM CONTINUATION INSTRUCTIONS: X]\` or \`[SYSTEM GUIDELINE INSTRUCTIONS: X]\` marker in the conversation history, evaluate:
+Read every user message in the conversation. For each message that is a **reaction** to agent behavior — not a raw task request, not a routine clarifying question, but a response to something the agent did or failed to do — work through the following.
 
-1. **Timing** — Did it fire at the right point, or was it premature, late, or unnecessary given what the conversation shows was actually happening?
-2. **Compliance** — Did the agent follow the instructions it was given, or did it dismiss or ignore them?
+A reaction message is one where the user:
+- Brings domain knowledge the agent had not surfaced (names a file, a component, a mechanism, or a log path the agent hadn't looked at)
+- Redirects the agent's approach or trajectory mid-task
+- Corrects an assumption the agent stated or acted on
+- Offers an architectural observation the agent's own reading of the code hadn't produced
+- Pushes back on format or communication style (asks for a diagram, asks for less prose, asks for synthesis instead of more exploration)
+- Short-circuits the agent's current path ("that approach won't work here because...")
 
-For each marker:
-- Name the sentinel (e.g. \`CODE_WORKFLOW\`, \`FLESH_OUT\`, \`CODE_REVIEW\`)
-- State your verdict on timing and compliance
-- Cite specific evidence from the conversation that led to your assessment
+For each reaction message found:
+1. Describe the agent state that prompted it — what was the agent doing or failing to do immediately before?
+2. What did the user bring to the conversation that the agent lacked? Be specific: what knowledge, model, or expectation?
+3. Did the agent act on it? If so, did the conversation converge after, or did the same pattern recur?
 
-If no markers are found in the history, note it in one sentence and proceed to Phase 2.
+A single occurrence is noted but treated as low-confidence. The same pattern appearing across multiple turns is the primary signal.
+
+If no reaction messages are found, note it in one sentence and proceed to Phase 2.
 
 ## Phase 2: Gaps Revealed by User Responses
 
@@ -109,13 +117,30 @@ For each pattern found:
 
 Routine follow-up questions and conversational elaboration are not friction signals — only flag turns where the user had to correct or compensate for the agent.
 
-## Phase 3: New Guideline and Continuation Candidates
+## Phase 3: Write to .pi/learnings/
 
-Based on the patterns identified in Phase 2, propose any new guidelines or continuations that would have prevented the friction. For each candidate:
+Based on Phase 1 and Phase 2, extract what the user knows, expects, and applies — the mental model and heuristics behind their interventions. Then write that knowledge to \`.pi/learnings/\`.
 
-1. **Type** — \`guideline\` (single-turn behavioral nudge) or \`continuation\` (multi-turn workflow tracking), with a one-sentence rationale
-2. **Trigger condition** — a specific, observable pattern in the conversation the evaluator could detect
-3. **Instruction to inject** — what the agent should be told when the trigger fires
-4. **Evidence** — which user messages in this conversation justify the proposal
+**What is worth writing:**
 
-Only propose a candidate if there is clear evidence in the conversation that it was needed. Do not speculate beyond what the history shows.`;
+The agent already has access to the codebase and can derive static structure from it — call paths, type definitions, module boundaries. What it cannot derive is what the user has learned from working with this system over time. Write the judgment, the shortcut, the experience: what the user reaches for first when a particular kind of problem appears; what patterns they have learned to distrust and why; what they expect in terms of format or approach and what draws a redirect; what they know about how subsystems behave that is not obvious from reading a single file; when they intervene versus when they let the agent continue.
+
+Do not write call paths or structural facts the agent can get from a single grep or file read. Write what takes many sessions to accumulate.
+
+**How to write it:**
+
+Start by discovering what already exists:
+
+\`\`\`
+bash: ls .pi/learnings/ 2>/dev/null
+\`\`\`
+
+For each heuristic or expectation extracted, determine which topic file it belongs in. Name files after the concept they describe, using the same vocabulary the codebase uses. If the heuristic is about how the user reasons about \`act-as-user\` behavior, write to \`act-as-user.md\`. If it is about what the user expects when an investigation stalls, write to \`investigation-style.md\`. If it is about format preferences that apply across tasks, write to \`user-preferences.md\`. If it is about a specific subsystem — branch sessions, the advisory system, the session queue — name the file after that subsystem.
+
+The file name is the index. A future agent reasoning about \`runBranchSession\` will try \`read .pi/learnings/branch-sessions.md\`; a future agent about to run \`/learn\` will try \`read .pi/learnings/learned-sessions.md\`. Name files so that the concept name in the conversation maps directly to the file name.
+
+Before writing any file, read the existing version if it exists. Then write prose — not bullet points, not structured fields — that captures what the user knows and when they apply it, using actual function names, file names, and component names from the codebase as natural anchors so the text is greppable by concept. Write at the density of a well-commented design doc: complete sentences, concrete, with specific names attached to every claim.
+
+If an existing file covers the same topic, revise and extend it rather than duplicating. Each file should accumulate into a richer model across sessions, not fragment.
+
+Only write what the conversation gives clear evidence for. If a pattern appeared once and is ambiguous, say so in the prose. Do not speculate beyond what the history shows.`;
