@@ -72,10 +72,9 @@ export async function removeFromLearnQueue(id: string): Promise<boolean> {
 
 /**
  * The analysis prompt injected at the start of a `pi --learn` session.
- * Sent as the first user message so the LLM immediately analyzes the
- * conversation history to build a mental model of the user's heuristics
- * and expectations, writing them into a structured learnings graph at
- * .pi/learnings/.
+ * Sent as the first user message so the LLM analyzes the conversation
+ * history, proposes changes to the learnings graph, and waits for explicit
+ * user approval before writing anything to .pi/learnings/.
  *
  * Graph structure:
  *   .pi/learnings/relationships/  — atomic relationship/heuristic definitions
@@ -123,11 +122,13 @@ For each pattern found:
 
 Routine follow-up questions and conversational elaboration are not friction signals — only flag turns where the user had to correct or compensate for the agent.
 
-## Phase 3: Write to .pi/learnings/
+## Phase 3: Propose changes to .pi/learnings/
 
-Using the relationships and heuristics identified in Phase 1 and Phase 2, write to the learnings graph. The graph has two parts:
+Using the relationships and heuristics identified in Phase 1 and Phase 2, prepare a proposal for the learnings graph. **Do not write any files yet.** Present the full proposal to the user first and wait for their explicit approval before writing anything.
 
-**\`relationships/\`** — one file per relationship or heuristic. This includes directly observed patterns AND corollaries: synthesized insights derived by combining existing relationships. Every file has the same format regardless of how it was produced:
+The graph has two parts:
+
+**\`relationships/\`** — one file per relationship or heuristic, including corollaries derived by combining existing relationships. Every file has the same format regardless of how it was produced:
 
 \`\`\`
 ---
@@ -142,22 +143,21 @@ greppable by concept. Write at the density of a design doc: complete sentences, 
 with real names attached to every claim.
 \`\`\`
 
-- \`id\` — a kebab-case name using real vocabulary from the codebase. Choose names that a future agent would naturally grep for when the concept arises: \`synthesize-before-explore\`, \`failure-at-boundaries\`, \`structured-before-action\`.
-- \`links-to\` — relationship IDs or observation paths that are **tangentially related** (context worth reading alongside this one, but not part of its reasoning). Not for composition — composition lives in the prose.
-- \`used-in\` — IDs of relationships (corollaries) that were derived from this one. Updated when a new corollary is written that builds on this relationship.
+- \`id\` — kebab-case, using real vocabulary from the codebase. Choose names a future agent would naturally grep for when the concept arises: \`synthesize-before-explore\`, \`failure-at-boundaries\`, \`structured-before-action\`.
+- \`links-to\` — IDs of tangentially related relationships (context worth reading alongside this one, not part of its reasoning). Composition lives in the prose, not here.
+- \`used-in\` — IDs of corollaries derived from this relationship. Updated when a corollary is written that builds on it.
 
-**\`observations/\`** — one file per session reviewed. Each file contains multiple paragraphs, one per relationship or heuristic noticed in that session. Each paragraph begins with the relationship ID, followed by a colon, followed by a description of how that relationship manifested in this specific session. Observations are not immutable: as new relationships are discovered, new paragraphs can be added to past observation files if the new relationship applies to what happened in that session.
+**\`observations/\`** — one file per session reviewed. Contains multiple paragraphs, one per relationship noticed. Each paragraph begins with the relationship ID followed by a colon, then describes how that relationship manifested in this specific session. Observations are not immutable: as new relationships are discovered, new paragraphs can be appended to past observation files when the new relationship applies.
 
 \`\`\`
 ---
 goal: "the session goal"
 ---
 
-relationship-id: How this relationship manifested in this session — what the agent did,
-what the user did, what the outcome was. Concrete and specific to this session.
+relationship-id: How this relationship manifested — what the agent did, what the user
+did, what the outcome was. Concrete and specific to this session.
 
-another-relationship-id: How this one showed up — a different paragraph for each
-distinct relationship or observation worth recording.
+another-relationship-id: A separate paragraph for each distinct relationship noticed.
 \`\`\`
 
 ---
@@ -165,43 +165,61 @@ distinct relationship or observation worth recording.
 **Follow these steps in order:**
 
 **Step 1 — Discover what already exists.**
+
+Run:
 \`\`\`
-bash ls .pi/learnings/relationships/ 2>/dev/null
-bash ls .pi/learnings/observations/ 2>/dev/null
+ls .pi/learnings/relationships/ 2>/dev/null
+ls .pi/learnings/observations/  2>/dev/null
 \`\`\`
-Create the directories if they do not exist.
 
 **Step 2 — Find applicable existing relationships.**
-For each heuristic or pattern identified in Phase 1 and Phase 2, grep the relationships directory for relevant terms — use real names from the session (function names, component names, behavioral descriptions):
-\`\`\`
-bash grep -rl "<term>" .pi/learnings/relationships/ 2>/dev/null
-\`\`\`
-Read any matching files in full. Decide whether each applies as-is, needs revision to incorporate new understanding, or whether a gap exists that requires a new relationship.
 
-**Step 3 — Write new relationship files for gaps.**
-For each pattern that has no existing relationship, write a new file to \`relationships/<id>.md\`. Start with \`links-to: []\` and \`used-in: []\` — these are populated as connections become clear. Write prose that is greppable by the concept names it discusses. If this relationship is a corollary — a synthesized insight derived from combining existing relationships — make that explicit in the prose by naming the relationships it builds on, and update the \`used-in\` field of each source relationship to include this new ID.
+For each heuristic or pattern identified in Phase 1 and Phase 2, grep the relationships directory for relevant terms — real names from the session (function names, component names, behavioral descriptions):
 
-**Step 4 — Revise existing relationships if understanding has deepened.**
-If a matching relationship exists but this session reveals a boundary condition, a narrower scope, or a more precise formulation — rewrite its prose. Relationships evolve as understanding accumulates.
-
-**Step 5 — Write this session's observation file.**
-Get today's date and derive a short slug from the session goal:
 \`\`\`
-bash date +%Y-%m-%d
+grep -rl "<term>" .pi/learnings/relationships/ 2>/dev/null
 \`\`\`
-Write to \`.pi/learnings/observations/<date>-<goal-slug>.md\`. One paragraph per relationship noticed, each paragraph starting with the relationship ID and a colon. If the session had no notable relationships, write a brief observation noting what was absent — the absence is also signal.
 
-**Step 6 — Retroactive annotation.**
-Read the prose of existing observation files. If any newly created relationship clearly applies to what happened in a past session, add a new paragraph to that observation file citing the new relationship ID. This is how the graph accumulates meaning over time — new concepts applied retroactively to old evidence.
+Read any matching files in full.
 
-**Step 7 — Update \`used-in\` on source relationships.**
-For any new corollary written in Step 3, read each source relationship file and add the new corollary's ID to its \`used-in\` list. A source relationship is one whose ID or concept appears in the corollary's prose as something it builds on.
+**Step 3 — Draft the proposal.**
 
-**Step 8 — Regenerate README.md.**
-Grep \`observations/\` for each relationship ID to count how many observation paragraphs reference it:
-\`\`\`
-bash grep -rl "<relationship-id>" .pi/learnings/observations/ 2>/dev/null | wc -l
-\`\`\`
-Write \`.pi/learnings/README.md\` listing relationships ordered by observation count, each with its ID and a one-sentence summary drawn from its prose. This is the entry point a future agent reads first when it does not yet know what to query.
+For each heuristic or pattern from Phase 1 and Phase 2, decide:
+- Does an existing relationship cover it as-is?
+- Does an existing relationship need revision to incorporate new understanding?
+- Is this a gap requiring a new relationship?
+- Is this a corollary — a synthesized insight combining existing relationships, grounded in evidence from this session?
+
+Also check existing observation files: does any newly proposed relationship clearly apply to a past session's prose? If so, note the retroactive annotation.
+
+**Step 4 — Present the full proposal and wait for approval.**
+
+Present the following clearly, then stop and wait for the user to respond:
+
+1. **New relationships** — the complete file content (frontmatter + prose) for each new relationship to be created.
+2. **Revised relationships** — the updated prose for any existing relationship being revised, with a brief note on what changed and why.
+3. **This session's observation** — the full observation file content that would be written, with one paragraph per relationship.
+4. **Retroactive annotations** — any paragraphs to be added to past observation files, with the target filename and paragraph content.
+5. **\`used-in\` updates** — any source relationship files whose \`used-in\` field would be updated, with what would be added.
+
+After presenting, ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
+
+Do not proceed to Step 5 until the user explicitly approves.
+
+**Step 5 — Write (only after explicit user approval).**
+
+Once the user approves — with or without requested changes — execute all writes:
+
+1. Create \`.pi/learnings/relationships/\` and \`.pi/learnings/observations/\` if they do not exist.
+2. Write each new relationship file to \`relationships/<id>.md\`.
+3. Rewrite any revised relationship files.
+4. Write this session's observation file. Get today's date first:
+   \`\`\`
+   date +%Y-%m-%d
+   \`\`\`
+   Write to \`observations/<date>-<goal-slug>.md\`.
+5. Append retroactive annotation paragraphs to the relevant past observation files.
+6. Update \`used-in\` in source relationship files for any new corollaries.
+7. Regenerate \`README.md\`: grep \`observations/\` for each relationship ID to count occurrences, then write \`README.md\` listing relationships ordered by count, each with its ID and a one-sentence summary drawn from its prose.
 
 Only write what the conversation gives clear evidence for. If a pattern occurred once and is ambiguous, say so in the prose. Do not speculate beyond what the history shows.`;
