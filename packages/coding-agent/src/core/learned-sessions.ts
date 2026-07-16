@@ -78,7 +78,7 @@ export async function removeFromLearnQueue(id: string): Promise<boolean> {
  *
  * Graph structure:
  *   .pi/learnings/relationships/  — atomic relationship/heuristic definitions
- *   .pi/learnings/observations/   — one file per session, paragraphs per relationship
+ *   .pi/learnings/observations/   — one file per session, one line per relationship
  *   .pi/learnings/README.md       — entry point, most-referenced relationships
  */
 export const LEARN_ANALYSIS_PROMPT = `\
@@ -147,17 +147,15 @@ with real names attached to every claim.
 - \`links-to\` — IDs of tangentially related relationships (context worth reading alongside this one, not part of its reasoning). Composition lives in the prose, not here.
 - \`used-in\` — IDs of corollaries derived from this relationship. Updated when a corollary is written that builds on it.
 
-**\`observations/\`** — one file per session reviewed. Contains multiple paragraphs, one per relationship noticed. Each paragraph begins with the relationship ID followed by a colon, then describes how that relationship manifested in this specific session. Observations are not immutable: as new relationships are discovered, new paragraphs can be appended to past observation files when the new relationship applies.
+**\`observations/\`** — one file per session reviewed. Contains one line per relationship noticed — no line breaks within a line. Each line begins with the relationship ID followed by a colon, then describes how that relationship manifested in this specific session. Keeping each observation on a single line means grep returns the entire observation in one match. Observations are not immutable: as new relationships are discovered, new lines can be appended to past observation files when the new relationship applies.
 
 \`\`\`
 ---
 goal: "the session goal"
 ---
 
-relationship-id: How this relationship manifested — what the agent did, what the user
-did, what the outcome was. Concrete and specific to this session.
-
-another-relationship-id: A separate paragraph for each distinct relationship noticed.
+relationship-id: How this relationship manifested — what the agent did, what the user did, what the outcome was. Concrete and specific to this session. All on one line, no line breaks.
+another-relationship-id: A separate line for each distinct relationship noticed. No line breaks within a line.
 \`\`\`
 
 ---
@@ -198,9 +196,9 @@ Present the following clearly, then stop and wait for the user to respond:
 
 1. **New relationships** — the complete file content (frontmatter + prose) for each new relationship to be created.
 2. **Revised relationships** — the updated prose for any existing relationship being revised, with a brief note on what changed and why.
-3. **This session's observation** — the full observation file content that would be written, with one paragraph per relationship.
-4. **Retroactive annotations** — any paragraphs to be added to past observation files, with the target filename and paragraph content.
-5. **\`used-in\` updates** — any source relationship files whose \`used-in\` field would be updated, with what would be added.
+3. **This session's observation** — the full observation file content that would be written, with one line per relationship (no line breaks within a line).
+4. **Retroactive annotations** — any lines to be appended to past observation files, with the target filename and line content.
+5. **\`used-in\` updates** — any source relationship files whose \`used-in\` field would be updated, and what would be added.
 
 After presenting, ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
 
@@ -217,8 +215,8 @@ Once the user approves — with or without requested changes — execute all wri
    \`\`\`
    date +%Y-%m-%d
    \`\`\`
-   Write to \`observations/<date>-<goal-slug>.md\`.
-5. Append retroactive annotation paragraphs to the relevant past observation files.
+   Write to \`observations/<date>-<goal-slug>.md\`. One line per relationship, no line breaks within a line.
+5. Append retroactive annotation lines to the relevant past observation files.
 6. Update \`used-in\` in source relationship files for any new corollaries.
 7. Regenerate \`README.md\`: grep \`observations/\` for each relationship ID to count occurrences, then write \`README.md\` listing relationships ordered by count, each with its ID and a one-sentence summary drawn from its prose.
 
