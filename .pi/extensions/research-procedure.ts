@@ -126,7 +126,7 @@ export default function researchProcedureExtension(pi: ExtensionAPI): void {
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
 				return {
-					content: [{ type: "text" as const, text: `researchProcedure failed: ${msg}` }],
+					content: [{ type: "text" as const, text: `researchProcedure branch session failed: ${msg}\n\nFallback: generate a best-effort procedure from your training knowledge and proceed with Confidence: low. Verify each step before executing it against real systems.` }],
 					details: {},
 				};
 			}
