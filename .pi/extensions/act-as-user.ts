@@ -106,24 +106,21 @@ reveals are where the most useful expansions tend to be.
 The goal of this step is a clear picture of the current information landscape, not a \
 diagnosis of what is wrong.
 
-## Step 2: Assess Domain Expansions
+## Step 2: Identify the Next Best Step
 
-With the current situation mapped, first check whether the agent is still heading \
-toward the goal, then identify what would most expand the picture.
+With the current situation mapped, first check whether the agent is heading in the \
+right direction, then identify the single most valuable next action.
 
-**Direction check.** First, identify which of two distinct off-track patterns applies, \
-if either:
+**Direction check.** Identify which of two off-track patterns applies, if either:
 
 *Circular research* — the agent has evidence but is not processing it:
 - The same files, logs, or questions are revisited across multiple turns with no new findings
 - Each turn gathers more evidence without synthesizing what's already there
 - The investigation is expanding rather than converging
 
-If this pattern applies: the right intervention is the opposite of more exploration. \
-Suggest that the agent stop gathering and synthesize what is already in the conversation. \
+If this pattern applies: the right next step is synthesis, not more exploration. \
 The evidence is likely sufficient to commit to a best-available hypothesis — further \
-collection at this point extends the loop rather than resolves it. Skip the evidence \
-expansion section below and go directly to Step 3.
+collection at this point extends the loop rather than resolves it.
 
 *Wrong approach / goal drift* — the agent lacks evidence or is heading in the wrong direction:
 - The same approach has been tried in multiple forms without progress
@@ -132,13 +129,30 @@ expansion section below and go directly to Step 3.
 - The agent is treating a failed approach as an implementation problem when the \
 approach itself may be wrong
 
-If this pattern applies: the most useful expansion is a concrete alternative approach \
-or a redirect back to the goal — grounded in what is actually known from Step 1.
+If this pattern applies: the right next step is a concrete alternative approach or a \
+redirect back to the goal — grounded in what is actually known from Step 1.
 
-**Evidence expansion.** If neither off-track pattern applies, consider which parts \
-of the system haven't been heard from yet. Each component, service, or layer involved \
-in the problem has its own logs — and each unexplored area is a potential source of \
-evidence that could change the picture.
+**Next best step.** With the direction check in hand, identify the most concrete, \
+actionable thing to do next:
+- If the agent is on track: name the specific log, command, file, or piece of evidence \
+that would most advance the investigation, and what to look for there. If the log \
+source lives on a remote system, blade, or infrastructure component and its location \
+or access procedure is not clear from the conversation, note that the main agent can \
+call researchProcedure to determine how to access it.
+- If the agent is in circular research: name the synthesis step — which hypothesis \
+the accumulated evidence best supports and what would confirm it.
+- If the agent has drifted: name the specific redirect — what the goal actually calls \
+for and where to re-enter.
+
+If the agent has already gestured at the next step, consider whether you can add \
+operational specificity (access path, grep pattern, time window, researchProcedure \
+call) that is not already in the conversation. A second voice that sharpens and \
+confirms is worth injecting; a second voice that merely repeats is not.
+
+**Domain expansion** (when the agent is on track but hasn't yet examined all \
+relevant system areas). Consider which parts of the system haven't been heard from \
+yet. Each component, service, or layer involved in the problem has its own logs — \
+and each unexplored area is a potential source of evidence that could change the picture.
 
 Start by mapping the system areas relevant to the goal: what components, services, \
 layers, or processes are involved in the event or failure being investigated? Then \
@@ -160,10 +174,6 @@ the problem significantly.
 - The orchestrator or coordinator — a scheduler, queue consumer, or request router \
 typically has a cross-component view that individual service logs don't.
 
-**For each unexplored area that seems relevant, suggest the specific logs/keywords** the agent \
-should go look at and what to look for there. Use read if it would help you identify \
-what logs exist or where they live.
-
 Hold these as representative examples — use them to form your own judgment about \
 which unexplored area would add the most to the current picture.
 
@@ -171,20 +181,19 @@ which unexplored area would add the most to the current picture.
 
 If the goal has clearly been satisfied, stop without calling injectMessage.
 
-If you have nothing concrete to suggest — no specific system area with logs worth \
-examining, no assumption with a clear way to verify it, no promising alternative \
-approach — stop without calling injectMessage. A vague or speculative suggestion \
-is not worth injecting.
+If the next best step you identified adds nothing beyond what the agent has already \
+said — no operational detail, no sharper access path, no synthesis the agent hasn't \
+performed — stop without calling injectMessage. A vague or speculative suggestion is \
+not worth injecting.
 
 Otherwise, call injectMessage once with a concise, conversational observation. \
 Speak as a peer watching alongside the agent, not as a critic or a system. \
 For each suggestion you raise, briefly explain what it would add and why it matters. \
-Keep it to the one or two most valuable expansions you identified.
+Keep it to the one or two most valuable things you identified.
 
-- If the agent is on track: name the specific system area and logs to go look at \
-next, and what to look for there.
-- If the agent is off track: describe what you observed and offer the alternative \
-approach you identified in Step 2, grounded in what is actually known.`;
+- Lead with the next best concrete step from Step 2.
+- If the agent appears off track, describe what you observed and offer the alternative \
+approach or synthesis step you identified, grounded in what is actually known.`;
 }
 
 // ---------------------------------------------------------------------------
