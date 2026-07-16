@@ -145,8 +145,9 @@ For each question that qualifies:
 1. Choose the right tool based on the nature of the question:
    - researchConversationQuestion(question) — for codebase questions: gaps, unverified \
      assumptions, or uncertainties that can be answered by reading code, files, or logs.
-   - researchProcedure(goal) — for system-specific operational unknowns: SSH paths, log \
-     locations, CLI flags, access workflows, or procedures not confirmed by code in this session.
+   - For system-specific operational unknowns (SSH paths, log locations, CLI flags, access \
+     workflows): look them up inline using bash (man pages, --help, public docs via curl) or \
+     check skills. The RESEARCH_PROCEDURE guideline will activate if needed.
 2. Read the returned findings.
 3. Repeat for each remaining question.
 4. Once you have the findings, apply them to the current task before continuing. \
@@ -519,12 +520,39 @@ Once you have read the relevant code and formed a grounded hypothesis, apply tha
 understanding to decide your next action. Reflect on any gaps the code reveals — \
 they may reframe the problem or suggest a different approach.`;
 
+const RESEARCH_PROCEDURE_PROMPT = `\
+[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE — Look up the procedure for the \
+operational task described in the advisory observation before proceeding. \
+Skip only if the specific steps are already confirmed from a skill, code, or logs \
+read in this session, or if a [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE] \
+message covering this same task already appears in the recent conversation.]
+
+A background monitor has detected that you are about to perform an operational task — \
+accessing a remote system, using system-specific CLI commands, or retrieving data from \
+a specific path — without a confirmed procedure for how to do it.
+
+Proceeding without a confirmed procedure risks wasted effort: wrong path, wrong flags, \
+results you cannot interpret.
+
+Work through these steps before proceeding:
+
+1. SKILLS: Check the <available_skills> block in the system prompt. If any skill \
+   covers this task, read it and extract the procedure.
+2. KNOWLEDGE: Reason from your training knowledge and state the steps. Include your \
+   confidence (high/medium/low).
+3. DOCUMENTATION: If confidence is low, use bash to consult man pages (man <tool>), \
+   --help output, or public documentation (curl to authoritative sources). Use bash \
+   for documentation lookup only — do not run commands against real systems or data.
+4. USER: If the system is internal or proprietary and none of the above yields \
+   reliable steps, ask the user directly and wait for their reply.
+
+Once you have a confirmed procedure, apply it to the current task.`;
+
 const GATHER_EVIDENCE_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE Before iterating further on your current \
 hypothesis, consider whether you have exhausted available direct evidence sources. \
-Skip only if you have already called researchProcedure or accessed new direct operational \
-data sources (system logs, infrastructure logs, remote machine logs) after forming your \
-current hypothesis.]
+Skip only if you have already accessed new direct operational data sources (system logs, \
+infrastructure logs, remote machine logs) after forming your current hypothesis.]
 
 A background monitor has detected that you have a working hypothesis but appear to be \
 continuing to iterate on the same evidence base. The specific pattern is described in \
@@ -539,8 +567,9 @@ Before continuing, consider:
   relevant system behavior directly? Examples: system journals on remote machines, \
   service-specific logs, infrastructure event logs (NFS, storage, network), operational \
   data captured at the time of the event.
-- If such sources exist but you don't know the paths or access method, consider using \
-  \`researchProcedure(goal)\` to find out how to reach them before drawing conclusions.
+- If such sources exist but you don't know the paths or access method, look them up \
+  inline (bash for man pages or --help, or check skills) — the RESEARCH_PROCEDURE \
+  guideline will activate if needed.
 - If the sources are accessible, consider going to get them directly via bash before \
   another round of inference from what you already have.
 
@@ -593,8 +622,9 @@ not missing information. Audit what is already known rather than collecting more
 stated goal and identify specifically what the goal requires next — the question is \
 not what is unknown but whether the current direction reconnects to the goal. \
    - Otherwise: decide which questions need investigation, use researchConversationQuestion \
-for codebase questions and researchProcedure for operational unknowns, and batch \
-multiple questions into one turn.
+for codebase questions and look up operational procedures inline (bash for man pages or \
+--help, check skills, or ask the user for proprietary systems), and batch multiple \
+questions into one turn.
 3. **Form a revised hypothesis or plan** grounded in what is now known. Present a \
 callpath diagram marking confirmed steps, assumed steps, and where your previous \
 model broke down. \
@@ -928,7 +958,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 		"3. A Phase 5 / Uncertainty & Confidence Assessment block where Overall Confidence is rated " +
 		"   Medium or Low, or where any evidence gap or unconfirmed step is listed with a [ ] or [?] marker. " +
 		"Do NOT trigger if any of these are true: " +
-		"- The researchConversationQuestion or researchProcedure tool was already called after the uncertainties appeared. " +
+		"- researchConversationQuestion was already called after the uncertainties appeared, or the agent has already begun looking up operational procedures inline. " +
 		"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES] or " +
 		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES] message already follows the uncertainties. " +
 		"- The questions were answered by the user or resolved through direct context. " +
@@ -975,13 +1005,12 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- Agent has stated a hypothesis but rates confidence as medium or low, or lists unconfirmed steps or gaps. " +
 			"- Agent has noted a specific evidence gap: 'the logs don't show whether Y happened', 'I can't confirm X'. " +
 			"- Agent has made multiple consecutive researchConversationQuestion calls without running bash " +
-			"  commands or calling researchProcedure to access new operational data. " +
+			"  commands to access new operational data. " +
 			"- Agent has explicitly identified a potential direct evidence source (e.g., 'blade-level logs " +
 			"  would show the rescan events directly') but has not attempted to access it. " +
 			"Strong signals this should NOT trigger: " +
 			"- A [SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE] message already appears in this conversation. " +
-			"- Agent has already called researchProcedure or bash to access new operational data sources " +
-			"  after the current hypothesis was formed. " +
+			"- Agent has already used bash to access new operational data sources after the current hypothesis was formed. " +
 			"- The investigation is purely code-focused with no operational or infrastructure components. " +
 			"- The hypothesis is high confidence with sufficient direct supporting evidence. " +
 			"- No hypothesis has been formed yet \u2014 the agent is still in initial exploration. " +
@@ -991,6 +1020,34 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"(e.g., 'blade-level NFS logs on ir1-ir7 that would show the rescan events directly').",
 		injectPrompt: GATHER_EVIDENCE_PROMPT,
 		label: "advisory:gather-evidence",
+	});
+
+	pi.registerGuideline({
+		id: "research-procedure",
+		triggerPrompt:
+			"Is the agent about to perform an operational task — accessing a remote system, " +
+			"running system-specific CLI commands, or retrieving data from a specific path — " +
+			"where the exact procedure, access path, or command syntax has NOT been confirmed " +
+			"from skills, code, or logs already read in this session? " +
+			"Strong signals this APPLIES: " +
+			"- The agent says it needs to access something but doesn't know where it lives or how to get there. " +
+			"- The agent is about to use SSH paths, log file locations, or specialized CLI flags " +
+			"  that haven't been confirmed in this conversation. " +
+			"- The agent is guessing at a path or command format without having looked it up. " +
+			"- The agent describes going to look at a remote or infrastructure resource without " +
+			"  knowing the specific access procedure. " +
+			"Strong signals this does NOT apply: " +
+			"- The exact path, command, or procedure has already been confirmed from skills, code, " +
+			"  or logs in this conversation. " +
+			"- The agent is using well-known general commands (git, npm, standard bash) where no " +
+			"  system-specific knowledge is needed. " +
+			"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE] message already appears in " +
+			"  the recent conversation for this same task. " +
+			"- The agent is currently doing the research (reading docs, checking man pages, checking skills). " +
+			"In the `reason` argument, describe what specific operational task or resource the " +
+			"agent is about to work with and what procedure appears to be unconfirmed.",
+		injectPrompt: RESEARCH_PROCEDURE_PROMPT,
+		label: "advisory:research-procedure",
 	});
 
 	pi.registerGuideline({
