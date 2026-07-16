@@ -74,7 +74,13 @@ export async function removeFromLearnQueue(id: string): Promise<boolean> {
  * The analysis prompt injected at the start of a `pi --learn` session.
  * Sent as the first user message so the LLM immediately analyzes the
  * conversation history to build a mental model of the user's heuristics
- * and expectations, then writes that knowledge to .pi/learnings/.
+ * and expectations, writing them into a structured learnings graph at
+ * .pi/learnings/.
+ *
+ * Graph structure:
+ *   .pi/learnings/relationships/  — atomic relationship/heuristic definitions
+ *   .pi/learnings/observations/   — one file per session, paragraphs per relationship
+ *   .pi/learnings/README.md       — entry point, most-referenced relationships
  */
 export const LEARN_ANALYSIS_PROMPT = `\
 ### System Role
@@ -119,28 +125,83 @@ Routine follow-up questions and conversational elaboration are not friction sign
 
 ## Phase 3: Write to .pi/learnings/
 
-Based on Phase 1 and Phase 2, extract what the user knows, expects, and applies — the mental model and heuristics behind their interventions. Then write that knowledge to \`.pi/learnings/\`.
+Using the relationships and heuristics identified in Phase 1 and Phase 2, write to the learnings graph. The graph has two parts:
 
-**What is worth writing:**
-
-The agent already has access to the codebase and can derive static structure from it — call paths, type definitions, module boundaries. What it cannot derive is what the user has learned from working with this system over time. Write the judgment, the shortcut, the experience: what the user reaches for first when a particular kind of problem appears; what patterns they have learned to distrust and why; what they expect in terms of format or approach and what draws a redirect; what they know about how subsystems behave that is not obvious from reading a single file; when they intervene versus when they let the agent continue.
-
-Do not write call paths or structural facts the agent can get from a single grep or file read. Write what takes many sessions to accumulate.
-
-**How to write it:**
-
-Start by discovering what already exists:
+**\`relationships/\`** — one file per relationship or heuristic. This includes directly observed patterns AND corollaries: synthesized insights derived by combining existing relationships. Every file has the same format regardless of how it was produced:
 
 \`\`\`
-bash: ls .pi/learnings/ 2>/dev/null
+---
+id: kebab-case-identifier
+links-to: []
+used-in: []
+---
+Rich prose defining the relationship. Composition is implicit in the sentences — if this
+relationship builds on another, name it in the prose rather than in the frontmatter.
+Use real function names, file names, and component names as anchors so the file is
+greppable by concept. Write at the density of a design doc: complete sentences, specific,
+with real names attached to every claim.
 \`\`\`
 
-For each heuristic or expectation extracted, determine which topic file it belongs in. Name files after the concept they describe, using the same vocabulary the codebase uses. If the heuristic is about how the user reasons about \`act-as-user\` behavior, write to \`act-as-user.md\`. If it is about what the user expects when an investigation stalls, write to \`investigation-style.md\`. If it is about format preferences that apply across tasks, write to \`user-preferences.md\`. If it is about a specific subsystem — branch sessions, the advisory system, the session queue — name the file after that subsystem.
+- \`id\` — a kebab-case name using real vocabulary from the codebase. Choose names that a future agent would naturally grep for when the concept arises: \`synthesize-before-explore\`, \`failure-at-boundaries\`, \`structured-before-action\`.
+- \`links-to\` — relationship IDs or observation paths that are **tangentially related** (context worth reading alongside this one, but not part of its reasoning). Not for composition — composition lives in the prose.
+- \`used-in\` — IDs of relationships (corollaries) that were derived from this one. Updated when a new corollary is written that builds on this relationship.
 
-The file name is the index. A future agent reasoning about \`runBranchSession\` will try \`read .pi/learnings/branch-sessions.md\`; a future agent about to run \`/learn\` will try \`read .pi/learnings/learned-sessions.md\`. Name files so that the concept name in the conversation maps directly to the file name.
+**\`observations/\`** — one file per session reviewed. Each file contains multiple paragraphs, one per relationship or heuristic noticed in that session. Each paragraph begins with the relationship ID, followed by a colon, followed by a description of how that relationship manifested in this specific session. Observations are not immutable: as new relationships are discovered, new paragraphs can be added to past observation files if the new relationship applies to what happened in that session.
 
-Before writing any file, read the existing version if it exists. Then write prose — not bullet points, not structured fields — that captures what the user knows and when they apply it, using actual function names, file names, and component names from the codebase as natural anchors so the text is greppable by concept. Write at the density of a well-commented design doc: complete sentences, concrete, with specific names attached to every claim.
+\`\`\`
+---
+goal: "the session goal"
+---
 
-If an existing file covers the same topic, revise and extend it rather than duplicating. Each file should accumulate into a richer model across sessions, not fragment.
+relationship-id: How this relationship manifested in this session — what the agent did,
+what the user did, what the outcome was. Concrete and specific to this session.
 
-Only write what the conversation gives clear evidence for. If a pattern appeared once and is ambiguous, say so in the prose. Do not speculate beyond what the history shows.`;
+another-relationship-id: How this one showed up — a different paragraph for each
+distinct relationship or observation worth recording.
+\`\`\`
+
+---
+
+**Follow these steps in order:**
+
+**Step 1 — Discover what already exists.**
+\`\`\`
+bash ls .pi/learnings/relationships/ 2>/dev/null
+bash ls .pi/learnings/observations/ 2>/dev/null
+\`\`\`
+Create the directories if they do not exist.
+
+**Step 2 — Find applicable existing relationships.**
+For each heuristic or pattern identified in Phase 1 and Phase 2, grep the relationships directory for relevant terms — use real names from the session (function names, component names, behavioral descriptions):
+\`\`\`
+bash grep -rl "<term>" .pi/learnings/relationships/ 2>/dev/null
+\`\`\`
+Read any matching files in full. Decide whether each applies as-is, needs revision to incorporate new understanding, or whether a gap exists that requires a new relationship.
+
+**Step 3 — Write new relationship files for gaps.**
+For each pattern that has no existing relationship, write a new file to \`relationships/<id>.md\`. Start with \`links-to: []\` and \`used-in: []\` — these are populated as connections become clear. Write prose that is greppable by the concept names it discusses. If this relationship is a corollary — a synthesized insight derived from combining existing relationships — make that explicit in the prose by naming the relationships it builds on, and update the \`used-in\` field of each source relationship to include this new ID.
+
+**Step 4 — Revise existing relationships if understanding has deepened.**
+If a matching relationship exists but this session reveals a boundary condition, a narrower scope, or a more precise formulation — rewrite its prose. Relationships evolve as understanding accumulates.
+
+**Step 5 — Write this session's observation file.**
+Get today's date and derive a short slug from the session goal:
+\`\`\`
+bash date +%Y-%m-%d
+\`\`\`
+Write to \`.pi/learnings/observations/<date>-<goal-slug>.md\`. One paragraph per relationship noticed, each paragraph starting with the relationship ID and a colon. If the session had no notable relationships, write a brief observation noting what was absent — the absence is also signal.
+
+**Step 6 — Retroactive annotation.**
+Read the prose of existing observation files. If any newly created relationship clearly applies to what happened in a past session, add a new paragraph to that observation file citing the new relationship ID. This is how the graph accumulates meaning over time — new concepts applied retroactively to old evidence.
+
+**Step 7 — Update \`used-in\` on source relationships.**
+For any new corollary written in Step 3, read each source relationship file and add the new corollary's ID to its \`used-in\` list. A source relationship is one whose ID or concept appears in the corollary's prose as something it builds on.
+
+**Step 8 — Regenerate README.md.**
+Grep \`observations/\` for each relationship ID to count how many observation paragraphs reference it:
+\`\`\`
+bash grep -rl "<relationship-id>" .pi/learnings/observations/ 2>/dev/null | wc -l
+\`\`\`
+Write \`.pi/learnings/README.md\` listing relationships ordered by observation count, each with its ID and a one-sentence summary drawn from its prose. This is the entry point a future agent reads first when it does not yet know what to query.
+
+Only write what the conversation gives clear evidence for. If a pattern occurred once and is ambiguous, say so in the prose. Do not speculate beyond what the history shows.`;
