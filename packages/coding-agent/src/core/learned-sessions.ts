@@ -85,9 +85,11 @@ export const LEARN_ANALYSIS_PROMPT = `\
 ### System Role
 You are reviewing a past pi agent session to build a mental model of what the user knows, how they think, and what they expect — knowledge the agent can draw on in future sessions to work more closely with how this user operates. Work through the following three phases in order.
 
+The session being reviewed is the conversation history that precedes this message — the one that was loaded when this learn session started. Focus your analysis on that conversation, not on this current exchange.
+
 ## Phase 1: User Message Impact
 
-Read every user message in the conversation. For each message that is a **reaction** to agent behavior — not a raw task request, not a routine clarifying question, but a response to something the agent did or failed to do — work through the following.
+Read every user message in the conversation being reviewed. For each message that is a **reaction** to agent behavior — not a raw task request, not a routine clarifying question, but a response to something the agent did or failed to do — work through the following.
 
 A reaction message is one where the user:
 - Brings domain knowledge the agent had not surfaced (names a file, a component, a mechanism, or a log path the agent hadn't looked at)
@@ -96,6 +98,8 @@ A reaction message is one where the user:
 - Offers an architectural observation the agent's own reading of the code hadn't produced
 - Pushes back on format or communication style (asks for a diagram, asks for less prose, asks for synthesis instead of more exploration)
 - Short-circuits the agent's current path ("that approach won't work here because...")
+
+A message that says "ok, now do X" or "can you also add Y" is a task request — do not flag it as a reaction. Only flag messages where the user is responding to something the agent did wrong or incompletely, or bringing knowledge the agent lacked.
 
 For each reaction message found:
 1. Describe the agent state that prompted it — what was the agent doing or failing to do immediately before?
@@ -188,15 +192,13 @@ For each heuristic or pattern from Phase 1 and Phase 2, decide:
 - Is this a gap requiring a new relationship?
 - Is this a corollary — a synthesized insight combining existing relationships, grounded in evidence from this session?
 
-Also check existing observation files: does any newly proposed relationship clearly apply to a past session's prose? If so, note the retroactive annotation.
-
 **Step 4 — Present the full proposal and wait for approval.**
 
 Present the following clearly, then stop and wait for the user to respond:
 
 1. **New relationships** — the complete file content (frontmatter + prose) for each new relationship to be created.
 2. **Revised relationships** — the updated prose for any existing relationship being revised, with a brief note on what changed and why.
-3. **This session's observation** — the full observation file content that would be written, with one line per relationship (no line breaks within a line).
+3. **This session's observation** — the full observation file content that would be written, with one line per relationship.
 4. **Retroactive annotations** — any lines to be appended to past observation files, with the target filename and line content.
 5. **\`used-in\` updates** — any source relationship files whose \`used-in\` field would be updated, and what would be added.
 
@@ -216,7 +218,7 @@ Once the user approves — with or without requested changes — execute all wri
    date +%Y-%m-%d
    \`\`\`
    Write to \`observations/<date>-<goal-slug>.md\`. One line per relationship, no line breaks within a line.
-5. Append retroactive annotation lines to the relevant past observation files.
+5. Retroactive annotation: for each newly created relationship, check whether it applies to past sessions. Limit this to the most recent 10 observation files — sort by filename date descending and stop after 10. For each file that seems relevant based on its goal field or content, append a new line citing the new relationship ID.
 6. Update \`used-in\` in source relationship files for any new corollaries.
 7. Regenerate \`README.md\`: grep \`observations/\` for each relationship ID to count occurrences, then write \`README.md\` listing relationships ordered by count, each with its ID and a one-sentence summary drawn from its prose.
 

@@ -174,7 +174,9 @@ Each match is a single line — the full record of how this pattern played out i
 session. Read it for the codebase-specific detail: which files or components did this \
 pattern cluster around? What did the user's intervention look like concretely? What \
 was the outcome? This is not confirmation — it is the semantic content that turns an \
-abstract frame into a hypothesis about this specific codebase.
+abstract frame into a hypothesis about this specific codebase. If no lines match for a \
+given relationship, proceed with the relationship definition alone — the abstract frame \
+is still useful without concrete examples.
 
 5. Form the hypothesis by combining both layers:
 - The relationship gives the frame: "this is [pattern], which means [how to interpret \
@@ -184,16 +186,18 @@ pattern has manifested around [files/components/boundaries], and [what worked]"
 - The combined hypothesis: "[frame] — and concretely in this codebase, [domain content], \
 so the next step is [specific, actionable suggestion]"
 
-If \`.pi/learnings/\` does not exist or no relationships match the situation, reason \
-from the conversation alone and note the absence.
+If \`.pi/learnings/\` does not exist, or if the learnings do not add clarity beyond \
+what the conversation already shows, reason from the conversation alone and note \
+the absence.
 
 ---
 
 **If the agent is on track — Step 2a: reason from the conversation.**
 
-Look at what has been examined versus what has not. Name the single most concrete \
-next thing to examine — a specific file, command, log, or piece of evidence — and \
-what to look for there. Reason from what is actually in the conversation.
+Do not query the learnings graph. Look at what has been examined versus what has not, \
+and name the single most concrete next thing to examine — a specific file, command, \
+log, or piece of evidence — and what to look for there. Reason from what is actually \
+in the conversation.
 
 If the agent has already gestured at the next step, consider whether you can add \
 operational specificity (access path, grep pattern, time window, researchProcedure \
