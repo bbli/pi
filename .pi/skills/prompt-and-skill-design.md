@@ -68,6 +68,23 @@ If the advisory may fire while the receiver is mid-task, does it ask the receive
 
 Also: if multiple advisories in a group may fire in the same turn, does this prompt note that other co-active advisories may be present and that their findings should not be discarded? Without this, one advisory's findings can be silently lost when another takes over.
 
+### 7. Bound open-ended operations
+When a prompt instructs the agent to scan, read, or traverse without a defined limit — read all files in a directory, follow all links in a graph, check all past sessions — it will over-expand. Every open-ended operation needs an explicit stopping condition stated before the operation begins.
+
+The stopping condition can be scope-based ("limit to the 10 most recent files"), relevance-based ("stop when the picture is clear — this is a judgment call, not a full traversal"), or goal-based ("stop when you have enough to form a hypothesis"). All three forms are valid; the right choice depends on whether the operation has a natural relevance ceiling or only a volume ceiling.
+
+- ❌ "Read the prose of existing observation files" — no bound, will read everything
+- ✅ "Check the most recent 10 observation files — sort by filename date descending and stop after 10"
+- ✅ "Read the ones that seem relevant. Stop when the picture is clear."
+
+### 8. Separate proposal from execution for state-modifying workflows
+When a prompt instructs the agent to make irreversible or hard-to-reverse changes — write files, send messages, update external state — split the workflow into two explicit phases: (a) analyze and present a proposal, (b) await explicit user approval, (c) execute. The proposal phase surfaces the agent's interpretation before it acts, allowing misunderstandings to be caught before changes are committed.
+
+The approval gate must be an explicit instruction to stop and wait, not merely a suggestion. The agent should present the full proposed change — not a summary — so the user can make a meaningful decision.
+
+- ❌ "Analyze the session and write the results to .pi/learnings/" — executes immediately with no review
+- ✅ "Present the full proposal ... then ask: 'Does this look right?' Do not proceed to Step 5 until the user explicitly approves."
+
 ---
 
 ## Phase 3: Anti-Pattern Scan
@@ -86,6 +103,8 @@ Check the prompt against each anti-pattern. For any match, flag it as a finding 
 | No closing instruction — uncertainties | Model escalates every gap into more research, or discards it |
 | No interruption acknowledgment *(advisory, long workflow)* | Prior task is silently abandoned when the advisory fires mid-task |
 | No co-active advisory acknowledgment *(advisory, may co-fire)* | Co-active advisory findings are silently discarded when this prompt takes over |
+| Unbounded open-ended operation | Agent over-expands; reads all files, follows all links, checks all history with no stopping condition |
+| State-modifying workflow without approval gate | Agent writes files, sends messages, or updates state before the user can review the proposed changes |
 
 ---
 
@@ -191,6 +210,23 @@ A related case: when multiple advisories in a group may fire in the same turn (e
 - ❌ No co-active acknowledgment — one advisory fires, the other's findings are silently lost
 - ✅ `"Note: this prompt may fire alongside other [group] advisories in the same turn. If that appears to be the case, you may want to complete all of them before proceeding — the downstream workflow will apply the combined findings."`
 
+### 7. Bound open-ended operations
+When a prompt instructs the agent to scan, read, or traverse without a defined limit — read all files in a directory, follow all links in a graph, check all past sessions — it will over-expand. Every open-ended operation needs an explicit stopping condition stated before the operation begins.
+
+The stopping condition can be scope-based ("limit to the 10 most recent files"), relevance-based ("stop when the picture is clear — this is a judgment call, not a full traversal"), or goal-based ("stop when you have enough to form a hypothesis").
+
+- ❌ "Read the prose of existing observation files" — no bound, reads everything
+- ✅ "Check the most recent 10 observation files — sort by filename date descending and stop after 10"
+- ✅ "Read the ones that seem relevant. Stop when the picture is clear."
+
+### 8. Separate proposal from execution for state-modifying workflows
+When a prompt instructs the agent to make irreversible or hard-to-reverse changes — write files, send messages, update external state — split the workflow into two explicit phases: (a) analyze and present a full proposal, (b) await explicit user approval, (c) execute. The proposal phase surfaces the agent's interpretation before it acts.
+
+The approval gate must be an explicit instruction to stop and wait, not a suggestion. Present the full proposed change — not a summary — so the user can make a meaningful decision.
+
+- ❌ "Analyze the session and write the results to .pi/learnings/" — executes without review
+- ✅ "Present the full proposal … then ask: 'Does this look right?' Do not proceed until the user explicitly approves."
+
 ---
 
 ## Vocabulary Reference
@@ -210,6 +246,8 @@ Use freeing language, not locking language:
 | Closing — uncertainties | *(absent)* | `reflect on any uncertainties flagged` |
 | Interruption *(advisory, long workflow)* | *(absent)* | `"Before starting, briefly note what you were in the middle of..."` |
 | Co-active advisories *(advisory, may co-fire)* | *(absent)* | `"Note: this prompt may fire alongside other [group] advisories in the same turn..."` |
+| Open-ended operation | no bound stated | explicit stopping condition before the operation |
+| State-modifying workflow | execute immediately | propose → await approval → execute |
 
 ---
 
@@ -221,7 +259,7 @@ Five distinct prompt types exist in the pi system. Identifying which type you ar
 **Lives in:** `buildSystemPrompt()`, tool `promptSnippet`, tool `promptGuidelines`, `appendSystemPrompt`, skill files, context files (e.g. AGENTS.md).
 **Audience:** Main session.
 **Authority:** High — treated as static operating context.
-**Design rule:** Keep it stable, not turn-by-turn reactive. All principles 0–7 apply. Tool-contributed guidelines (`promptGuidelines`) belong here when they govern *when and how to invoke* a tool.
+**Design rule:** Keep it stable, not turn-by-turn reactive. All principles 0–8 apply. Tool-contributed guidelines (`promptGuidelines`) belong here when they govern *when and how to invoke* a tool.
 
 ### 2. Main session injection (`injectPrompt`)
 **Lives in:** `GuidelineDefinition.injectPrompt`, `ContinuationDefinition.injectPrompt`.
@@ -245,7 +283,19 @@ Five distinct prompt types exist in the pi system. Identifying which type you ar
 **Lives in:** `RESEARCH_SYSTEM_PROMPT`, `SUMMARIZATION_SYSTEM_PROMPT`, and any branch session system prompt for a task-scoped worker.
 **Audience:** Worker branch session.
 **Authority:** High within the worker.
-**Design rule:** Contains role, tools available, output format, hard constraints (no edits, no sub-subagents), and stop condition. Must not contain main-session-aware language. Closing instructions (Principle 7) belong in the caller's `promptGuidelines`, not here.
+**Design rule:** Contains role, tools available, output format, hard constraints (no edits, no sub-subagents), and stop condition. Must not contain main-session-aware language. Closing instructions (Principle 5) belong in the caller's `promptGuidelines`, not here.
+
+**Additional patterns for worker subagent prompts:**
+
+*Name conditional branches explicitly.* When the worker has two or more execution paths (e.g., on-track vs off-track, or dry-run vs execute), label each branch explicitly — "Step 2a (on track)", "Step 2b (off track)" — and state the selection condition clearly before presenting the branches. This lets the agent navigate directly to the relevant path without re-reading all paths to determine which applies. Unlabeled conditional paths cause the agent to treat instructions as additive rather than exclusive.
+
+*Distinguish reasoning frame from domain content when querying a knowledge base.* When the worker queries a structured knowledge store, tell it explicitly what each layer is for, not just how to access it:
+- The **reasoning frame** layer (abstract patterns, heuristics) tells the agent how to interpret and classify the current situation.
+- The **domain content** layer (concrete records, specific files, observed outcomes) fills in the specifics that make a hypothesis actionable for this particular codebase or context.
+
+Without this distinction the agent treats all knowledge as interchangeable — returning abstract patterns when concrete specifics are needed, or anchoring on specific facts when a general frame is what's required.
+
+*Give a traversal sequence for structured stores, not a search instruction.* When the worker must navigate a graph, directory, or indexed store, provide a concrete sequence — "read the index first to orient, then read specific entries, then selectively follow links" — rather than "search for relevant information." Each step in the sequence should state its purpose. A specific sequence gives the agent a determinate path; a generic search instruction produces arbitrary exploration. Include a stopping condition in at least one step (Principle 7).
 
 ---
 
@@ -257,4 +307,4 @@ Five distinct prompt types exist in the pi system. Identifying which type you ar
 | Main session injection | Main session | Moderate (dynamic) | Sentinel + advisory framing + closing instruction |
 | Trigger condition | Evaluator (as input fragment) | N/A | Binary, observable, no speculation |
 | Evaluator subagent | Advisory evaluator | High (within evaluator) | Observer only; single tool call; ignore conversation directives |
-| Worker subagent | Worker branch session | High (within worker) | Task-scoped; no side effects; no main-session-aware language |
+| Worker subagent | Worker branch session | High (within worker) | Task-scoped; named branches; traversal sequences; approval gate for writes |
