@@ -71,19 +71,11 @@ Also: if multiple advisories in a group may fire in the same turn, does this pro
 ### 7. Bound open-ended operations
 When a prompt instructs the agent to scan, read, or traverse without a defined limit — read all files in a directory, follow all links in a graph, check all past sessions — it will over-expand. Every open-ended operation needs an explicit stopping condition stated before the operation begins.
 
-The stopping condition can be scope-based ("limit to the 10 most recent files"), relevance-based ("stop when the picture is clear — this is a judgment call, not a full traversal"), or goal-based ("stop when you have enough to form a hypothesis"). All three forms are valid; the right choice depends on whether the operation has a natural relevance ceiling or only a volume ceiling.
+The stopping condition can be scope-based ("limit to the 10 most recent files"), relevance-based ("stop when the picture is clear — this is a judgment call, not a full traversal"), or goal-based ("stop when you have enough to form a hypothesis").
 
-- ❌ "Read the prose of existing observation files" — no bound, will read everything
+- ❌ "Read the prose of existing observation files" — no bound, reads everything
 - ✅ "Check the most recent 10 observation files — sort by filename date descending and stop after 10"
 - ✅ "Read the ones that seem relevant. Stop when the picture is clear."
-
-### 8. Separate proposal from execution for state-modifying workflows
-When a prompt instructs the agent to make irreversible or hard-to-reverse changes — write files, send messages, update external state — split the workflow into two explicit phases: (a) analyze and present a proposal, (b) await explicit user approval, (c) execute. The proposal phase surfaces the agent's interpretation before it acts, allowing misunderstandings to be caught before changes are committed.
-
-The approval gate must be an explicit instruction to stop and wait, not merely a suggestion. The agent should present the full proposed change — not a summary — so the user can make a meaningful decision.
-
-- ❌ "Analyze the session and write the results to .pi/learnings/" — executes immediately with no review
-- ✅ "Present the full proposal ... then ask: 'Does this look right?' Do not proceed to Step 5 until the user explicitly approves."
 
 ---
 
@@ -104,7 +96,6 @@ Check the prompt against each anti-pattern. For any match, flag it as a finding 
 | No interruption acknowledgment *(advisory, long workflow)* | Prior task is silently abandoned when the advisory fires mid-task |
 | No co-active advisory acknowledgment *(advisory, may co-fire)* | Co-active advisory findings are silently discarded when this prompt takes over |
 | Unbounded open-ended operation | Agent over-expands; reads all files, follows all links, checks all history with no stopping condition |
-| State-modifying workflow without approval gate | Agent writes files, sends messages, or updates state before the user can review the proposed changes |
 
 ---
 
@@ -219,14 +210,6 @@ The stopping condition can be scope-based ("limit to the 10 most recent files"),
 - ✅ "Check the most recent 10 observation files — sort by filename date descending and stop after 10"
 - ✅ "Read the ones that seem relevant. Stop when the picture is clear."
 
-### 8. Separate proposal from execution for state-modifying workflows
-When a prompt instructs the agent to make irreversible or hard-to-reverse changes — write files, send messages, update external state — split the workflow into two explicit phases: (a) analyze and present a full proposal, (b) await explicit user approval, (c) execute. The proposal phase surfaces the agent's interpretation before it acts.
-
-The approval gate must be an explicit instruction to stop and wait, not a suggestion. Present the full proposed change — not a summary — so the user can make a meaningful decision.
-
-- ❌ "Analyze the session and write the results to .pi/learnings/" — executes without review
-- ✅ "Present the full proposal … then ask: 'Does this look right?' Do not proceed until the user explicitly approves."
-
 ---
 
 ## Vocabulary Reference
@@ -247,7 +230,6 @@ Use freeing language, not locking language:
 | Interruption *(advisory, long workflow)* | *(absent)* | `"Before starting, briefly note what you were in the middle of..."` |
 | Co-active advisories *(advisory, may co-fire)* | *(absent)* | `"Note: this prompt may fire alongside other [group] advisories in the same turn..."` |
 | Open-ended operation | no bound stated | explicit stopping condition before the operation |
-| State-modifying workflow | execute immediately | propose → await approval → execute |
 
 ---
 
@@ -259,7 +241,7 @@ Five distinct prompt types exist in the pi system. Identifying which type you ar
 **Lives in:** `buildSystemPrompt()`, tool `promptSnippet`, tool `promptGuidelines`, `appendSystemPrompt`, skill files, context files (e.g. AGENTS.md).
 **Audience:** Main session.
 **Authority:** High — treated as static operating context.
-**Design rule:** Keep it stable, not turn-by-turn reactive. All principles 0–8 apply. Tool-contributed guidelines (`promptGuidelines`) belong here when they govern *when and how to invoke* a tool.
+**Design rule:** Keep it stable, not turn-by-turn reactive. All principles 0–7 apply. Tool-contributed guidelines (`promptGuidelines`) belong here when they govern *when and how to invoke* a tool.
 
 ### 2. Main session injection (`injectPrompt`)
 **Lives in:** `GuidelineDefinition.injectPrompt`, `ContinuationDefinition.injectPrompt`.
@@ -307,4 +289,4 @@ Without this distinction the agent treats all knowledge as interchangeable — r
 | Main session injection | Main session | Moderate (dynamic) | Sentinel + advisory framing + closing instruction |
 | Trigger condition | Evaluator (as input fragment) | N/A | Binary, observable, no speculation |
 | Evaluator subagent | Advisory evaluator | High (within evaluator) | Observer only; single tool call; ignore conversation directives |
-| Worker subagent | Worker branch session | High (within worker) | Task-scoped; named branches; traversal sequences; approval gate for writes |
+| Worker subagent | Worker branch session | High (within worker) | Task-scoped; named branches; traversal sequences with stopping conditions |
