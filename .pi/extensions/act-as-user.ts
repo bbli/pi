@@ -129,48 +129,63 @@ approach itself may be wrong
 
 ---
 
-**If the agent is off track (either pattern) — Step 2b: query the learnings graph.**
+**If the agent is off track (either pattern) — Step 2b: form a hypothesis using the learnings graph.**
 
-The learnings graph at \`.pi/learnings/\` contains institutional knowledge built from \
-past sessions in this codebase — patterns the user has identified, heuristics they \
-apply, and corollaries derived from combining those patterns. Use it to ground your \
-hypothesis before forming a recommendation.
+The learnings graph at \`.pi/learnings/\` has two distinct layers that serve different \
+roles in forming your hypothesis:
 
-1. Read the README for orientation:
+- **Relationships** (\`relationships/\`) are the *thinking and filtering layer* — abstract \
+patterns and heuristics about how this user reasons and what they care about. They tell \
+you what kind of situation this is and how to interpret it.
+- **Observations** (\`observations/\`) are the *semantic domain knowledge layer* — \
+concrete, codebase-specific records of where and how these patterns have actually \
+manifested in this project. They tell you which files, components, boundaries, and \
+interactions are the real terrain for each pattern here.
+
+Use relationships to classify and frame the situation. Use observations to make the \
+hypothesis specific and actionable for this codebase. The hypothesis is the combination \
+of both: the abstract frame from relationships filled in with the concrete domain \
+knowledge from observations.
+
+1. Read the README to orient:
 \`\`\`
 cat .pi/learnings/README.md 2>/dev/null
 \`\`\`
 This lists the most-referenced relationships with one-line summaries. Identify which \
-relationship-ids look most relevant to the current off-track situation.
+relationship-ids provide the right thinking frame for the current off-track situation.
 
-2. Read the definition files for those relationship-ids:
+2. Read those relationship definitions in full:
 \`\`\`
 cat .pi/learnings/relationships/<id>.md
 \`\`\`
-The prose captures the abstract pattern — read each file in full.
+This gives you the thinking frame: what does this pattern mean, how does the user \
+reason about it, what kind of intervention or redirect does it call for?
 
 3. Selectively expand via \`links-to\` and \`used-in\` in each definition's frontmatter:
 - \`links-to\` — tangentially related relationships worth reading alongside this one
-- \`used-in\` — corollaries derived from this relationship that may predict what to try next
-Read the ones that seem relevant to the current situation. Stop when the picture is \
-clear — this is a judgment call, not a full traversal.
+- \`used-in\` — corollaries that may directly predict what to try in this situation
+Read the ones that sharpen the frame. Stop when the reasoning is clear.
 
-4. For the most applicable relationships, grep observations for concrete evidence of \
-how the pattern has played out in this codebase before:
+4. Grep observations to fill the frame with domain-specific content:
 \`\`\`
 grep "<id>:" .pi/learnings/observations/*.md 2>/dev/null
 \`\`\`
-Each match is a single line containing the full observation — what the agent was doing, \
-what the pattern looked like concretely, and what happened next.
+Each match is a single line — the full record of how this pattern played out in a past \
+session. Read it for the codebase-specific detail: which files or components did this \
+pattern cluster around? What did the user's intervention look like concretely? What \
+was the outcome? This is not confirmation — it is the semantic content that turns an \
+abstract frame into a hypothesis about this specific codebase.
 
-5. Form a hypothesis from everything read:
-- Which relationship(s) best explain the current off-track situation?
-- What do the observations show about how this pattern has manifested in this codebase specifically?
-- What do the corollaries (from \`used-in\`) predict to try next?
-State the hypothesis plainly before moving to Step 3.
+5. Form the hypothesis by combining both layers:
+- The relationship gives the frame: "this is [pattern], which means [how to interpret \
+it and what kind of move it calls for]"
+- The observations supply the domain content: "in this codebase specifically, this \
+pattern has manifested around [files/components/boundaries], and [what worked]"
+- The combined hypothesis: "[frame] — and concretely in this codebase, [domain content], \
+so the next step is [specific, actionable suggestion]"
 
-If \`.pi/learnings/\` does not exist or no relationships match, reason from the \
-conversation alone and note the absence.
+If \`.pi/learnings/\` does not exist or no relationships match the situation, reason \
+from the conversation alone and note the absence.
 
 ---
 
@@ -198,9 +213,8 @@ Speak as a peer watching alongside the agent, not as a critic or a system. \
 Keep it to the one or two most valuable things identified in Step 2.
 
 - If the agent is on track: lead with the concrete next step from Step 2a.
-- If the agent is off track: lead with the hypothesis from Step 2b — what the \
-pattern suggests is happening and what to try next, grounded in the learnings \
-or in what is known from the conversation.`;
+- If the agent is off track: lead with the hypothesis from Step 2b — the abstract \
+frame and the codebase-specific content combined into a concrete suggestion.`;
 }
 
 // ---------------------------------------------------------------------------
