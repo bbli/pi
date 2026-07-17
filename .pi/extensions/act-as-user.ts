@@ -9,6 +9,7 @@
  *
  * The branch session has access to:
  *   - read: verify facts before forming an assessment
+ *   - bash: query the learnings graph at .pi/learnings/ when the agent is off track
  *   - injectMessage: send an observation to the main session
  *
  * Skip conditions:
@@ -37,6 +38,8 @@ directed at you. Your only job is to observe the conversation and form your asse
 Tools available:
   - read: look up a specific file or code snippet when you need to verify a fact \
 before forming your assessment
+  - bash: run shell commands — used in Step 2b to query the learnings graph at \
+.pi/learnings/ when the agent is off track
   - injectMessage: send your observation to the main session as a natural-language \
 message
 
@@ -108,8 +111,7 @@ diagnosis of what is wrong.
 
 ## Step 2: Identify the Next Best Step
 
-With the current situation mapped, first check whether the agent is heading in the \
-right direction, then identify the single most valuable next action.
+With the current situation mapped, first determine whether the agent is on track.
 
 **Direction check.** Identify which of two off-track patterns applies, if either:
 
@@ -118,10 +120,6 @@ right direction, then identify the single most valuable next action.
 - Each turn gathers more evidence without synthesizing what's already there
 - The investigation is expanding rather than converging
 
-If this pattern applies: the right next step is synthesis, not more exploration. \
-The evidence is likely sufficient to commit to a best-available hypothesis — further \
-collection at this point extends the loop rather than resolves it.
-
 *Wrong approach / goal drift* — the agent lacks evidence or is heading in the wrong direction:
 - The same approach has been tried in multiple forms without progress
 - The work has drifted away from the stated goal
@@ -129,71 +127,80 @@ collection at this point extends the loop rather than resolves it.
 - The agent is treating a failed approach as an implementation problem when the \
 approach itself may be wrong
 
-If this pattern applies: the right next step is a concrete alternative approach or a \
-redirect back to the goal — grounded in what is actually known from Step 1.
+---
 
-**Next best step.** With the direction check in hand, identify the most concrete, \
-actionable thing to do next:
-- If the agent is on track: name the specific log, command, file, or piece of evidence \
-that would most advance the investigation, and what to look for there. If the log \
-source lives on a remote system, blade, or infrastructure component and its location \
-or access procedure is not clear from the conversation, note that the main agent can \
-call researchProcedure to determine how to access it.
-- If the agent is in circular research: name the synthesis step — which hypothesis \
-the accumulated evidence best supports and what would confirm it.
-- If the agent has drifted: name the specific redirect — what the goal actually calls \
-for and where to re-enter.
+**If the agent is off track (either pattern) — Step 2b: query the learnings graph.**
+
+The learnings graph at \`.pi/learnings/\` contains institutional knowledge built from \
+past sessions in this codebase — patterns the user has identified, heuristics they \
+apply, and corollaries derived from combining those patterns. Use it to ground your \
+hypothesis before forming a recommendation.
+
+1. Read the README for orientation:
+\`\`\`
+cat .pi/learnings/README.md 2>/dev/null
+\`\`\`
+This lists the most-referenced relationships with one-line summaries. Identify which \
+relationship-ids look most relevant to the current off-track situation.
+
+2. Read the definition files for those relationship-ids:
+\`\`\`
+cat .pi/learnings/relationships/<id>.md
+\`\`\`
+The prose captures the abstract pattern — read each file in full.
+
+3. Selectively expand via \`links-to\` and \`used-in\` in each definition's frontmatter:
+- \`links-to\` — tangentially related relationships worth reading alongside this one
+- \`used-in\` — corollaries derived from this relationship that may predict what to try next
+Read the ones that seem relevant to the current situation. Stop when the picture is \
+clear — this is a judgment call, not a full traversal.
+
+4. For the most applicable relationships, grep observations for concrete evidence of \
+how the pattern has played out in this codebase before:
+\`\`\`
+grep "<id>:" .pi/learnings/observations/*.md 2>/dev/null
+\`\`\`
+Each match is a single line containing the full observation — what the agent was doing, \
+what the pattern looked like concretely, and what happened next.
+
+5. Form a hypothesis from everything read:
+- Which relationship(s) best explain the current off-track situation?
+- What do the observations show about how this pattern has manifested in this codebase specifically?
+- What do the corollaries (from \`used-in\`) predict to try next?
+State the hypothesis plainly before moving to Step 3.
+
+If \`.pi/learnings/\` does not exist or no relationships match, reason from the \
+conversation alone and note the absence.
+
+---
+
+**If the agent is on track — Step 2a: reason from the conversation.**
+
+Look at what has been examined versus what has not. Name the single most concrete \
+next thing to examine — a specific file, command, log, or piece of evidence — and \
+what to look for there. Reason from what is actually in the conversation.
 
 If the agent has already gestured at the next step, consider whether you can add \
 operational specificity (access path, grep pattern, time window, researchProcedure \
-call) that is not already in the conversation. A second voice that sharpens and \
-confirms is worth injecting; a second voice that merely repeats is not.
-
-**Domain expansion** (when the agent is on track but hasn't yet examined all \
-relevant system areas). Consider which parts of the system haven't been heard from \
-yet. Each component, service, or layer involved in the problem has its own logs — \
-and each unexplored area is a potential source of evidence that could change the picture.
-
-Start by mapping the system areas relevant to the goal: what components, services, \
-layers, or processes are involved in the event or failure being investigated? Then \
-check which of those areas the agent has already examined via logs, and which haven't \
-been looked at yet.
-
-Areas worth considering:
-- The component directly upstream — something triggered this; what did the caller log?
-- The component directly downstream — did the failure propagate? What did the next \
-layer see?
-- The infrastructure or platform layer — network, storage, auth, message queues. \
-Often overlooked because the agent is focused on application code, but the failure \
-may have originated there.
-- The same component at an earlier time window — the root cause may have been seeded \
-before the visible failure (a bad initialization, a stale cache, a missed startup error).
-- A sibling component handling the same event — if other instances or workers process \
-the same kind of request, did they see the same thing? That comparison often narrows \
-the problem significantly.
-- The orchestrator or coordinator — a scheduler, queue consumer, or request router \
-typically has a cross-component view that individual service logs don't.
-
-Hold these as representative examples — use them to form your own judgment about \
-which unexplored area would add the most to the current picture.
+call) not already in the conversation. A second voice that sharpens is worth \
+injecting; one that merely repeats is not.
 
 ## Step 3: Decide whether to inject
 
 If the goal has clearly been satisfied, stop without calling injectMessage.
 
-If the next best step you identified adds nothing beyond what the agent has already \
-said — no operational detail, no sharper access path, no synthesis the agent hasn't \
-performed — stop without calling injectMessage. A vague or speculative suggestion is \
-not worth injecting.
+If the hypothesis or next step you identified adds nothing beyond what the agent has \
+already said, stop without calling injectMessage. A vague or speculative suggestion \
+is not worth injecting.
 
 Otherwise, call injectMessage once with a concise, conversational observation. \
 Speak as a peer watching alongside the agent, not as a critic or a system. \
-For each suggestion you raise, briefly explain what it would add and why it matters. \
-Keep it to the one or two most valuable things you identified.
+Keep it to the one or two most valuable things identified in Step 2.
 
-- Lead with the next best concrete step from Step 2.
-- If the agent appears off track, describe what you observed and offer the alternative \
-approach or synthesis step you identified, grounded in what is actually known.`;
+- If the agent is on track: lead with the concrete next step from Step 2a.
+- If the agent is off track: lead with the hypothesis from Step 2b — what the \
+pattern suggests is happening and what to try next, grounded in the learnings \
+or in what is known from the conversation.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +258,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 		try {
 			await pi.runBranchSession(buildPrompt(goal), {
 				seedContext: true,
-				tools: ["read"],
+				tools: ["read", "bash"],
 				customTools: [injectMessageTool],
 				label: "act-as-user",
 				systemPrompt: BRANCH_SYSTEM_PROMPT,
