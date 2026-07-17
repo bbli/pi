@@ -19,6 +19,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 // ---------------------------------------------------------------------------
 // Branch session system prompt — system-level role override so the branch LLM
@@ -58,9 +59,17 @@ const QUESTION_GEN_REMINDER =
 // Prompt
 // ---------------------------------------------------------------------------
 
-function buildPrompt(goal: string): string {
+function buildPrompt(goal: string, question?: string, reason?: string): string {
+	const invocationContext =
+		question || reason
+			? `## Why you were invoked\n${
+					reason ? `Detected condition: ${reason}\n` : ""
+				}${
+					question ? `Agent's current question: ${question}\n` : ""
+				}\n`
+			: "";
 	return `\
-Active goal: ${goal}
+Active goal: ${goal}\n\n${invocationContext}
 
 Work through the following three steps before deciding whether to call injectMessage.
 
@@ -264,17 +273,14 @@ export default function actAsUser(pi: ExtensionAPI): void {
 		}
 	});
 
-	// --- agent_end handler ---
+	// --- shared branch session runner ---
 
-	pi.on("agent_end", async (event, _ctx) => {
-		if (!pi.getActAsUserEnabled()) return;
+	async function runActAsUserSession(question?: string, reason?: string): Promise<void> {
 		const goal = pi.getGoal();
 		if (!goal) return;
-		if (event.continuationFired) return;
-
 		const injectMessageTool = pi.makeInjectMessageTool();
 		try {
-			await pi.runBranchSession(buildPrompt(goal), {
+			await pi.runBranchSession(buildPrompt(goal, question, reason), {
 				seedContext: true,
 				tools: ["read", "bash"],
 				customTools: [injectMessageTool],
@@ -290,5 +296,44 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				}`,
 			);
 		}
+	}
+
+	// --- askUser tool ---
+
+	pi.registerTool({
+		name: "askUser",
+		label: "Ask User",
+		description:
+			"Invoke an external observer that analyses the conversation and injects a grounded " +
+			"observation into the session. Use when the investigation needs an outside perspective — " +
+			"to identify unexplored system areas, surface contradictions, or suggest a pivot.",
+		promptSnippet: "askUser(question, reason): ask an external observer to analyse the conversation and inject an observation",
+		parameters: Type.Object({
+			question: Type.String({
+				description: "What you are currently trying to figure out or resolve.",
+			}),
+			reason: Type.String({
+				description:
+					"Why you are invoking the observer — the detected condition or situation " +
+					"(e.g. 'circular research', 'goal drift', 'repeated failed attempts') and a " +
+					"brief description of what was observed.",
+			}),
+		}),
+		execute: async (_id, params) => {
+			await runActAsUserSession(params.question, params.reason);
+			return {
+				content: [{ type: "text" as const, text: "Observation injected into session." }],
+				details: undefined,
+			};
+		},
+	});
+
+	// --- agent_end handler ---
+
+	pi.on("agent_end", async (event, _ctx) => {
+		if (!pi.getActAsUserEnabled()) return;
+		if (!pi.getGoal()) return;
+		if (event.continuationFired) return;
+		await runActAsUserSession();
 	});
 }

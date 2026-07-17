@@ -599,43 +599,23 @@ what evidence is missing and what that means for confidence then continue with y
 best-available hypothesis.`;
 
 const REGROUND_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: REGROUND — The current investigation has lost solid \
-footing and needs to be rebuilt from what is actually known. Step back before continuing. \
-Skip only if the specific issue described below has already been acknowledged and your \
-working understanding explicitly revised in response.]
+[SYSTEM GUIDELINE INSTRUCTIONS: REGROUND — An external monitor has detected that the \
+investigation needs grounding. Call askUser as described below. \
+Skip only if a [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in \
+the conversation after the most recent triggering event.]
 
 A background monitor has detected that the investigation needs to reground. \
-The specific issue is described in the advisory observation above.
+The specific condition is described in the advisory observation above.
 
-Before collecting any further evidence or continuing, \
-consider working through this sequence:
+Call askUser now with:
+- question: what you are currently trying to figure out or resolve
+- reason: the specific condition detected and a brief description of what was observed \
+  (e.g. "circular research — researchConversationQuestion called 4 times without \
+applying findings", "goal drift — investigating area X while goal requires Y", \
+"repeated failed attempts — same fix tried 3 times")
 
-1. **Take a step back.** State explicitly what you now know for certain vs. what you \
-were assuming. Identify which assumptions the detected issue has invalidated or cast \
-in doubt. Keep this grounded — "known" means observed or confirmed, not merely plausible.
-2. **Identify what you need to look up** — but first check the advisory observation \
-above. \
-   - If it indicates circular or repeated research: skip calling any research tools. \
-The evidence is already in the conversation; the issue is unprocessed information, \
-not missing information. Audit what is already known rather than collecting more. \
-   - If it indicates goal drift: skip calling research tools. Instead, re-read the \
-stated goal and identify specifically what the goal requires next — the question is \
-not what is unknown but whether the current direction reconnects to the goal. \
-   - Otherwise: decide which questions need investigation, use researchConversationQuestion \
-for codebase questions and look up operational procedures inline (bash for man pages or \
---help, check skills, or ask the user for proprietary systems), and batch multiple \
-questions into one turn.
-3. **Form a revised hypothesis or plan** grounded in what is now known. Present a \
-callpath diagram marking confirmed steps, assumed steps, and where your previous \
-model broke down. \
-   - If the advisory observation indicated circular research: commit to your \
-best-available hypothesis now, even if some uncertainty remains — further research \
-at this point is more likely to extend the loop than to resolve it. \
-   - If the advisory observation indicated goal drift: state what the active goal is, \
-explain how the recent work does or does not connect to it, and form a plan that \
-addresses the goal directly. Only then proceed.
-
-A good investigation moves from evidence to hypothesis, not from assumption to action.`;
+An external observer will analyse the full conversation and inject a grounded \
+observation to help you move forward.`;
 
 const RESUME_TASK_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK — An advisory workflow has completed \
