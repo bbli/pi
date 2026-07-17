@@ -656,13 +656,20 @@ NEW BEHAVIORS and EXISTING-SCOPE EDGE CASES, make recommendations on what to add
 stop. Do NOT implement anything in this prompt — no code changes, no commits. The Code \
 Implementation Workflow will re-trigger automatically once you have presented your findings.
 
-BEHAVIORS vs EDGE CASES — keep these strictly separate:
+BEHAVIORS vs EDGE CASES vs USABILITY — keep these strictly separate:
 - BEHAVIORS = candidate new/extra functionality the current implementation does not attempt \
 at all. Optional extensions to scope. Ask: "Does this require the system to do something it \
 currently doesn't attempt at all?" → BEHAVIOR.
 - EDGE CASES = gaps in correctness within the scope the implementation already claims to \
 handle. Ask: "Does this only concern how the current logic reacts to an input/state it \
 wasn't built for?" → EDGE CASE.
+- USABILITY = API or interface design issues that make the implementation hard to use \
+correctly, understand, or debug — even when the happy path works. Ask: "Does a caller \
+have enough information to act on the outcome, or is the interface confusing or \
+misleading?" → USABILITY. Examples: return values that don't distinguish outcomes \
+(void or static string when callers need to know what happened); vague or absent error \
+messages; parameter types that are easy to misuse; silent failure paths that look like \
+success to the caller.
 
 ---
 
@@ -691,13 +698,16 @@ and 4 only.
 
 ---
 
-## Per-Candidate Diagram Convention (Steps 3 and 4)
+## Per-Candidate Diagram Convention (Steps 3, 4, and 5)
 
 Every candidate gets its own focused ASCII diagram — a scoped excerpt of the as-built \
 execution flow highlighting only the function(s) and node(s) directly relevant to that \
 one candidate:
 - For a BEHAVIOR: show where in the existing flow the new capability would attach.
 - For an EDGE CASE: pinpoint the specific node where the gap lives and the flow reaching it.
+- For a USABILITY issue: show the caller-facing boundary where the confusing or \
+misleading interface manifests — the return value, error message, or parameter at the \
+point a caller reads it.
 
 Use standard ASCII callpath conventions (├─, └─, ← sync point, ← shared writer, \
 ──fire-and-forget──). Keep each diagram small and scoped to the relevant slice only.
@@ -727,14 +737,50 @@ Keep this to highest-signal candidates only — not a brainstorming dump.
 
 ---
 
-## STEP 4: Generate Candidate EDGE CASES (Existing-Scope Gaps)
+## STEP 4: Generate Candidate USABILITY Issues (API / Interface Quality)
+
+Using static analysis, identify places where the implementation's interface makes it \
+hard for callers to use correctly, understand what happened, or debug failures — even \
+when the happy path works.
+
+Look for: return values that don't distinguish outcomes (void or a static string when \
+callers need to know which of several outcomes occurred); error messages that are vague, \
+missing, or actively misleading; silent success returns that mask a no-op; parameter \
+types or shapes that are easy to pass incorrectly; output that lacks context a caller \
+would need to debug a failure.
+
+For each candidate:
+- Location: function/file and the caller-facing interface point
+- Issue: what is confusing, misleading, or insufficient
+- Why plausible: how a realistic caller would be misled or hindered
+- Current behavior: what the caller sees today
+- Priority: 🔴 Critical / 🟡 Important / 🔵 Minor
+- Focused diagram (REQUIRED): scoped ASCII diagram showing the caller-facing boundary \
+where the issue manifests
+
+Priority definitions for USABILITY:
+- 🔴 Critical — likely to cause silent wrong behavior in callers, or actively misleads \
+them into incorrect assumptions
+- 🟡 Important — makes correct use harder or debugging significantly slower; worth \
+addressing in this pass
+- 🔵 Minor — cosmetic or stylistic; easy to work around
+
+---
+
+## STEP 5: Generate Candidate EDGE CASES (Existing-Scope Gaps)
 
 Using static analysis, identify places where the current implementation's own logic has \
 undefined, unhandled, or likely-unintentional behavior on non-happy-path input or state.
 
 Look for: missing guards on empty/null/undefined/zero/negative input; unbounded loops or \
 retries with no max/backoff; unhandled failure branches; concurrency hazards; assumptions \
-about ordering, uniqueness, or size not enforced anywhere; silent failure paths.
+about ordering, uniqueness, or size not enforced anywhere; silent failure paths. \
+Also explicitly check:
+- **Resilience**: calls to external services, tools, or async operations with no retry, \
+timeout, or fallback — what happens if they fail transiently or never respond?
+- **Idempotency**: operations that produce side effects — what happens if the same \
+logical operation fires twice (retry, duplicate event, double call)? Are duplicate side \
+effects guarded against, or does the second invocation silently corrupt state?
 
 For each candidate:
 - Location: function/file and relevant flow node
@@ -753,9 +799,9 @@ Do not propose fixes — surface the gap and ask what behavior is wanted.
 
 ---
 
-## STEP 5: Present Findings and Recommendations
+## STEP 6: Present Findings and Recommendations
 
-Present Steps 2–4 in a single message, then close with a RECOMMENDATIONS section:
+Present Steps 2–5 in a single message, then close with a RECOMMENDATIONS section:
 
 ~~~
 ## 🆕 CANDIDATE BEHAVIORS (New Functionality)
@@ -765,6 +811,17 @@ Summary: N candidates identified
    - New capability: ...
    - Why plausible: ...
    - Scope signal: ...
+   - Priority: 🔴 / 🟡 / 🔵
+   - Diagram: <focused ASCII diagram>
+
+## 🎨 CANDIDATE USABILITY ISSUES (API / Interface Quality)
+Summary: N candidates identified
+
+1. [Issue name]
+   - Location: [file/function, caller-facing interface point]
+   - Issue: ...
+   - Why plausible: ...
+   - Current behavior: ...
    - Priority: 🔴 / 🟡 / 🔵
    - Diagram: <focused ASCII diagram>
 
@@ -785,10 +842,11 @@ for awareness but excluded — the Code Implementation Workflow only triggers fo
 and Important items.
 
 - BEHAVIORS to implement (🔴 + 🟡 only): [list by name, or "none"]
+- USABILITY to address (🔴 + 🟡 only): [list by name with brief intended fix, or "none"]
 - EDGE CASES to address (🔴 + 🟡 only): [list by name with brief intended resolution, or "none"]
 ~~~
 
-Keep BEHAVIORS and EDGE CASES in two clearly separate sections in that order.
+Keep BEHAVIORS, USABILITY, and EDGE CASES in three clearly separate sections in that order.
 
 Once you have presented your findings and recommendations, your job in this prompt is done. \
 Do not implement anything. The Code Implementation Workflow will re-trigger automatically.
@@ -799,8 +857,9 @@ CRITICAL REMINDERS:
 - Reuse in-conversation implementation context; only re-derive from disk/repo when \
 genuinely missing.
 - Static analysis only — no test generation or execution, no broad exploratory search.
-- Never blend BEHAVIORS with EDGE CASES. Keep them in separate, clearly labeled sections.
-- Step 2 is prose only — one focused diagram per candidate in Steps 3 and 4 only.
+- Never blend BEHAVIORS, USABILITY, and EDGE CASES. Keep them in separate, clearly \
+labeled sections.
+- Step 2 is prose only — one focused diagram per candidate in Steps 3, 4, and 5 only.
 - Every candidate must be traceable to something specific observed in the code.
 - Assign a Priority (🔴 Critical / 🟡 Important / 🔵 Minor) to every candidate. Only Critical \
 and Important items appear in RECOMMENDATIONS — Minor items are surfaced but not forwarded \
@@ -1165,7 +1224,9 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- The implementation is substantively complete (not mid-slice), with commits made. " +
 			"Signals that flesh-out does NOT apply: " +
 			"- The implementation was done in response to [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] " +
-			"  findings — those are targeted fixes to existing scope, not new features. " +
+			"  findings — those are targeted correctness fixes, not new scope. " +
+			"- The implementation was done in response to [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] " +
+			"  findings — those are targeted additions already analysed, not new scope requiring re-analysis. " +
 			"- The user asked for a specific, bounded change: a bug fix, refactor, rename, or targeted edit. " +
 			"- The agent is still actively implementing (mid-slice, uncommitted changes). " +
 			"- No code was written (search/read/explain only). " +
@@ -1184,6 +1245,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"Strong signals that implementation is done: the agent wrote or modified code across " +
 			"one or more files, the work appears substantively complete (not mid-slice), git commits " +
 			"were made, or the agent's last action was finalizing or wrapping up code changes. " +
+			"This includes commits made in response to FLESH_OUT findings — additions and guards " +
+			"introduced by FLESH_OUT are real code changes that deserve a correctness review. " +
 			"Strong signals that review is NOT needed yet: the agent is still actively implementing " +
 			"(mid-slice, uncommitted changes), no code was written (search/read/explain only), " +
 			"or only mechanical non-code changes were made (changelog, docs, config). " +
