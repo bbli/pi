@@ -275,9 +275,17 @@ export default function actAsUser(pi: ExtensionAPI): void {
 
 	// --- shared branch session runner ---
 
-	async function runActAsUserSession(question?: string, reason?: string): Promise<void> {
+	async function runActAsUserSession(
+		question?: string,
+		reason?: string,
+		signal?: AbortSignal,
+	): Promise<"ok" | "no-goal" | "disabled"> {
+		if (!pi.getActAsUserEnabled()) return "disabled";
 		const goal = pi.getGoal();
-		if (!goal) return;
+		if (!goal) {
+			console.warn("[act-as-user] called with no active goal");
+			return "no-goal";
+		}
 		const injectMessageTool = pi.makeInjectMessageTool();
 		try {
 			await pi.runBranchSession(buildPrompt(goal, question, reason), {
@@ -288,6 +296,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				systemPrompt: BRANCH_SYSTEM_PROMPT,
 				systemPromptOverride: true,
 				injectEvery: { turns: 3, message: QUESTION_GEN_REMINDER },
+				abortSignal: signal,
 			});
 		} catch (err) {
 			console.error(
@@ -296,6 +305,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				}`,
 			);
 		}
+		return "ok";
 	}
 
 	// --- askUser tool ---
@@ -319,19 +329,21 @@ export default function actAsUser(pi: ExtensionAPI): void {
 					"brief description of what was observed.",
 			}),
 		}),
-		execute: async (_id, params) => {
-			await runActAsUserSession(params.question, params.reason);
-			return {
-				content: [{ type: "text" as const, text: "Observation injected into session." }],
-				details: undefined,
-			};
+		execute: async (_id, params, signal) => {
+			const result = await runActAsUserSession(params.question, params.reason, signal);
+			const text =
+				result === "no-goal"
+					? "No active goal — set a goal first with set_goal before calling askUser."
+					: result === "disabled"
+						? "act-as-user is currently disabled — enable it with /act-as-user on."
+						: "Observation injected into session.";
+			return { content: [{ type: "text" as const, text }], details: undefined };
 		},
 	});
 
 	// --- agent_end handler ---
 
 	pi.on("agent_end", async (event, _ctx) => {
-		if (!pi.getActAsUserEnabled()) return;
 		if (!pi.getGoal()) return;
 		if (event.continuationFired) return;
 		await runActAsUserSession();
