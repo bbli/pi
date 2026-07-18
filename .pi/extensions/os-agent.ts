@@ -983,8 +983,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"  taking the current action. " +
 			"- The agent is currently doing research (reading files, calling researchConversationQuestion). " +
 			"- The action is a simple, bounded lookup where no code context is needed. " +
-			"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION] message already appears " +
-			"  in the conversation for the current investigation. " +
+      "- The agent has already read the source files that produce the specific logs or outputs it is about to search in this conversation" + 
 			"In the `reason` argument, include a brief description of the specific action the agent " +
 			"appears about to take (e.g. 'grep logs for error X', 'edit parser.ts', 'run diagnostic command Y').",
 		injectPrompt: RESEARCH_BEFORE_ACTION_PROMPT,
@@ -1009,7 +1008,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- Agent has explicitly identified a potential direct evidence source (e.g., 'blade-level logs " +
 			"  would show the rescan events directly') but has not attempted to access it. " +
 			"Strong signals this should NOT trigger: " +
-			"- A [SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE] message already appears in this conversation. " +
+			"- The agent has already accessed new direct evidence sources (e.g., run bash commands against system logs, infrastructure event logs, or remote machines) since forming its current hypothesis in this conversation" +
 			"- Agent has already used bash to access new operational data sources after the current hypothesis was formed. " +
 			"- The investigation is purely code-focused with no operational or infrastructure components. " +
 			"- The hypothesis is high confidence with sufficient direct supporting evidence. " +
@@ -1041,8 +1040,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"  or logs in this conversation. " +
 			"- The agent is using well-known general commands (git, npm, standard bash) where no " +
 			"  system-specific knowledge is needed. " +
-			"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE] message already appears in " +
-			"  the recent conversation for this same task. " +
+			"- The agent has already looked up or confirmed the specific procedure, path, or command syntax needed for the current task from skills, documentation, or prior session context" +
 			"- The agent is currently doing the research (reading docs, checking man pages, checking skills). " +
 			"In the `reason` argument, describe what specific operational task or resource the " +
 			"agent is about to work with and what procedure appears to be unconfirmed.",
@@ -1110,8 +1108,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- No goal is set in the conversation, or the agent's recent work is plausibly " +
 			"  preparatory to the goal even if not directly about it, or the agent has " +
 			"  explicitly explained why the current area is relevant (for condition 6). " +
-			"- A [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in the " +
-			"  conversation after the most recent triggering event. " +
+			"- The agent has already produced an explicit reassessment of its understanding after the triggering event visible in this conversation" +
 			"In the `reason` argument, include a brief description of which condition applies " +
 			"and what specifically was detected — for condition 6, include the goal text " +
 			"returned by get_goal and describe what the agent was actually doing instead.",
