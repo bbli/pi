@@ -1008,7 +1008,6 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- Agent has explicitly identified a potential direct evidence source (e.g., 'blade-level logs " +
 			"  would show the rescan events directly') but has not attempted to access it. " +
 			"Strong signals this should NOT trigger: " +
-			"- The agent has already accessed new direct evidence sources (e.g., run bash commands against system logs, infrastructure event logs, or remote machines) since forming its current hypothesis in this conversation" +
 			"- Agent has already used bash to access new operational data sources after the current hypothesis was formed. " +
 			"- The investigation is purely code-focused with no operational or infrastructure components. " +
 			"- The hypothesis is high confidence with sufficient direct supporting evidence. " +
