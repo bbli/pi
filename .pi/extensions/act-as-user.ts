@@ -45,9 +45,10 @@ before forming your assessment
   - injectMessage: send your observation to the main session as a natural-language \
 message
 
-Stop condition: call injectMessage once with your observation, then stop. \
-If the goal appears to have been satisfied, or you have nothing material to add, \
-stop without calling injectMessage.`;
+Stop condition: call injectMessage once, then stop. \
+If the goal appears to have been satisfied, call injectMessage to notify the main \
+session that the goal appears complete and it should call goal_satisfied, then stop. \
+If you have nothing material to add, stop without calling injectMessage.`;
 
 // ---------------------------------------------------------------------------
 // Reminder injected every 3 turns to keep the branch session on task
