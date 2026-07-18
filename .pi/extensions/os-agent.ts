@@ -11,6 +11,7 @@
  *   - code-workflow: inject coding workflow instructions when code implementation is the next step
  *   - research-uncertainties: same trigger as guideline, evaluated after the agent turn ends
  *   - flesh-out-after-implementation: inject a flesh-out diagnostic prompt after an implementation appears done
+ *   - refactoring-review-after-implementation: inject a refactoring review prompt after a substantive code change
  *   - review-after-implementation: inject a review checklist after an implementation appears done
  *
  * The advisory system can be toggled at runtime via /advisor [on|off].
@@ -599,43 +600,23 @@ what evidence is missing and what that means for confidence then continue with y
 best-available hypothesis.`;
 
 const REGROUND_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: REGROUND — The current investigation has lost solid \
-footing and needs to be rebuilt from what is actually known. Step back before continuing. \
-Skip only if the specific issue described below has already been acknowledged and your \
-working understanding explicitly revised in response.]
+[SYSTEM GUIDELINE INSTRUCTIONS: REGROUND — An external monitor has detected that the \
+investigation needs grounding. Call askUser as described below. \
+Skip only if a [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in \
+the conversation after the most recent triggering event.]
 
 A background monitor has detected that the investigation needs to reground. \
-The specific issue is described in the advisory observation above.
+The specific condition is described in the advisory observation above.
 
-Before collecting any further evidence or continuing, \
-consider working through this sequence:
+Call askUser now with:
+- question: what you are currently trying to figure out or resolve
+- reason: the specific condition detected and a brief description of what was observed \
+  (e.g. "circular research — researchConversationQuestion called 4 times without \
+applying findings", "goal drift — investigating area X while goal requires Y", \
+"repeated failed attempts — same fix tried 3 times")
 
-1. **Take a step back.** State explicitly what you now know for certain vs. what you \
-were assuming. Identify which assumptions the detected issue has invalidated or cast \
-in doubt. Keep this grounded — "known" means observed or confirmed, not merely plausible.
-2. **Identify what you need to look up** — but first check the advisory observation \
-above. \
-   - If it indicates circular or repeated research: skip calling any research tools. \
-The evidence is already in the conversation; the issue is unprocessed information, \
-not missing information. Audit what is already known rather than collecting more. \
-   - If it indicates goal drift: skip calling research tools. Instead, re-read the \
-stated goal and identify specifically what the goal requires next — the question is \
-not what is unknown but whether the current direction reconnects to the goal. \
-   - Otherwise: decide which questions need investigation, use researchConversationQuestion \
-for codebase questions and look up operational procedures inline (bash for man pages or \
---help, check skills, or ask the user for proprietary systems), and batch multiple \
-questions into one turn.
-3. **Form a revised hypothesis or plan** grounded in what is now known. Present a \
-callpath diagram marking confirmed steps, assumed steps, and where your previous \
-model broke down. \
-   - If the advisory observation indicated circular research: commit to your \
-best-available hypothesis now, even if some uncertainty remains — further research \
-at this point is more likely to extend the loop than to resolve it. \
-   - If the advisory observation indicated goal drift: state what the active goal is, \
-explain how the recent work does or does not connect to it, and form a plan that \
-addresses the goal directly. Only then proceed.
-
-A good investigation moves from evidence to hypothesis, not from assumption to action.`;
+An external observer will analyse the full conversation and inject a grounded \
+observation to help you move forward.`;
 
 const RESUME_TASK_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK — An advisory workflow has completed \
@@ -676,13 +657,20 @@ NEW BEHAVIORS and EXISTING-SCOPE EDGE CASES, make recommendations on what to add
 stop. Do NOT implement anything in this prompt — no code changes, no commits. The Code \
 Implementation Workflow will re-trigger automatically once you have presented your findings.
 
-BEHAVIORS vs EDGE CASES — keep these strictly separate:
+BEHAVIORS vs EDGE CASES vs USABILITY — keep these strictly separate:
 - BEHAVIORS = candidate new/extra functionality the current implementation does not attempt \
 at all. Optional extensions to scope. Ask: "Does this require the system to do something it \
 currently doesn't attempt at all?" → BEHAVIOR.
 - EDGE CASES = gaps in correctness within the scope the implementation already claims to \
 handle. Ask: "Does this only concern how the current logic reacts to an input/state it \
 wasn't built for?" → EDGE CASE.
+- USABILITY = API or interface design issues that make the implementation hard to use \
+correctly, understand, or debug — even when the happy path works. Ask: "Does a caller \
+have enough information to act on the outcome, or is the interface confusing or \
+misleading?" → USABILITY. Examples: return values that don't distinguish outcomes \
+(void or static string when callers need to know what happened); vague or absent error \
+messages; parameter types that are easy to misuse; silent failure paths that look like \
+success to the caller.
 
 ---
 
@@ -711,13 +699,16 @@ and 4 only.
 
 ---
 
-## Per-Candidate Diagram Convention (Steps 3 and 4)
+## Per-Candidate Diagram Convention (Steps 3, 4, and 5)
 
 Every candidate gets its own focused ASCII diagram — a scoped excerpt of the as-built \
 execution flow highlighting only the function(s) and node(s) directly relevant to that \
 one candidate:
 - For a BEHAVIOR: show where in the existing flow the new capability would attach.
 - For an EDGE CASE: pinpoint the specific node where the gap lives and the flow reaching it.
+- For a USABILITY issue: show the caller-facing boundary where the confusing or \
+misleading interface manifests — the return value, error message, or parameter at the \
+point a caller reads it.
 
 Use standard ASCII callpath conventions (├─, └─, ← sync point, ← shared writer, \
 ──fire-and-forget──). Keep each diagram small and scoped to the relevant slice only.
@@ -747,14 +738,50 @@ Keep this to highest-signal candidates only — not a brainstorming dump.
 
 ---
 
-## STEP 4: Generate Candidate EDGE CASES (Existing-Scope Gaps)
+## STEP 4: Generate Candidate USABILITY Issues (API / Interface Quality)
+
+Using static analysis, identify places where the implementation's interface makes it \
+hard for callers to use correctly, understand what happened, or debug failures — even \
+when the happy path works.
+
+Look for: return values that don't distinguish outcomes (void or a static string when \
+callers need to know which of several outcomes occurred); error messages that are vague, \
+missing, or actively misleading; silent success returns that mask a no-op; parameter \
+types or shapes that are easy to pass incorrectly; output that lacks context a caller \
+would need to debug a failure.
+
+For each candidate:
+- Location: function/file and the caller-facing interface point
+- Issue: what is confusing, misleading, or insufficient
+- Why plausible: how a realistic caller would be misled or hindered
+- Current behavior: what the caller sees today
+- Priority: 🔴 Critical / 🟡 Important / 🔵 Minor
+- Focused diagram (REQUIRED): scoped ASCII diagram showing the caller-facing boundary \
+where the issue manifests
+
+Priority definitions for USABILITY:
+- 🔴 Critical — likely to cause silent wrong behavior in callers, or actively misleads \
+them into incorrect assumptions
+- 🟡 Important — makes correct use harder or debugging significantly slower; worth \
+addressing in this pass
+- 🔵 Minor — cosmetic or stylistic; easy to work around
+
+---
+
+## STEP 5: Generate Candidate EDGE CASES (Existing-Scope Gaps)
 
 Using static analysis, identify places where the current implementation's own logic has \
 undefined, unhandled, or likely-unintentional behavior on non-happy-path input or state.
 
 Look for: missing guards on empty/null/undefined/zero/negative input; unbounded loops or \
 retries with no max/backoff; unhandled failure branches; concurrency hazards; assumptions \
-about ordering, uniqueness, or size not enforced anywhere; silent failure paths.
+about ordering, uniqueness, or size not enforced anywhere; silent failure paths. \
+Also explicitly check:
+- **Resilience**: calls to external services, tools, or async operations with no retry, \
+timeout, or fallback — what happens if they fail transiently or never respond?
+- **Idempotency**: operations that produce side effects — what happens if the same \
+logical operation fires twice (retry, duplicate event, double call)? Are duplicate side \
+effects guarded against, or does the second invocation silently corrupt state?
 
 For each candidate:
 - Location: function/file and relevant flow node
@@ -773,9 +800,9 @@ Do not propose fixes — surface the gap and ask what behavior is wanted.
 
 ---
 
-## STEP 5: Present Findings and Recommendations
+## STEP 6: Present Findings and Recommendations
 
-Present Steps 2–4 in a single message, then close with a RECOMMENDATIONS section:
+Present Steps 2–5 in a single message, then close with a RECOMMENDATIONS section:
 
 ~~~
 ## 🆕 CANDIDATE BEHAVIORS (New Functionality)
@@ -785,6 +812,17 @@ Summary: N candidates identified
    - New capability: ...
    - Why plausible: ...
    - Scope signal: ...
+   - Priority: 🔴 / 🟡 / 🔵
+   - Diagram: <focused ASCII diagram>
+
+## 🎨 CANDIDATE USABILITY ISSUES (API / Interface Quality)
+Summary: N candidates identified
+
+1. [Issue name]
+   - Location: [file/function, caller-facing interface point]
+   - Issue: ...
+   - Why plausible: ...
+   - Current behavior: ...
    - Priority: 🔴 / 🟡 / 🔵
    - Diagram: <focused ASCII diagram>
 
@@ -805,10 +843,11 @@ for awareness but excluded — the Code Implementation Workflow only triggers fo
 and Important items.
 
 - BEHAVIORS to implement (🔴 + 🟡 only): [list by name, or "none"]
+- USABILITY to address (🔴 + 🟡 only): [list by name with brief intended fix, or "none"]
 - EDGE CASES to address (🔴 + 🟡 only): [list by name with brief intended resolution, or "none"]
 ~~~
 
-Keep BEHAVIORS and EDGE CASES in two clearly separate sections in that order.
+Keep BEHAVIORS, USABILITY, and EDGE CASES in three clearly separate sections in that order.
 
 Once you have presented your findings and recommendations, your job in this prompt is done. \
 Do not implement anything. The Code Implementation Workflow will re-trigger automatically.
@@ -819,8 +858,9 @@ CRITICAL REMINDERS:
 - Reuse in-conversation implementation context; only re-derive from disk/repo when \
 genuinely missing.
 - Static analysis only — no test generation or execution, no broad exploratory search.
-- Never blend BEHAVIORS with EDGE CASES. Keep them in separate, clearly labeled sections.
-- Step 2 is prose only — one focused diagram per candidate in Steps 3 and 4 only.
+- Never blend BEHAVIORS, USABILITY, and EDGE CASES. Keep them in separate, clearly \
+labeled sections.
+- Step 2 is prose only — one focused diagram per candidate in Steps 3, 4, and 5 only.
 - Every candidate must be traceable to something specific observed in the code.
 - Assign a Priority (🔴 Critical / 🟡 Important / 🔵 Minor) to every candidate. Only Critical \
 and Important items appear in RECOMMENDATIONS — Minor items are surfaced but not forwarded \
@@ -828,14 +868,308 @@ to implementation.`;
 
 
 
-// ---------------------------------------------------------------------------
-// Extension entry point
-// ---------------------------------------------------------------------------
+const REFACTORING_REVIEW_PROMPT = `\
+[SYSTEM CONTINUATION INSTRUCTIONS: REFACTORING_REVIEW — Run the Refactoring Review for \
+the recently committed new feature or significant change. This is a flag-and-suggest-only \
+review: do not apply changes, edit files, or produce a final diff. \
+Skip if any of these apply: \
+(1) A REFACTORING_REVIEW has already been completed for this implementation. \
+(2) The most recent implementation was made in response to \
+[SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] or \
+[SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] findings — those are targeted fixes or \
+additions, not new structure worth reviewing for factoring. \
+(3) The change is a micro-edit: a one-line bug fix, a single rename, or a targeted \
+correction to a known issue with no structural implication. \
+(4) No code was written, or only mechanical non-code changes were made (changelog, docs, config). \
+Note: this prompt may fire alongside other review-phase continuations in the same turn. \
+If that appears to be the case — another review continuation is present in this turn but \
+not yet completed — complete all active review continuations before CODE_WORKFLOW triggers, \
+since CODE_WORKFLOW will apply the combined findings from all of them.]
 
-// ---------------------------------------------------------------------------
-// /advisor TUI component
-// ---------------------------------------------------------------------------
+# Refactoring Reviewer
 
+### System Role
+
+You are a senior software engineer performing a **refactoring review** for a colleague. \
+Your job is not to find bugs, verify correctness, or approve/reject a change — other \
+reviewers do that. Your job is to look at code and propose how it could be made \
+**cleaner, clearer, better-factored, and structurally sounder without changing what it does.**
+
+You operate in **flag-and-suggest mode**. You never edit files, apply patches, or produce \
+a final diff. For every opportunity you find, you describe it, explain why it's worth \
+doing, and show a concrete \`before → after\` sketch so the author can decide. The author \
+owns the code; you are making the case, not making the change.
+
+Two constraints govern everything you propose:
+
+1. **Behavior preservation is the definition of a refactor.** A refactoring suggestion \
+must not change observable behavior — same outputs, same side effects, same error \
+semantics, same public contract (unless a contract change is the explicit point, in \
+which case you flag it loudly as *not* a pure refactor). If you notice a suggestion \
+would change behavior, either drop it or label it clearly as "behavior change, out of \
+scope for a refactor."
+2. **Restraint is a first-class skill.** The most common failure mode of a refactoring \
+reviewer is compulsive abstraction — turning readable code into a maze of indirection, \
+premature interfaces, and helpers with seven flags. Every suggestion must survive the \
+restraint pass in Phase 4. When the right answer is "leave it as-is," say so.
+
+You will find both **code-level** refactorings (helpers, APIs, naming, local structure) \
+and **architectural** refactorings (boundaries, layering, coupling, dependency direction, \
+seams, cross-module duplication, state ownership). Both matter. A pile of beautifully \
+named helpers inside a class that has three unrelated responsibilities is a missed review.
+
+---
+
+### Scope Determination (do this first)
+
+Establish exactly what you are reviewing before you analyze anything:
+
+- **Default target:** the code changes produced or discussed in the current conversation.
+- **Explicit target:** if the user names a specific diff, commit, PR, branch, file, or \
+function, review that instead. If it isn't already available to you, ask for it or \
+retrieve it rather than guessing.
+- **Adjacent code:** you may read and reason about surrounding code the change touches, \
+because good factoring is relative to its context. But be explicit about scope in your \
+findings — mark each one as **[in-diff]** (the change itself), or **[adjacent]** \
+(surrounding code the change reveals or interacts with). Adjacent findings are lower \
+priority by default and should be framed as optional; don't turn a small change into a \
+demand to rewrite the neighborhood.
+- **Baseline:** briefly state your understanding of what the code *does*, so every later \
+suggestion can be checked against "does this preserve that behavior?" If intent is \
+ambiguous, note the ambiguity instead of assuming.
+
+---
+
+## Phase 1: Understand the Code and Map the Structure
+
+Before proposing anything, build a real model of the code as it currently is. Refactoring \
+suggestions made without understanding the whole shape are how reviewers accidentally break \
+things or "simplify" load-bearing complexity.
+
+1. **Trace the main paths.** For the functions/modules in scope, follow the primary \
+execution and data-flow paths end to end. Note where data is transformed and where it \
+crosses component or layer boundaries.
+
+2. **Identify responsibilities and ownership.** For each significant unit (function, class, \
+module, service), state in one line what it is responsible for. Note where a single unit \
+owns several unrelated responsibilities, or where one responsibility is smeared across \
+several units.
+
+3. **Note the existing conventions.** Read enough of the surrounding codebase to know its \
+established patterns: how errors are handled, how modules are layered, naming vocabulary, \
+how similar problems were solved elsewhere. Your suggestions should move the code *toward* \
+the codebase's own idioms, not import a foreign style.
+
+4. **Draw a structural diagram.** Produce a free-form ASCII diagram of the relevant \
+components and their relationships (calls, dependencies, data flow, ownership of state). \
+This anchors the architectural analysis in Phase 3. Where a refactor would change the \
+structure, show **current** and **proposed** side by side so the delta is obvious. \
+Annotate proposed moves with tags like \`[EXTRACT]\`, \`[MERGE]\`, \`[MOVE]\`, \`[SPLIT]\`, \
+\`[INVERT]\`, \`[INLINE]\`.
+
+5. **List the candidate areas.** From this understanding, name the spots that look most \
+worth examining in Phases 2–3, and note anything you must *not* touch because it's \
+carrying real, non-obvious weight (subtle ordering, performance-critical inlining, \
+compatibility shims).
+
+---
+
+## Phase 2: Code-Level Refactoring Opportunities
+
+Only raise a point where a change would make the code meaningfully better. Skip clean \
+code silently. For each area below, look for the listed smells; each finding goes through \
+Phase 4 before it makes the final report.
+
+**Decomposition and helpers**
+- Functions doing too much, or mixing levels of abstraction in one body (high-level \
+orchestration interleaved with low-level detail — usually the strongest signal a helper \
+wants to exist).
+- Long parameter threads, deeply nested blocks, or repeated inline logic that would read \
+better as a named operation.
+- Comments that exist only to explain unclear code — candidates for a rename or an \
+extracted, well-named function instead of a comment.
+
+**API and interface design**
+- Parameter lists that should be a struct/object/options type; positional booleans that \
+reveal the function is really two functions; primitive obsession (raw strings/ints where \
+a small type would prevent misuse).
+- Inconsistent or leaky return shapes; callers forced to know too much about internals; \
+errors-as-values vs. exceptions used inconsistently with the surrounding code.
+- Awkward call sites — if the typical caller has to do the same setup/teardown dance \
+every time, the API is at the wrong level.
+
+**Control flow**
+- Arrow code / deep nesting that flattens with guard clauses and early returns.
+- Redundant conditionals, duplicated branch bodies, boolean expressions that can be named \
+or simplified.
+- Sprawling type/enum switches that recur in multiple places (candidate for polymorphism \
+or a lookup — but see restraint).
+
+**Cognitive load**
+- Code that forces the reader to hold more context than necessary: functions too long to \
+reason about locally, implicit ordering assumptions (A must run before B with nothing in \
+the code signaling this), or intent spread across so many indirection levels that the \
+reader must reconstruct purpose from mechanism.
+- Missing or poorly named abstractions that make the reader reverse-engineer intent from \
+implementation detail rather than reading what the code means.
+- Variables, flags, or intermediate state whose purpose only becomes clear several lines \
+after they appear — candidates for restructuring so intent is visible at the point of \
+expression.
+
+**Types and data modeling**
+- Data clumps: the same 3–4 values passed together everywhere, asking to be a type.
+- Illegal states that are currently representable and could be designed out.
+- Stringly-typed values that should be enums/small types.
+
+**Naming and consistency**
+- Names that are vaguer than the thing, that lie, or that use different vocabulary for \
+the same concept than the rest of the codebase.
+
+**Dead weight**
+- Unused code, parameters, branches, and imports introduced or revealed by the change; \
+over-general helpers built for a single caller.
+
+---
+
+## Phase 3: Architectural Refactoring Opportunities
+
+This phase is where most reviewers stop short. Use the Phase 1 diagram. These are \
+structural moves that preserve behavior but improve the shape of the system. Each is \
+still flag-and-suggest, and each still goes through the restraint pass — architectural \
+over-engineering (premature services, speculative layers, distributed monoliths) is more \
+expensive to undo than local over-abstraction.
+
+**Boundaries and responsibilities**
+- A unit (class/module/file) that owns several unrelated responsibilities → suggest a \
+**split** along the seams of responsibility.
+- Logic living in the wrong layer: business rules in a controller, persistence concerns \
+in domain code, formatting in a service, validation scattered across layers → suggest \
+**moving** it to where it belongs.
+- The inverse: over-fragmentation, where a single coherent responsibility is spread across \
+many tiny units for no benefit → suggest a **merge/inline**.
+
+**Coupling and dependency direction**
+- New or existing tight coupling to a concrete implementation where the dependency should \
+point at an abstraction → suggest **dependency inversion** / introducing a port or \
+interface *at the boundary that actually needs it*.
+- Dependency cycles between modules → suggest breaking the cycle (extract shared piece, \
+invert one edge, or move a misplaced member).
+- Chatty coupling / excessive boundary crossings in a hot path → suggest consolidating \
+the interaction.
+- Upward or sideways dependencies that violate the intended layering → suggest realigning.
+
+**Abstraction and seams**
+- Hard-wired construction/wiring that makes the code hard to compose or substitute → \
+suggest injecting the dependency (only where a real second implementation or test seam \
+is needed — not speculatively).
+- A messy subsystem exposed directly to many callers → suggest a facade/adapter to give \
+it one clean entry point.
+- Deep inheritance used for code sharing → suggest composition where it reduces coupling.
+
+**Cross-module duplication (conceptual, not textual)**
+- The *same rule or decision* implemented in several places (even if the code looks \
+different) → suggest consolidating into one owner.
+- Conversely, two blocks that *look* similar but encode genuinely different decisions → \
+explicitly recommend **not** merging them; premature consolidation creates coupling \
+between things that should evolve independently.
+
+**State and data representation**
+- Parallel/dual representations of the same logical state where ownership is unclear → \
+suggest a single source of truth with derived views, or at minimum a clear owner and \
+sync point.
+- State whose ownership is ambiguous or shared across components → suggest consolidating.
+- Side effects tangled into otherwise-pure logic → suggest isolating the effects so the \
+core is testable and reusable.
+
+**Patterns and consistency**
+- Reinvented functionality that duplicates an existing utility/component in the codebase \
+→ suggest reusing the existing one.
+- A local solution that diverges from an established codebase pattern without reason → \
+suggest aligning it.
+
+---
+
+## Phase 4: The Restraint Pass (run every suggestion through this)
+
+Before a finding from Phase 2 or 3 makes it into the report, it must pass this gate. \
+If it fails, drop it — or convert it into an explicit "leave as-is" note if the author \
+might otherwise be tempted.
+
+Ask, for each proposed refactor:
+
+- **Does it preserve behavior?** If not, it's not a refactor — drop it or relabel it as \
+a design change and move it out of the main recommendations.
+- **Would the abstraction have exactly one caller / one use?** If so, it's probably \
+premature. Prefer inlining or waiting. (Rule of three for duplication: two occurrences \
+is often not enough to abstract.)
+- **Is the duplication conceptual or coincidental?** Only consolidate things that must \
+change together. Never couple things that merely look alike.
+- **Does the indirection cost more than the clarity it buys?** A helper you have to jump \
+to in order to understand the caller can be worse than three readable inline lines.
+- **Is it in scope, and is the payoff worth the churn?** A large restructure of adjacent \
+code that the diff barely touches is usually a separate task; note it, don't demand it.
+- **Does it fight the codebase's conventions?** Local elegance that's foreign to the \
+project is a net loss.
+- **Is the current code fine?** "This is clear and appropriately factored as written" is \
+a valid and valuable review outcome. Say it explicitly when true.
+
+State briefly, for non-trivial suggestions, why they pass the restraint pass.
+
+---
+
+### Output Format for Each Finding
+
+Group findings under Markdown headers (\`Code-Level\` and \`Architectural\`). Use this \
+shape per finding:
+
+\`\`\`
+### [in-diff | adjacent] path/to/file.ext:LINES — short title
+Smell: what the current structure is and why it's worth improving (1–3 sentences).
+
+Before:
+<minimal snippet or structural sketch of current code>
+
+After (suggested):
+<minimal snippet or structural sketch — a proposal, not a final patch>
+
+Why: the concrete benefit (readability, testability, decoupling, single source of truth).
+Behavior: preserved. (Or: "changes behavior — flagged as design change, not pure refactor.")
+Restraint check: why this is worth the indirection/churn (skip for trivial renames).
+Effort / risk: low | medium | high.
+Priority: high | medium | low.
+\`\`\`
+
+---
+
+## SUMMARY
+
+Conclude with a \`SUMMARY\` section containing:
+
+- **Overall factoring assessment** (1–2 sentences): is the code in good shape, or are \
+there structural issues worth addressing before it's easy to work with?
+- **Architectural refactorings (prioritized):** the boundary/layering/coupling/state moves \
+worth making, highest-payoff first. If there are none, say the structure is sound.
+- **Code-level refactorings (prioritized):** the local improvements, highest-payoff first.
+- **Explicitly left as-is:** anything you considered and deliberately chose not to \
+recommend, with the one-line reason. This section is as important as the recommendations.
+- **Suggested sequence:** if several refactors interact, note a safe order and which are \
+independent.
+
+---
+
+### Guidelines
+
+- **Flag and suggest only.** Never apply changes or emit a final patch.
+- **Behavior preservation is non-negotiable.** Anything that changes observable behavior \
+is not a refactor; drop it or clearly relabel it as a design change.
+- **Always cover both levels.** Do the architectural pass (Phase 3) even when the diff \
+is small — structural smells matter as much as local ones.
+- **Restraint is mandatory.** Run every suggestion through Phase 4. Prefer inlining, \
+waiting, and "leave as-is" over speculative abstraction.
+- **Respect the codebase's conventions** over abstract ideals.
+- **Only raise real opportunities.** Skip clean code silently.
+- **Stay in your lane.** If you spot a likely bug, mention it in one line and defer it \
+to correctness review — don't turn the refactoring review into a general critique.`;
 class AdvisoryStatusComponent extends Container {
 	private settingsList: SettingsList;
 
@@ -1181,7 +1515,9 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"- The implementation is substantively complete (not mid-slice), with commits made. " +
 			"Signals that flesh-out does NOT apply: " +
 			"- The implementation was done in response to [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] " +
-			"  findings — those are targeted fixes to existing scope, not new features. " +
+			"  findings — those are targeted correctness fixes, not new scope. " +
+			"- The implementation was done in response to [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] " +
+			"  findings — those are targeted additions already analysed, not new scope requiring re-analysis. " +
 			"- The user asked for a specific, bounded change: a bug fix, refactor, rename, or targeted edit. " +
 			"- The agent is still actively implementing (mid-slice, uncommitted changes). " +
 			"- No code was written (search/read/explain only). " +
@@ -1193,6 +1529,34 @@ export default function osAgent(pi: ExtensionAPI): void {
 	});
 
 	pi.registerContinuation({
+		id: "refactoring-review-after-implementation",
+		triggerPrompt:
+			"Does this conversation show a recently completed NEW FEATURE implementation or " +
+			"significant architectural change that has not yet been through a refactoring review? " +
+			"These are representative signals — use them to calibrate your judgment. " +
+			"Signals that refactoring-review APPLIES: " +
+			"- The agent implemented a new feature, capability, or significant architectural change " +
+			"  with meaningful new code structure (not just fixing something existing). " +
+			"- The implementation is substantively complete (not mid-slice), with commits made. " +
+			"- The change is large enough that decomposition, naming, coupling, or layer boundaries " +
+			"  could meaningfully affect future maintainability. " +
+			"Signals that refactoring-review does NOT apply: " +
+			"- The implementation was done in response to [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW] " +
+			"  findings — those are targeted correctness fixes, not new structure worth reviewing. " +
+			"- The implementation was done in response to [SYSTEM CONTINUATION INSTRUCTIONS: FLESH_OUT] " +
+			"  findings — those are targeted additions, not new structure worth reviewing. " +
+			"- The user asked for a specific, bounded change: a bug fix, rename, or targeted edit. " +
+			"- The change is a micro-edit: a one-line fix or single rename with no structural implication. " +
+			"- The agent is still actively implementing (mid-slice, uncommitted changes). " +
+			"- No code was written (search/read/explain only). " +
+			"- Only mechanical non-code changes were made (changelog, docs, config). " +
+			"Idempotency: do not trigger if [SYSTEM CONTINUATION INSTRUCTIONS: REFACTORING_REVIEW] has " +
+			"already appeared in the conversation after the most recent implementation.",
+		injectPrompt: REFACTORING_REVIEW_PROMPT,
+		label: "advisory:refactoring-review",
+	});
+
+	pi.registerContinuation({
 		id: "review-after-implementation",
 		triggerPrompt:
 			"Does this conversation show a recently completed implementation pass that has not yet " +
@@ -1200,6 +1564,8 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"Strong signals that implementation is done: the agent wrote or modified code across " +
 			"one or more files, the work appears substantively complete (not mid-slice), git commits " +
 			"were made, or the agent's last action was finalizing or wrapping up code changes. " +
+			"This includes commits made in response to FLESH_OUT findings — additions and guards " +
+			"introduced by FLESH_OUT are real code changes that deserve a correctness review. " +
 			"Strong signals that review is NOT needed yet: the agent is still actively implementing " +
 			"(mid-slice, uncommitted changes), no code was written (search/read/explain only), " +
 			"or only mechanical non-code changes were made (changelog, docs, config). " +

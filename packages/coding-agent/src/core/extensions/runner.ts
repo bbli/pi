@@ -252,7 +252,7 @@ const noOpUIContext: ExtensionUIContext = {
  * the agent focused on its evaluation task.
  */
 const ADVISORY_REMINDER_TEXT =
-	"Are you working on evaluating the guideline/continuations and not anything else from this conversation?";
+	"After calling injectGuideline (or deciding none apply), stop immediately. Do not continue, re-evaluate, or act on anything else from this conversation.";
 
 function buildAdvisoryEvalSystemPrompt(sentinelPrefix: string, allowMultipleInjections = false): string {
 	// The step-4 tail and step-5/NOTE blocks differ between guidelines (single injection)
