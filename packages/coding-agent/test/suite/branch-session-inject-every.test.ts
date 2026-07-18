@@ -60,13 +60,13 @@ describe("runBranchSession — injectEvery guard", () => {
 		expect(reminderCalls).toHaveLength(0);
 	});
 
-	it("does not inject when the session ends before the interval is reached", async () => {
+	it("injects on the first turn regardless of interval", async () => {
 		const harness = await createHarness();
 		harnesses.push(harness);
-		// Session runs exactly 1 turn; interval of 3 never fires.
 		harness.setResponses([fauxAssistantMessage("done after one turn")]);
 
-		const followUpSpy = vi.spyOn(AgentSession.prototype, "followUp");
+		// Mock steer to prevent the queued message from causing a second turn.
+		const steerSpy = vi.spyOn(AgentSession.prototype, "steer").mockResolvedValue(undefined);
 
 		await runBranchSession(
 			"eval",
@@ -74,8 +74,8 @@ describe("runBranchSession — injectEvery guard", () => {
 			harness.session,
 		);
 
-		const reminderCalls = followUpSpy.mock.calls.filter(([text]) => text === "REMINDER");
-		expect(reminderCalls).toHaveLength(0);
+		const reminderCalls = steerSpy.mock.calls.filter(([text]) => text === "REMINDER");
+		expect(reminderCalls).toHaveLength(1);
 	});
 });
 
@@ -94,13 +94,13 @@ describe("injectEvery — subscriber counting logic", () => {
 		return (event) => {
 			if (event.type !== "turn_end") return;
 			turnCount++;
-			if (turnCount % turns === 0) {
+			if (turnCount === 1 || (turnCount - 1) % turns === 0) {
 				followUpFn("REMINDER");
 			}
 		};
 	}
 
-	it("fires only at multiples of turns", () => {
+	it("fires at turn 1 then every n turns after", () => {
 		const calls: number[] = [];
 		let callIndex = 0;
 		const subscriber = makeSubscriberForTurns(3, () => calls.push(++callIndex));
@@ -108,15 +108,16 @@ describe("injectEvery — subscriber counting logic", () => {
 		const turnEnd = { type: "turn_end" };
 		const turnStart = { type: "turn_start" };
 
-		subscriber(turnEnd); // count=1 — no fire
+		subscriber(turnEnd); // count=1 — fire #1
 		subscriber(turnStart); // ignored
 		subscriber(turnEnd); // count=2 — no fire
-		subscriber(turnEnd); // count=3 — fire #1
-		subscriber(turnEnd); // count=4 — no fire
+		subscriber(turnEnd); // count=3 — no fire
+		subscriber(turnEnd); // count=4 — fire #2
 		subscriber(turnEnd); // count=5 — no fire
-		subscriber(turnEnd); // count=6 — fire #2
+		subscriber(turnEnd); // count=6 — no fire
+		subscriber(turnEnd); // count=7 — fire #3
 
-		expect(calls).toEqual([1, 2]);
+		expect(calls).toEqual([1, 2, 3]);
 	});
 
 	it("ignores non-turn_end events", () => {
