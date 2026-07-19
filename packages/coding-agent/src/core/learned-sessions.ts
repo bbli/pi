@@ -115,6 +115,20 @@ Use the \`search-relationships-and-observations\` skill to check the drafts from
 
 A single occurrence in one session is low-confidence. A pattern corroborated by existing graph entries, or repeated across multiple turns, is the primary signal.
 
+For each observation or pattern, decide:
+
+- Does an existing relationship capture the abstract idea? Does it need revision?
+- Is this a gap requiring a new relationship?
+- What concrete codebase knowledge should become an observation line?
+- Does any newly proposed relationship apply retroactively to existing observation lines?
+
+Prepare the following for presentation in Step 3:
+
+1. **New relationships** — complete file content (frontmatter + prose) for each new relationship.
+2. **Revised relationships** — updated prose for any existing relationship being revised, with a note on what changed and why.
+3. **New observation lines** — the single-line codebase knowledge statements, with relationship IDs cited inline.
+4. **Retroactive citations** — any relationship ID citations to be added inline to lines in past observation files, with the target filename and the updated line.
+
 ### Step 3 — Present
 
 Present the refined proposal from Step 2, then ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**

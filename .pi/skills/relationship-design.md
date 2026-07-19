@@ -30,7 +30,7 @@ Note: each line is a concrete statement about how this codebase works, with the 
 
 `observations/<date>-<goal-slug>.md` — date in `YYYY-MM-DD` format, goal slug in kebab-case derived from the session goal.
 
-### Principles
+### How to Write Good Observations
 
 **Ground in real names.** Observations are concrete facts, so use exact names throughout — exact file paths, counter names, grep patterns, log tags. An observation that says “check `space_tuples_trace`” is useful; one that says “check the relevant trace file” is not.
 
@@ -61,22 +61,6 @@ should recognise it as applying when the same pattern appears.
 - `id` — kebab-case, using vocabulary from the codebase and conversation. Choose names that describe a debugging action or workflow, not an agent behavioral trait: `interleave-expected-vs-actual-timeline`, `read-test-callpath-for-expected-sequence`, `check-counter-names-before-asserting`.
 - `links-to` — IDs of tangentially related relationships worth reading alongside this one. Composition is in the prose.
 - `used-in` — IDs of corollaries derived from this relationship.
-
-## How to write Good Relationships
-
-For each observation or pattern under consideration, decide:
-
-- Does an existing relationship capture the abstract idea? Does it need revision?
-- Is this a gap requiring a new relationship?
-- What concrete codebase knowledge should become an observation line?
-- Does any newly proposed relationship apply retroactively to existing observation lines?
-
-Present the following clearly and wait for explicit approval before writing anything:
-
-1. **New relationships** — complete file content (frontmatter + prose) for each new relationship.
-2. **Revised relationships** — updated prose for any existing relationship being revised, with a note on what changed and why.
-3. **New observation lines** — the single-line codebase knowledge statements, with relationship IDs cited inline.
-4. **Retroactive citations** — any relationship ID citations to be added inline to lines in past observation files, with the target filename and the updated line.
 
 ### Principles
 
