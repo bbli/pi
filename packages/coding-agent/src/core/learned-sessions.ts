@@ -105,21 +105,23 @@ Build a list of raw observations — these are the inputs to Phase 2.
 
 Using the observations from Phase 1, propose changes to the learnings graph at \`.pi/learnings/\`.
 
-### Step 1 — Find pertinent relationships and observations
+### Step 1 — Draft
 
-Use the \`search-relationships-and-observations\` skill to apply the traversal sequence to the patterns identified in Phase 1. The goal is triangulation: do this session's observations extend, refine, or contradict what is already in the graph?
+Use the \`relationship-design\` skill to evaluate the observations from Phase 1 and draft candidate relationships and observation lines.
+
+### Step 2 — Triangulate
+
+Use the \`search-relationships-and-observations\` skill to check the drafts from Step 1 against the existing graph. Do the candidates extend, refine, or duplicate what is already there? Revise the drafts accordingly.
 
 A single occurrence in one session is low-confidence. A pattern corroborated by existing graph entries, or repeated across multiple turns, is the primary signal.
 
-### Step 2 — Propose and present
+### Step 3 — Present
 
-Use the \`relationship-design\` skill to evaluate the observations from Step 1 and prepare a proposal.
+Present the refined proposal from Step 2, then ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
 
-After presenting, ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
+Do not proceed to Step 4 until the user explicitly approves.
 
-Do not proceed to Step 3 until the user explicitly approves.
-
-### Step 3 — Write
+### Step 4 — Write
 
 Once the user approves — with or without requested changes — execute all writes:
 
