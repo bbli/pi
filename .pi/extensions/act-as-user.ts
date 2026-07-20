@@ -20,7 +20,7 @@
  */
 
 import { existsSync } from "fs";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { SEARCH_SKILL_TEXT, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
@@ -135,10 +135,9 @@ The learnings graph at \`.pi/learnings/\` has three layers:
 - **Observations** (\`observations/\`) — typed codebase knowledge: atomic facts connecting abstract methods to concrete artifacts, each with a \`relation\` type (instance-of, prerequisite-for, exception-to, trigger-for, composes)
 - **Summaries** (\`summaries/\`) — session narrative records: historical context showing when and how knowledge was applied
 
-Use the \`search-relationships-and-observations\` skill to apply the traversal to the \
-current off-track situation and form your hypothesis. The hypothesis combines the \
-abstract frame (what kind of situation this is and what move it calls for) with \
-concrete codebase knowledge (which specific artifacts, files, or mechanisms are involved).
+${SEARCH_SKILL_TEXT}
+
+Apply the traversal above to the current off-track situation and form your hypothesis. The hypothesis combines the abstract frame (what kind of situation this is and what move it calls for) with concrete codebase knowledge (which specific artifacts, files, or mechanisms are involved).
 
 If \`.pi/learnings/\` does not exist, or if the learnings do not add clarity beyond \
 what the conversation already shows, reason from the conversation alone and note \
@@ -214,10 +213,9 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 
 ## Step 2: Query the learnings graph
 
-Use the \`search-relationships-and-observations\` skill, applying Steps 1–5 only \
-(orient via README, read relationships, clarify frame, search observations, search \
-summaries). Skip Steps 6–7 — corollary derivation and expand are for active \
-problem-solving, not session orientation.
+Apply the following traversal procedure, Steps 1–5 only (orient via README, read relationships, clarify frame, search observations, search summaries). Skip Steps 6–7 — corollary derivation and expand are for active problem-solving, not session orientation.
+
+${SEARCH_SKILL_TEXT}
 
 If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \
 calling injectMessage.
