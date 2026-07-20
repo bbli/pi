@@ -77,78 +77,180 @@ export async function removeFromLearnQueue(id: string): Promise<boolean> {
  * user approval before writing anything to .pi/learnings/.
  *
  * Graph structure:
- *   .pi/learnings/relationships/  — higher-level ideas and patterns derived from sessions
- *   .pi/learnings/observations/   — semantic/procedural knowledge about this codebase
- *   .pi/learnings/README.md       — entry point, most-referenced relationships
+ *   .pi/learnings/relationships/  — portable methods derived from sessions
+ *   .pi/learnings/observations/   — typed codebase knowledge nodes
+ *   .pi/learnings/summaries/      — session narrative records
+ *   .pi/learnings/README.md       — entry point: promoted observations + accumulating
  */
 export const LEARN_ANALYSIS_PROMPT = `\
-# System Role
-You are reviewing a past pi agent session to extract what the user knows, how they operate, and what they value — knowledge the agent can draw on in future sessions to work more closely with how this user operates. Work through the two phases below in order.
+### System Role
+You are reviewing a past pi agent session to extract what the user knows, how they operate, and what they value — knowledge the agent can draw on in future sessions. Work through the two phases below in order.
 
 The session being reviewed is the conversation history that precedes this message — the one that was loaded when this learn session started. Focus your analysis on that conversation, not on this current exchange.
 
 ## Phase 1: Observe
 
-Read every user message in the session. For each, note what the user contributed. Do not filter to reactions or corrections only — every message is signal for understanding how this user operates. Classify each contribution by type:
+Read every user message in the session. For each, note what the user contributed and classify it:
 
-- **Domain knowledge** — the user named a file, component, mechanism, or log path
-- **Debugging method** — the user described or demonstrated a procedure for diagnosing a problem
-- **Preference or style** — the user pushed back on format, asked for a different structure, or expressed how they like to work
-- **Correction or redirect** — the user fixed an agent assumption, redirected the approach, or short-circuited a path that wouldn't work
-- **Task direction** — the user issued a new instruction or extended the scope
-
-For each message, note: the contribution type, what the user brought, and whether it was acted on.
+- **Domain knowledge** — named a file, component, mechanism, or log path
+- **Debugging method** — described or demonstrated a diagnostic procedure
+- **Preference or style** — pushed back on format, expressed how they like to work
+- **Correction or redirect** — fixed an agent assumption, redirected the approach
+- **Task direction** — issued a new instruction or extended scope
 
 Build a list of raw observations — these are the inputs to Phase 2.
 
 ## Phase 2: Learn
 
-Using the observations from Phase 1, propose changes to the learnings graph at \`.pi/learnings/\`.
+### Step 1 — Draft observations
 
-### Step 1 — Draft
+For each notable thing from Phase 1, draft a candidate observation.
 
-Use the \`relationship-design\` skill to evaluate the observations from Phase 1 and draft candidate relationships and observation lines.
+**Determine scope first:**
 
-### Step 2 — Triangulate
+*Codebase-scoped* — describes a concrete fact about this codebase. Assign a connection type:
+- \`instance-of\` — this IS the relationship applied here (artifact, log tag, procedure)
+- \`prerequisite-for\` — must be true before the method works; silently fails without it
+- \`exception-to\` — context where the method breaks down or misleads
+- \`trigger-for\` — the signal that indicates when to apply the method
+- \`composes\` — combines two or more relationships into a unified procedure
 
-Use the \`search-relationships-and-observations\` skill to check the drafts from Step 1 against the existing graph. Do the candidates extend, refine, or duplicate what is already there? Revise the drafts accordingly.
+Set \`relates-to\` to the parent relationship ID (can be left empty if not yet evident).
 
-A single occurrence in one session is low-confidence. A pattern corroborated by existing graph entries, or repeated across multiple turns, is the primary signal.
+*Meta-scoped* — describes how the user prefers to work or communicate. No connection type, no \`relates-to\`.
 
-For each observation or pattern, decide:
+Draft each as: \`id\` (kebab-case), \`relation\`, \`relates-to\` (or empty), prose using exact names — log tags, file paths, function names, counter names. All session observations have origin \`demonstrated\` by default.
 
-- Does an existing relationship capture the abstract idea? Does it need revision?
-- Is this a gap requiring a new relationship?
-- What concrete codebase knowledge should become an observation line?
-- Does any newly proposed relationship apply retroactively to existing observation lines?
+### Step 2 — Deduplicate
 
-Prepare the following for presentation in Step 3:
+For each candidate observation, search for an existing one covering the same fact:
+\`\`\`
+grep -rl "relates-to: <relationship-id>" .pi/learnings/observations/ 2>/dev/null
+\`\`\`
+Read matching files. If the same fact is already captured: reuse its ID, renaming it if a better name covers both. If nothing matches: new file.
 
-1. **New relationships** — complete file content (frontmatter + prose) for each new relationship.
-2. **Revised relationships** — updated prose for any existing relationship being revised, with a note on what changed and why.
-3. **New observation lines** — the single-line codebase knowledge statements, with relationship IDs cited inline.
-4. **Retroactive citations** — any relationship ID citations to be added inline to lines in past observation files, with the target filename and the updated line.
+For meta-scoped candidates, scan existing observations with no \`relates-to\` for overlap.
 
-### Step 3 — Present
+### Step 3 — Draft relationships
 
-Present the refined proposal from Step 2, then ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
+Use the \`relationship-design\` skill.
 
-Do not proceed to Step 4 until the user explicitly approves.
+Reason inductively from the candidate observations:
+- \`instance-of\` with empty \`relates-to\` — what abstract method does this imply? Draft or match a relationship; fill in \`relates-to\`.
+- \`prerequisite-for\` / \`exception-to\` / \`trigger-for\` / \`composes\` — which relationship do they scope? Fill in \`relates-to\`.
+- For each implied relationship: does an existing one already capture it (revise) or is this genuinely new (draft)?
 
-### Step 4 — Write
+### Step 4 — Derive corollaries
 
-Once the user approves — with or without requested changes — execute all writes:
+Use the \`relationship-design\` skill.
 
-1. Create \`.pi/learnings/relationships/\` and \`.pi/learnings/observations/\` if they do not exist.
-2. Write each new relationship file to \`relationships/<id>.md\`.
-3. Rewrite any revised relationship files.
-4. Write this session's observation file. Get today's date first:
-   \`\`\`
-   date +%Y-%m-%d
-   \`\`\`
-   Write to \`observations/<date>-<goal-slug>.md\`. One line per observation, no line breaks within a line. Relationship IDs cited inline in brackets.
-5. Retroactive citations: for each newly created relationship, check whether any existing observation lines should cite it. Limit to the most recent 10 observation files — sort by filename date descending and stop after 10. For each matching line, update it to add the inline citation.
-6. Update \`used-in\` in source relationship files for any new corollaries.
-7. Regenerate \`README.md\`: grep \`observations/\` for each relationship ID to count line occurrences, then write \`README.md\` listing relationships ordered by count, each with its ID and a one-sentence summary drawn from its prose.
+Check the four composition patterns across the relationships now in view:
+- **Sequential (A → B)** — does A's output feed directly into B?
+- **Conjunctive (A + B → C)** — do A and B run independently and combine for C?
+- **Conditional (A → B if P, else C)** — does a \`trigger-for\` on B pair with an \`exception-to\` on B plus an alternative relationship C?
+- **Fallback (A, then B)** — does an \`exception-to\` on A pair with a relationship B that handles the case A cannot?
+
+Draft corollary relationships with \`corollary-of\` and \`composition\` in frontmatter and \`inferred: true\`.
+
+### Step 5 — Triangulate
+
+Use the \`search-relationships-and-observations\` skill to check the drafted relationships and observations against the existing graph. Do existing entries corroborate, conflict with, or subsume any of the drafts? Revise accordingly.
+
+### Step 6 — Check promotion
+
+For each observation (new or reused), count how many summaries currently cite it:
+\`\`\`
+grep -rl "\\[<observation-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l
+\`\`\`
+- **Fewer than 3** — regular, no change to status
+- **3 or more** — promoted; flag for README
+- **Promoted and recurring across many sessions** — standing rule candidate; note "should this become a standing rule in AGENTS.md?"
+
+### Step 7 — Present
+
+Present the following clearly, then stop and wait for the user to respond:
+
+1. **New observations** — frontmatter + prose for each, noting scope and connection type
+2. **New / revised relationships** — complete file content; note what changed and why for revisions
+3. **Derived corollaries** — relationship files with \`corollary-of\` and \`composition\`
+4. **README changes** — which observations are newly promoted; proposed updated README content
+5. **AGENTS.md candidates** — standing rules proposed for addition; user decides each one
+
+After presenting, ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
+
+Do not proceed to Step 8 until the user explicitly approves.
+
+### Step 8 — Write
+
+Once the user approves — with or without requested changes — execute all writes in order.
+
+**Prepare metadata:**
+\`\`\`
+# Current session ID
+ls -t ~/.pi/agent/sessions/*.jsonl 2>/dev/null | head -1 | sed 's/.*_\\(.*\\)\\.jsonl$/\\1/'
+# Today's date
+date +%Y-%m-%d
+\`\`\`
+
+**Create directories if absent:**
+\`\`\`
+mkdir -p .pi/learnings/observations .pi/learnings/summaries .pi/learnings/relationships
+\`\`\`
+
+**Write observation files.**
+Write each new observation to \`.pi/learnings/observations/<id>.md\`:
+\`\`\`
+---
+id: <id>
+relation: <type>
+relates-to: <relationship-id>
+---
+<prose>
+\`\`\`
+Rewrite any renamed or revised existing observation files and update all summary citations that used the old ID.
+
+**Write the session summary.**
+Write to \`.pi/learnings/summaries/<date>-<goal-slug>.md\`:
+\`\`\`
+---
+session-id: <current-session-id>
+goal: "<session goal>"
+date: <date>
+---
+<Narrative prose. Cite [observation-id] for specific facts applied or discovered.
+Cite [relationship-id] for abstract methods that framed the work.>
+\`\`\`
+
+**Write relationship files.**
+Write each new or revised relationship to \`.pi/learnings/relationships/<id>.md\`.
+Update the \`used-in\` field of source relationships for any new corollaries.
+
+**Write AGENTS.md additions.**
+If any standing rule candidates were approved, append them to \`.pi/AGENTS.md\` (or the project root \`AGENTS.md\` if that is where project rules live). Create the file if absent.
+
+**Regenerate README.md.**
+
+For every observation file in \`.pi/learnings/observations/\`:
+1. Extract the ID from the filename.
+2. Count summaries citing it: \`grep -rl "\\[<id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l\`
+3. Read its \`relation\`, \`relates-to\`, and first sentence of prose from frontmatter.
+
+Write \`.pi/learnings/README.md\`:
+\`\`\`
+## Established
+
+### <relationship-id>
+(one entry per promoted codebase-scoped observation grouped under its relates-to relationship,
+sorted by citation count descending)
+- (<relation-type>) [<obs-id>] — <first sentence>  · <N> sessions
+
+### User preferences
+(promoted meta-scoped observations — no parent relationship)
+- [<obs-id>] — <first sentence>  · <N> sessions
+
+## Accumulating
+(relationships whose observations have citations but none yet promoted, sorted by highest count desc)
+- <relationship-id> — <N>/3 sessions
+\`\`\`
 
 Only write what the conversation gives clear evidence for. If a pattern occurred once and is ambiguous, say so in the prose. Do not speculate beyond what the history shows.`;

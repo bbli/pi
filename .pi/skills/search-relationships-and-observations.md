@@ -1,56 +1,97 @@
 ---
 name: search-relationships-and-observations
-description: Querying the learnings graph at .pi/learnings/. Use when finding relevant relationships and observations for a current task, situation, or set of patterns.
+description: Querying the learnings graph at .pi/learnings/. Use when finding relevant relationships, observations, and summaries for a current task, situation, or set of patterns.
 ---
 
 # Search Relationships and Observations
 
-The learnings graph at `.pi/learnings/` has two layers that serve different roles:
+The learnings graph has three layers, each serving a different role:
 
-- **Relationships** (`relationships/`) are the *thinking frame* — abstract patterns encoding how this user approaches a type of problem: which evidence to consult first, in what order, and how to combine it.
-- **Observations** (`observations/`) are the *domain content* — concrete, codebase-specific records of how each pattern has manifested in this project: which files, components, and interactions are the real terrain.
+- **Relationships** (`relationships/`) — the *thinking frame*: portable methods encoding how the user approaches a type of problem.
+- **Observations** (`observations/`) — *typed codebase knowledge*: atomic facts connecting abstract methods to concrete artifacts in this project. Each observation has a `relation` field (instance-of, prerequisite-for, exception-to, trigger-for, composes) and a `relates-to` field naming its parent relationship.
+- **Summaries** (`summaries/`) — *session narrative records*: historical context showing when and how knowledge was applied. Summaries tag observations and relationships by citing their IDs inline in prose.
 
-Use relationships to frame and classify a situation. Use observations to make it specific and actionable for this codebase. The two layers combine: the abstract frame from relationships filled in with the concrete detail from observations.
+Observations answer "what does this relationship look like in this codebase?" Summaries answer "when was this knowledge relevant and what was happening around it?"
 
 ---
 
 ## Traversal Sequence
 
-Apply the following four steps in order. Each step builds on the last.
-
-### 1. Orient via the README
+### Step 1 — Orient via the README
 
 ```
 cat .pi/learnings/README.md 2>/dev/null
 ```
 
-The README lists relationships ordered by how frequently they appear in observations, with a one-sentence summary for each. Identify which relationship IDs are most relevant to the current situation or patterns.
+The README has two sections:
 
-If `.pi/learnings/` does not exist or the README is absent, proceed without the graph and note the absence.
+- **Established** — promoted observations (≥3 summary citations), grouped under their parent relationship with connection type noted. Meta-scoped observations (user preferences, no parent relationship) listed at the end.
+- **Accumulating** — relationships that have observations but none yet promoted, with citation count (e.g. 2/3).
 
-### 2. Read the relevant relationship files in full
+Identify relevant relationship IDs from both sections. If `.pi/learnings/` does not exist or the README is absent, proceed without the graph and note the absence.
+
+### Step 2 — Read relationships
 
 ```
 cat .pi/learnings/relationships/<id>.md
 ```
 
-For each relationship identified in Step 1, read the full file. This gives you the thinking frame: what the pattern means, how the user reasons about it, and what kind of move it calls for.
+For each relevant relationship, read the full file. This gives the abstract frame: what the pattern means, what move it calls for, when it applies and when it does not.
 
-### 3. Selectively expand via links-to and used-in
+### Step 3 — Clarify frame (when abstract reasoning is ambiguous)
 
-Each relationship's frontmatter has two fields:
+If no clear frame emerges after reading the relationships:
 
-- `links-to` — tangentially related relationships worth reading alongside this one
-- `used-in` — corollaries derived from this relationship that may apply more directly
+1. Scan observations broadly for terms relevant to the current situation:
+   ```
+   grep -r "<term>" .pi/learnings/observations/ 2>/dev/null
+   ```
+2. Scan recent summaries for similar problems:
+   ```
+   ls -t .pi/learnings/summaries/*.md 2>/dev/null | head -5
+   ```
+   Read the most relevant ones.
 
-Read the ones that sharpen the frame. Stop when the picture is clear — this is a judgment call, not a full traversal.
+Use the concrete evidence to select the right relationship or narrow to a candidate, then return to Step 2.
 
-### 4. Grep observations by relationship ID
+### Step 4 — Search observations
 
 ```
-grep "<id>" .pi/learnings/observations/*.md 2>/dev/null
+grep -rl "relates-to: <relationship-id>" .pi/learnings/observations/ 2>/dev/null
 ```
 
-Each match is a single line — the complete record of how that pattern played out in a past session. Read it for codebase-specific detail: which files or components, what the user's intervention looked like, what the outcome was.
+Read each matching observation file. The `relation` field tells you how to use it:
 
-If no lines match for a given relationship ID, proceed with the relationship definition alone — the abstract frame is still useful without concrete examples.
+- `instance-of` — what to do in this codebase: the concrete artifact, log tag, or procedure
+- `prerequisite-for` — what to check or enable first; the method silently fails without it
+- `exception-to` — when this method breaks down or misleads; signals a fallback may be needed
+- `trigger-for` — the codebase-specific signal that indicates this method should be applied
+- `composes` — a ready-made recipe combining multiple relationships (check `relates-to` list for components)
+
+Promoted observations are already summarised in the README; non-promoted ones here may add detail not yet surfaced.
+
+### Step 5 — Search summaries
+
+```
+grep -rl "\[<relationship-id>\]" .pi/learnings/summaries/ 2>/dev/null
+grep -rl "\[<observation-id>\]" .pi/learnings/summaries/ 2>/dev/null
+```
+
+Read matching summaries for narrative context: when this knowledge was relevant, what the surrounding situation looked like, how it played out in practice.
+
+### Step 6 — Derive corollaries (goal-directed)
+
+Given the current goal, check whether any of the gathered relationships compose into a more direct procedure for achieving it. Only derive a corollary if the composition produces something actionable toward the goal — not as a general reasoning exercise.
+
+Check the four patterns:
+
+- **Sequential (A → B)** — does A's output feed directly into B?
+- **Conjunctive (A + B → C)** — do A and B run independently and combine for C?
+- **Conditional (A → B if P, else C)** — does a `trigger-for` observation establish when B applies, and an `exception-to` plus alternative relationship C cover the remaining case?
+- **Fallback (A, then B if A yields nothing)** — does an `exception-to` on A pair with a relationship B that handles the case A cannot?
+
+Apply the derived procedure if the pattern is clear. Note as a candidate for the next learn session if the corollary appears genuinely new.
+
+### Step 7 — Expand
+
+Follow `links-to`, `used-in`, and `corollary-of` fields on relationships selectively. Stop when the picture is clear — this is a judgment call, not a full traversal.
