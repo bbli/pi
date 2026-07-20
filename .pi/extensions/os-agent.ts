@@ -1197,24 +1197,26 @@ class AdvisoryStatusComponent extends Container {
 			if (guidelines.length > 0) {
 				items.push({ id: "section:guidelines", label: "── Guidelines ──", currentValue: "" });
 				for (const g of guidelines) {
+					const trigger = g.triggerPrompt.length > 1000 ? g.triggerPrompt.slice(0, 1000) + "…" : g.triggerPrompt;
 					items.push({
 						id: `guideline:${g.id}`,
 						label: g.label ?? g.id,
 						currentValue: pi.getGuidelineEnabled(g.id) ? "enabled" : "disabled",
 						values: ["enabled", "disabled"],
-						description: `Trigger: ${g.triggerPrompt}`,
+						description: `Trigger: ${trigger}`,
 					});
 				}
 			}
 			if (continuations.length > 0) {
 				items.push({ id: "section:continuations", label: "── Continuations ──", currentValue: "" });
 				for (const c of continuations) {
+					const trigger = c.triggerPrompt.length > 1000 ? c.triggerPrompt.slice(0, 1000) + "…" : c.triggerPrompt;
 					items.push({
 						id: `continuation:${c.id}`,
 						label: c.label ?? c.id,
 						currentValue: pi.getContinuationEnabled(c.id) ? "enabled" : "disabled",
 						values: ["enabled", "disabled"],
-						description: `Trigger: ${c.triggerPrompt}`,
+						description: `Trigger: ${trigger}`,
 					});
 				}
 			}
