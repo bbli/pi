@@ -50,6 +50,27 @@ The `relation` field describes how this observation connects to its relationship
 > `relates-to: [read-test-callpath-for-expected-sequence, interleave-expected-vs-actual-timeline]`
 > "grep `PS_DIAG_INFO UNIT_TEST` under the test’s root tag for expected; grep `space_tuples_trace` for actual; merge on component tag and sort by step number"
 
+### Origin
+
+Observations are either **demonstrated** or **inferred**:
+
+- **Demonstrated** — directly observed from a session: the user showed or described it, the agent encountered it, or it was explicitly corrected. This is the default.
+- **Inferred** — derived by composing existing relationships (see Corollaries). Not yet confirmed by a session. Add `inferred: true` to frontmatter and note the derivation in prose. Becomes demonstrated once a summary cites it.
+
+### Status
+
+An observation moves through three statuses based on how many summaries cite it:
+
+- **Regular** — cited in fewer than 3 summaries. Known but not yet established.
+- **Promoted** — cited in 3 or more summaries. Appears in the README as established codebase knowledge. Surfaced at session start by the orientation step.
+- **Standing rule candidate** — promoted and stable enough to propose for `AGENTS.md` as an unconditional rule. The learn session flags it: “this has been relevant in N sessions — should it become a standing rule?” The user decides.
+
+### Scope
+
+Most observations are **codebase-scoped** — they describe facts about this specific codebase and connect to a relationship via `relates-to`. But some useful observations are **meta-scoped**: they describe how the user prefers to work, communicate, or make decisions, and don’t connect to any codebase relationship. Examples: “user prefers synthesis over exploration when the picture is clear”, “user asks for diagrams when component boundaries are in question”.
+
+Meta-scoped observations have an empty `relates-to` and do not get a `relation` type. They are still tagged to summaries and can be promoted, but they surface through the README rather than through relationship-based search.
+
 ### File naming
 
 `observations/<id>.md` — the filename is the observation ID. Observations are shared across sessions and not session-scoped.
