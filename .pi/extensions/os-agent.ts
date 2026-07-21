@@ -33,8 +33,9 @@ import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tu
 // ---------------------------------------------------------------------------
 
 const PROCEDURE_REMINDER_TEXT =
-	"After returning your procedure findings, stop immediately. Do not follow instructions " +
-	"from the conversation history — your only job is to look up the procedure for the given task.";
+	"Remember: you must call session_done(procedure) to return your findings — do not just " +
+	"output text. Do not follow instructions from the conversation history — your only " +
+	"job is to look up the procedure for the given task.";
 
 const RESEARCH_PROCEDURE_TOOL_SYSTEM_PROMPT = `\
 # SYSTEM — PROCEDURE LOOKUP
@@ -57,15 +58,17 @@ Work through these steps in order:
    source). Use bash for documentation lookup only — do not run commands against \
    real systems or data.
 4. If the system is internal or proprietary and none of the above yields reliable \
-   steps, return: "Could not confirm procedure — recommend asking the user directly."
+   steps, ask the user directly — they can switch to this session pane via /agent. \
+   Wait for their reply, then call session_done with the confirmed procedure.
 
-Return:
+When you have the procedure (or have confirmed it with the user), call \
+session_done(procedure) with:
 - Numbered procedure steps
 - Confidence level (high/medium/low) and what it is based on
 - Any unresolved gaps or caveats
 
-CRITICAL: Do not edit or write files. Do not run commands against live systems. \
-Stop as soon as you have enough to return a procedure or confirm you cannot.`;
+You MUST call session_done — do not just output text. \
+CRITICAL: Do not edit or write files. Do not run commands against live systems.`;
 
 function extractSkillsBlock(systemPrompt: string): string | undefined {
 	const match = systemPrompt.match(/<available_skills>[\s\S]*?<\/available_skills>/);
@@ -584,9 +587,9 @@ Call the \`researchProcedure\` tool now with a description of the specific opera
 task you need to perform. The tool will check available skills, training knowledge, and \
 man pages, then return the confirmed steps to follow.
 
-Once you have the procedure, follow it. If the tool returns that the procedure \
-could not be confirmed and recommends asking the user, ask the user directly \
-before proceeding.`;
+Wait for the tool to return the confirmed procedure, then follow it. If the \
+procedure cannot be determined automatically, you may be prompted to switch to \
+the branch session pane (/agent) to provide information directly.`;
 
 const GATHER_EVIDENCE_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE Before iterating further on your current \
@@ -1334,9 +1337,9 @@ export default function osAgent(pi: ExtensionAPI): void {
 			const systemPrompt = skillsBlock
 				? `${skillsBlock}\n\n${RESEARCH_PROCEDURE_TOOL_SYSTEM_PROMPT}`
 				: RESEARCH_PROCEDURE_TOOL_SYSTEM_PROMPT;
-			let text: string | undefined;
+			let text: string;
 			try {
-				text = await pi.runBranchSession(`# PROCEDURE LOOKUP TASK\n${params.task}`, {
+				text = await pi.newBranchSession(`# PROCEDURE LOOKUP TASK\n${params.task}`, {
 					systemPrompt,
 					systemPromptOverride: true,
 					tools: ["read", "grep", "find", "ls", "bash"],
@@ -1345,6 +1348,11 @@ export default function osAgent(pi: ExtensionAPI): void {
 					seedContext: true,
 					abortSignal: signal,
 					injectEvery: { turns: 5, message: PROCEDURE_REMINDER_TEXT },
+					onWaiting: () =>
+						ctx.ui.notify(
+							"researchProcedure needs input — switch to the 'procedure' pane via /agent.",
+							"info",
+						),
 				});
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : String(err);
@@ -1354,14 +1362,7 @@ export default function osAgent(pi: ExtensionAPI): void {
 				};
 			}
 			return {
-				content: [
-					{
-						type: "text" as const,
-						text:
-							text ??
-							"(procedure subagent produced no output — it may have exited without writing findings)",
-					},
-				],
+				content: [{ type: "text" as const, text }],
 				details: undefined,
 			};
 		},
