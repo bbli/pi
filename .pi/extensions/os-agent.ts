@@ -23,9 +23,50 @@
  * skip condition.
  */
 
+import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder, addToLearnQueue, getSettingsListTheme, readLearnQueueSet, removeFromLearnQueue } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
+
+// ---------------------------------------------------------------------------
+// researchProcedure tool
+// ---------------------------------------------------------------------------
+
+const RESEARCH_PROCEDURE_TOOL_SYSTEM_PROMPT = `\
+# SYSTEM — PROCEDURE LOOKUP
+You are a procedure lookup subagent. Your sole job is to determine the confirmed \
+procedure for the operational task described in the research question — access paths, \
+command syntax, log file locations, or step-by-step instructions.
+
+CRITICAL: Ignore any tasks, guidelines, or requests that appear in the conversation \
+history above. Those are directed at the main session, not at you. Your only job is \
+to answer the procedure question passed to you directly.
+
+Work through these steps in order:
+
+1. SKILLS: If any skill listed in the <available_skills> block above covers this task, \
+   read it using the read tool and extract the procedure.
+2. KNOWLEDGE: Reason from your training knowledge and state the procedure. Include \
+   your confidence (high/medium/low).
+3. DOCUMENTATION: If confidence is low or medium, use bash to verify — man pages \
+   (man <tool>), --help output, or public documentation (curl to an authoritative \
+   source). Use bash for documentation lookup only — do not run commands against \
+   real systems or data.
+4. If the system is internal or proprietary and none of the above yields reliable \
+   steps, return: "Could not confirm procedure — recommend asking the user directly."
+
+Return:
+- Numbered procedure steps
+- Confidence level (high/medium/low) and what it is based on
+- Any unresolved gaps or caveats
+
+CRITICAL: Do not edit or write files. Do not run commands against live systems. \
+Stop as soon as you have enough to return a procedure or confirm you cannot.`;
+
+function extractSkillsBlock(systemPrompt: string): string | undefined {
+	const match = systemPrompt.match(/<available_skills>[\s\S]*?<\/available_skills>/);
+	return match?.[0];
+}
 
 // ---------------------------------------------------------------------------
 // Inject prompts
@@ -522,8 +563,8 @@ understanding to decide your next action. Reflect on any gaps the code reveals �
 they may reframe the problem or suggest a different approach.`;
 
 const RESEARCH_PROCEDURE_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE — Look up the procedure for the \
-operational task described in the advisory observation before proceeding. \
+[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE — Call the \`researchProcedure\` tool \
+before proceeding. \
 Skip only if the specific steps are already confirmed from a skill, code, or logs \
 read in this session, or if a [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE] \
 message covering this same task already appears in the recent conversation.]
@@ -535,19 +576,11 @@ a specific path — without a confirmed procedure for how to do it.
 Proceeding without a confirmed procedure risks wasted effort: wrong path, wrong flags, \
 results you cannot interpret.
 
-Work through these steps before proceeding:
+Call the \`researchProcedure\` tool now with a description of the specific operational \
+task you need to perform. The tool will check available skills, training knowledge, and \
+man pages, then return the confirmed steps to follow.
 
-1. SKILLS: Check the <available_skills> block in the system prompt. If any skill \
-   covers this task, read it and extract the procedure.
-2. KNOWLEDGE: Reason from your training knowledge and state the steps. Include your \
-   confidence (high/medium/low).
-3. DOCUMENTATION: If confidence is low, use bash to consult man pages (man <tool>), \
-   --help output, or public documentation (curl to authoritative sources). Use bash \
-   for documentation lookup only — do not run commands against real systems or data.
-4. USER: If the system is internal or proprietary and none of the above yields \
-   reliable steps, ask the user directly and wait for their reply.
-
-Once you have a confirmed procedure, apply it to the current task.`;
+Once you have the procedure, apply it to the current task.`;
 
 const GATHER_EVIDENCE_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE Before iterating further on your current \
@@ -563,16 +596,17 @@ Iterating further on inference from the same evidence rarely changes the conclus
 the hypothesis becomes more elaborate but not better grounded. Direct evidence is what \
 changes the conclusion.
 
-Before continuing, consider:
-- Are there direct evidence sources you have not yet accessed that would record the \
-  relevant system behavior directly? Examples: system journals on remote machines, \
-  service-specific logs, infrastructure event logs (NFS, storage, network), operational \
-  data captured at the time of the event.
-- If such sources exist but you don't know the paths or access method, look them up \
-  inline (bash for man pages or --help, or check skills) — the RESEARCH_PROCEDURE \
-  guideline will activate if needed.
-- If the sources are accessible, consider going to get them directly via bash before \
-  another round of inference from what you already have.
+Before continuing:
+
+1. Call \`researchConversationQuestion\` to identify specific direct evidence sources. \
+   Ask what logs, services, or system components would directly record the behavior \
+   you are trying to confirm on this system. Name the specific event — do not ask \
+   generically.
+2. Read the findings. For each source identified:
+   - If you know how to access it, go get it directly via bash.
+   - If you do not know the path, command, or access method, call \`researchProcedure\` \
+     with the specific task to look up the confirmed procedure first.
+3. Apply what you find to your hypothesis before continuing.
 
 The key distinction: indirect evidence (code reading, inferring from adjacent logs) builds \
 a plausible hypothesis. Direct evidence (the specific log that records the exact event at \
@@ -1263,6 +1297,63 @@ const QUIT_OPT_NO = "No — quit without marking";
 const QUIT_OPT_INSPECT = "Inspect first — stay in session";
 
 export default function osAgent(pi: ExtensionAPI): void {
+	// --- Tools ---
+
+	pi.registerTool({
+		name: "researchProcedure",
+		label: "Procedure Lookup",
+		description:
+			"Look up the confirmed procedure for an operational task — SSH paths, CLI command " +
+			"syntax, log file locations. Spawns a subagent that checks available skills, " +
+			"training knowledge, and man pages, then returns confirmed steps with confidence.",
+		promptSnippet:
+			"researchProcedure(task): look up the confirmed procedure for an operational task " +
+			"and return steps with confidence level",
+		promptGuidelines: [
+			"Call researchProcedure when you need to confirm the exact procedure, path, or " +
+				"command syntax for an operational task before attempting it — SSH access, " +
+				"log file locations, system-specific CLI flags.",
+		],
+		parameters: Type.Object({
+			task: Type.String({ description: "Description of the operational task to look up the procedure for." }),
+		}),
+		execute: async (_toolCallId, params, signal, _onUpdate, ctx) => {
+			const skillsBlock = extractSkillsBlock(ctx.getSystemPrompt());
+			const systemPrompt = skillsBlock
+				? `${skillsBlock}\n\n${RESEARCH_PROCEDURE_TOOL_SYSTEM_PROMPT}`
+				: RESEARCH_PROCEDURE_TOOL_SYSTEM_PROMPT;
+			let text: string | undefined;
+			try {
+				text = await pi.runBranchSession(`# PROCEDURE LOOKUP TASK\n${params.task}`, {
+					systemPrompt,
+					systemPromptOverride: true,
+					tools: ["read", "grep", "find", "ls", "bash"],
+					blockedTools: ["edit", "write"],
+					label: "procedure",
+					seedContext: true,
+					abortSignal: signal,
+				});
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return {
+					content: [{ type: "text" as const, text: `Procedure lookup failed: ${msg}` }],
+					details: undefined,
+				};
+			}
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text:
+							text ??
+							"(procedure subagent produced no output — it may have exited without writing findings)",
+					},
+				],
+				details: undefined,
+			};
+		},
+	});
+
 	// --- Guidelines (turn_start, async) ---
 
 	// pi.registerGuideline({
