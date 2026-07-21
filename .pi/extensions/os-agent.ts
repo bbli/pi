@@ -584,7 +584,9 @@ Call the \`researchProcedure\` tool now with a description of the specific opera
 task you need to perform. The tool will check available skills, training knowledge, and \
 man pages, then return the confirmed steps to follow.
 
-Once you have the procedure, apply it to the current task.`;
+Once you have the procedure, follow it. If the tool returns that the procedure \
+could not be confirmed and recommends asking the user, ask the user directly \
+before proceeding.`;
 
 const GATHER_EVIDENCE_PROMPT = `\
 [SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE Before iterating further on your current \
