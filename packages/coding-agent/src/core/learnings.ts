@@ -305,10 +305,10 @@ Follow \`links-to\`, \`used-in\`, and \`corollary-of\` fields on relationships s
 `;
 
 /**
- * The analysis prompt injected at the start of a `pi --learn` session.
- * Sent as the first user message so the LLM analyzes the conversation
- * history, proposes changes to the learnings graph, and waits for explicit
- * user approval before writing anything to .pi/learnings/.
+ * The analysis prompt sent when the user invokes `/learn` in an active session.
+ * The LLM analyzes the conversation history, proposes changes to the learnings
+ * graph, and waits for explicit user approval before writing anything to
+ * .pi/learnings/.
  *
  * Graph structure:
  *   .pi/learnings/relationships/  — portable methods derived from sessions

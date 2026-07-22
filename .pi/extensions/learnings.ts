@@ -108,12 +108,23 @@ entries.`;
 // ---------------------------------------------------------------------------
 
 export default function learningsExtension(pi: ExtensionAPI): void {
+	let isPending = false;
+
+	pi.on("agent_start", () => {
+		isPending = false;
+	});
+
 	pi.registerCommand("learnings", {
 		description:
 			"Inspect .pi/learnings/ and bring it in sync with the current schema. " +
 			"Agent compares on-disk state to the spec, proposes updates, and executes after approval.",
 		handler: async (_args, ctx) => {
 			if (!ctx.hasUI) return;
+			if (isPending) {
+				ctx.ui.notify("[learnings] already pending — wait for the current inspection to complete", "warning");
+				return;
+			}
+			isPending = true;
 			ctx.ui.notify("[learnings] inspecting .pi/learnings/ ...", "info");
 			pi.sendUserMessage(LEARNINGS_MAINTENANCE_PROMPT, { deliverAs: "followUp" });
 		},
