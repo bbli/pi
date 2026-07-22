@@ -353,7 +353,7 @@ The \`relation\` field tells you how to use it:
 **If no principle exists** — grep summaries by relationship ID directly:
 
 \`\`\`
-grep -rl "[<relationship-id>]" .pi/learnings/summaries/ 2>/dev/null
+grep -rl "\\[<relationship-id>\\]" .pi/learnings/summaries/ 2>/dev/null
 \`\`\`
 
 Read matching summaries for narrative context: when this knowledge was relevant, what the surrounding situation looked like, how it played out in practice.
@@ -425,7 +425,7 @@ Write with exact names throughout — log tags, file paths, function names, coun
 For each relationship ID cited in this session's summary, check how many other summaries cite it:
 
 \`\`\`
-grep -rl "[<relationship-id>]" .pi/learnings/summaries/ 2>/dev/null | wc -l
+grep -rl "\\[<relationship-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l
 \`\`\`
 
 If the grep returns **2 or more** existing summaries (this session is one more, bringing the total to ≥3) AND no principle exists yet for this relationship:
