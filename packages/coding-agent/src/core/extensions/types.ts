@@ -1163,9 +1163,8 @@ export interface BranchSessionOptions {
 	seedContext?: boolean;
 	/**
 	 * Thinking level for the branch session.
-	 * Defaults to "off" — branch sessions do not use extended thinking unless
-	 * explicitly requested. Set to a higher level for sessions that require deep
-	 * analytical reasoning rather than tool-driven exploration.
+	 * Defaults to the root session's current thinking level.
+	 * Override to force a specific level regardless of the root session.
 	 */
 	thinkingLevel?: ThinkingLevel;
 	/**

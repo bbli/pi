@@ -297,7 +297,6 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				tools: ["read", "bash"],
 				customTools: [injectMessageTool],
 				label: "act-as-user",
-				thinkingLevel: pi.getThinkingLevel(),
 				injectEvery: { turns: 3, message: QUESTION_GEN_REMINDER },
 				abortSignal: signal,
 			});
@@ -378,7 +377,6 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				tools: ["read", "bash"],
 				customTools: [injectMessageTool],
 				label: "act-as-user",
-				thinkingLevel: pi.getThinkingLevel(),
 				injectEvery: { turns: 3, message: QUESTION_GEN_REMINDER },
 			});
 		} catch (err) {

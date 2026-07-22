@@ -76,7 +76,7 @@ async function createBranchAgentSession(
 		sessionManager: SessionManager.inMemory(),
 		model: options.model ?? mainSession.model!,
 		modelRegistry: mainSession.modelRegistry,
-		thinkingLevel: options.thinkingLevel ?? "off",
+		thinkingLevel: options.thinkingLevel ?? mainSession.thinkingLevel,
 		tools: [...builtinTools, ...customToolNames],
 		customTools: options.customTools,
 		resourceLoader: createBranchResourceLoader(mainSession.resourceLoader, overrideSystemPrompt),
