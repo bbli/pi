@@ -1,7 +1,7 @@
 /**
  * Learnings Extension
  *
- * Provides a /learnings command that injects a maintenance prompt into the
+ * Provides a /convert-learnings command that injects a maintenance prompt into the
  * main session. The agent inspects .pi/learnings/, compares the current
  * on-disk state against the canonical schema spec, proposes any needed
  * updates (migrations, README repairs, format fixes), and executes after
@@ -114,18 +114,18 @@ export default function learningsExtension(pi: ExtensionAPI): void {
 		isPending = false;
 	});
 
-	pi.registerCommand("learnings", {
+	pi.registerCommand("convert-learnings", {
 		description:
 			"Inspect .pi/learnings/ and bring it in sync with the current schema. " +
 			"Agent compares on-disk state to the spec, proposes updates, and executes after approval.",
 		handler: async (_args, ctx) => {
 			if (!ctx.hasUI) return;
 			if (isPending) {
-				ctx.ui.notify("[learnings] already pending — wait for the current inspection to complete", "warning");
+				ctx.ui.notify("[convert-learnings] already pending — wait for the current inspection to complete", "warning");
 				return;
 			}
 			isPending = true;
-			ctx.ui.notify("[learnings] inspecting .pi/learnings/ ...", "info");
+			ctx.ui.notify("[convert-learnings] inspecting .pi/learnings/ ...", "info");
 			pi.sendUserMessage(LEARNINGS_MAINTENANCE_PROMPT, { deliverAs: "followUp" });
 		},
 	});

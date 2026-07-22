@@ -25,7 +25,7 @@
 
 import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, LEARN_ANALYSIS_PROMPT, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
 
 // ---------------------------------------------------------------------------
@@ -1296,6 +1296,11 @@ class AdvisoryStatusComponent extends Container {
 // ---------------------------------------------------------------------------
 
 
+// Option strings for the session_before_quit select dialog.
+const QUIT_OPT_LEARN = "Run /learn first \u2014 stay in session";
+const QUIT_OPT_NO = "No \u2014 quit without learning";
+const QUIT_OPT_INSPECT = "Inspect first \u2014 stay in session";
+
 export default function osAgent(pi: ExtensionAPI): void {
 	// --- Tools ---
 
@@ -1728,6 +1733,24 @@ export default function osAgent(pi: ExtensionAPI): void {
 			}
 			await ctx.ui.custom<void>((_tui, _theme, _kb, done) => new AdvisoryStatusComponent(pi, done));
 		},
+	});
+
+	// --- session_before_quit: prompt to run /learn (advisory sessions only) ---
+
+	pi.on("session_before_quit", async (_, ctx) => {
+		if (!pi.getAdvisoryEnabled()) return;
+		const choice = await ctx.ui.select(
+			"Run /learn on this session before quitting?",
+			[QUIT_OPT_LEARN, QUIT_OPT_NO, QUIT_OPT_INSPECT],
+		);
+		if (choice === QUIT_OPT_INSPECT) {
+			return { cancel: true };
+		}
+		if (choice === QUIT_OPT_LEARN) {
+			pi.sendUserMessage(LEARN_ANALYSIS_PROMPT, { deliverAs: "followUp" });
+			return { cancel: true };
+		}
+		// QUIT_OPT_NO and undefined (dismissed) — quit without learning.
 	});
 
 	// --- Startup logging (fires after bindCore, so advisory API is live) ---
