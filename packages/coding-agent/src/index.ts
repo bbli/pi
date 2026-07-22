@@ -157,7 +157,7 @@ export {
 	LEARN_ANALYSIS_PROMPT,
 	RELATIONSHIP_DESIGN_SKILL_TEXT,
 	SEARCH_SKILL_TEXT,
-} from "./core/learnings.ts";
+} from "./core/memory.ts";
 export { convertToLlm } from "./core/messages.ts";
 export { ModelRegistry } from "./core/model-registry.ts";
 export type {
