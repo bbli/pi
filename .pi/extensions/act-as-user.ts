@@ -133,7 +133,7 @@ approach itself may be wrong
 
 The learnings graph at \`.pi/learnings/\` has three layers:
 - **Relationships** (\`relationships/\`) — the thinking frame: portable methods encoding how this user approaches a type of problem
-- **Observations** (\`observations/\`) — typed codebase knowledge: atomic facts connecting abstract methods to concrete artifacts, each with a \`relation\` type (instance-of, prerequisite-for, exception-to, trigger-for, composes)
+- **Codebase Principles** (\`principles/\`) — typed codebase knowledge: concrete recurring patterns connecting abstract methods to specific artifacts, each with a \`relation\` type (instance-of, prerequisite-for, exception-to, trigger-for, composes)
 - **Summaries** (\`summaries/\`) — session narrative records: historical context showing when and how knowledge was applied
 
 ${SEARCH_SKILL_TEXT}
@@ -158,18 +158,37 @@ operational specificity (access path, grep pattern, time window, researchProcedu
 call) not already in the conversation. A second voice that sharpens is worth \
 injecting; one that merely repeats is not.
 
+---
+
+**Phase 2c: Synthesize before deciding — do this regardless of whether 2a or 2b applied.**
+
+Write out your reasoning explicitly.
+
+**Rank the candidates.** If Phase 2 surfaced multiple angles — unexplored areas, \
+hypotheses, corrections — order them by consequence. The candidate that would cause \
+the most damage if the agent misses it ranks first. State the ranking.
+
+**Draft the injection.** Write what the injectMessage call would say. Does it name \
+a specific file, command, log, or mechanism — or is it still generic? Generic is \
+not worth injecting.
+
+**Gap check.** Has the agent already said this — either in the turn's text or in a \
+tool call that's already planned? If so, injecting adds no value.
+
+Only after completing Phase 2c proceed to Phase 3.
+
 ## Phase 3: Decide whether to inject
 
-If the goal has clearly been satisfied, call injectMessage to tell the main session \
-that the goal appears complete and it should call goal_satisfied. Then stop.
+**Step 3a — Goal satisfied.** If the goal has clearly been satisfied, call \
+injectMessage to tell the main session that the goal appears complete and it should \
+call goal_satisfied. Then stop.
 
-If the hypothesis or next step you identified adds nothing beyond what the agent has \
-already said, stop without calling injectMessage. A vague or speculative suggestion \
-is not worth injecting.
+**Step 3b — Nothing to add.** If the draft from Phase 2c is vague, speculative, \
+or already present in the agent's conversation, stop without calling injectMessage.
 
-Otherwise, call injectMessage once with a concise, conversational observation. \
-Speak as a peer watching alongside the agent, not as a critic or a system. \
-Keep it to the one or two most valuable things identified in Phase 2.
+**Step 3c — Inject.** Otherwise, call injectMessage once with the highest-ranked, \
+most concrete finding from Phase 2c. Speak as a peer watching alongside the agent, \
+not as a critic or a system. Keep it to the one or two most valuable things.
 
 - If the agent is on track: lead with the concrete next step from Phase 2a.
 - If the agent is off track: lead with the hypothesis from Phase 2b — the abstract \
@@ -214,24 +233,46 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 
 ## Step 2: Query the learnings graph
 
-Apply the following traversal procedure, Steps 1–5 only (orient via README, read relationships, clarify frame, search observations, search summaries). Skip Steps 6–7 — corollary derivation and expand are for active problem-solving, not session orientation.
+Apply the following traversal procedure, Steps 1–5 only (orient via README, read relationships, clarify frame, search principles or summaries, synthesize). Skip Steps 6–7 — corollary derivation and expand are for active problem-solving, not session orientation.
 
 ${SEARCH_SKILL_TEXT}
 
 If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \
 calling injectMessage.
 
+## Step 2.5: Synthesize — map the findings to the task
+
+Write out your reasoning explicitly before proceeding to Step 3.
+
+**Task–learning fit.** For each relationship you read, ask whether it applies \
+directly to this specific task — not loosely related, but directly applicable. \
+What would the agent likely miss or do wrong without this knowledge?
+
+**Rank by consequence.** If multiple relationships apply, order them. An \
+exception-to or prerequisite-for principle the agent would naturally skip \
+ranks higher than a generic instance-of. State the ranking and the reasoning \
+behind it.
+
+**Gap check.** Does the agent's first response already demonstrate awareness of \
+the highest-value finding? If so, injecting adds nothing.
+
+**Draft the injection.** Write what "Before diving in: ..." would say. Does it \
+tell the agent something concrete and actionable it doesn't already know? If it \
+sounds generic or vague, it is not worth injecting.
+
+Only after completing this step proceed to Step 3.
+
 ## Step 3: Decide whether to inject
 
-If the learnings reveal domain knowledge clearly relevant to this task that the \
-agent's first response does not already address → call injectMessage once with a \
-brief, concrete orientation. Speak as a peer, not a system.
+**Step 3a — Nothing relevant found.** If Step 2 found no relationships applicable \
+to this task type, stop without calling injectMessage.
 
-Format: "Before diving in: [the domain knowledge / codebase pattern / user preference \
-that matters here]."
+**Step 3b — Already covered.** If the highest-ranked finding from Step 2.5 is \
+already present in the agent's first response, stop without calling injectMessage.
 
-If nothing relevant is found, or the first response already covers it, stop without \
-calling injectMessage.`;
+**Step 3c — Inject.** Otherwise, call injectMessage once with the highest-ranked \
+finding from Step 2.5 in concrete form. Format: "Before diving in: [finding]." \
+Stop immediately after.`;
 }
 
 // ---------------------------------------------------------------------------
