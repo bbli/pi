@@ -74,7 +74,7 @@ export async function removeFromLearnQueue(id: string): Promise<boolean> {
  * Relationship design procedure embedded from .pi/skills/relationship-design.md.
  * Describes the schema and guidelines for codebase principles, relationships, and corollaries.
  */
-const RELATIONSHIP_DESIGN_SKILL_TEXT = `\
+export const RELATIONSHIP_DESIGN_SKILL_TEXT = `\
 # Relationship and Codebase Principle Design
 
 The learnings graph has two complementary layers. A **relationship** says what to do; a **codebase principle** says what to look at when doing it in a specific codebase. Always read both together when consulting the graph.

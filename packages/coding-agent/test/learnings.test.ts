@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { ENV_AGENT_DIR } from "../src/config.ts";
-import { addToLearnQueue, readLearnQueueSet, removeFromLearnQueue } from "../src/core/learned-sessions.ts";
+import { addToLearnQueue, readLearnQueueSet, removeFromLearnQueue } from "../src/core/learnings.ts";
 
-describe("learned-sessions", () => {
+describe("learnings", () => {
 	let tempDir: string;
 	let originalEnv: string | undefined;
 

@@ -155,10 +155,11 @@ export {
 export type { ReadonlyFooterDataProvider } from "./core/footer-data-provider.ts";
 export {
 	addToLearnQueue,
+	RELATIONSHIP_DESIGN_SKILL_TEXT,
 	readLearnQueueSet,
 	removeFromLearnQueue,
 	SEARCH_SKILL_TEXT,
-} from "./core/learned-sessions.ts";
+} from "./core/learnings.ts";
 export { convertToLlm } from "./core/messages.ts";
 export { ModelRegistry } from "./core/model-registry.ts";
 export type {

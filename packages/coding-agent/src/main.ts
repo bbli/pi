@@ -29,7 +29,7 @@ import { exportFromFile } from "./core/export-html/index.ts";
 import type { ExtensionFactory } from "./core/extensions/types.ts";
 import { configureHttpDispatcher } from "./core/http-dispatcher.ts";
 import { KeybindingsManager } from "./core/keybindings.ts";
-import { LEARN_ANALYSIS_PROMPT, readLearnQueueSet } from "./core/learned-sessions.ts";
+import { LEARN_ANALYSIS_PROMPT, readLearnQueueSet } from "./core/learnings.ts";
 import type { ModelRegistry } from "./core/model-registry.ts";
 import { resolveCliModel, resolveModelScope, type ScopedModel } from "./core/model-resolver.ts";
 import { restoreStdout, takeOverStdout } from "./core/output-guard.ts";

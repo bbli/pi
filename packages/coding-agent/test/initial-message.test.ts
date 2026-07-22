@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Args } from "../src/cli/args.ts";
 import { buildInitialMessage } from "../src/cli/initial-message.ts";
-import { LEARN_ANALYSIS_PROMPT } from "../src/core/learned-sessions.ts";
+import { LEARN_ANALYSIS_PROMPT } from "../src/core/learnings.ts";
 
 function createArgs(messages: string[] = []): Args {
 	return {
