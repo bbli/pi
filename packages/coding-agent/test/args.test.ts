@@ -84,23 +84,6 @@ describe("parseArgs", () => {
 		});
 	});
 
-	describe("--learn flag", () => {
-		test("parses --learn flag", () => {
-			const result = parseArgs(["--learn"]);
-			expect(result.learn).toBe(true);
-		});
-
-		test("parses -l shorthand", () => {
-			const result = parseArgs(["-l"]);
-			expect(result.learn).toBe(true);
-		});
-
-		test("learn is absent by default", () => {
-			const result = parseArgs([]);
-			expect(result.learn).toBeUndefined();
-		});
-	});
-
 	describe("flags with values", () => {
 		test("parses --provider", () => {
 			const result = parseArgs(["--provider", "openai"]);
