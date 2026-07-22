@@ -110,7 +110,7 @@ entries.`;
 export default function learningsExtension(pi: ExtensionAPI): void {
 	let isPending = false;
 
-	pi.on("agent_start", () => {
+	pi.on("agent_end", () => {
 		isPending = false;
 	});
 
