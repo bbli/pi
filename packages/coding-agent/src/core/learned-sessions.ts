@@ -496,6 +496,17 @@ date +%Y-%m-%d
 mkdir -p .pi/learnings/principles .pi/learnings/summaries .pi/learnings/relationships
 \`\`\`
 
+**Migrate from \`observations/\` if present.**
+If \`.pi/learnings/observations/\` exists and this is the first write pass under the new schema:
+\`\`\`
+ls .pi/learnings/observations/ 2>/dev/null
+\`\`\`
+For each observation file found, count how many summaries cite its ID:
+\`\`\`
+grep -rl "\\[<observation-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l
+\`\`\`
+If the count is **3 or more**: copy the file to \`.pi/learnings/principles/<id>.md\` — it already meets the threshold and is an established codebase principle. If the count is fewer than 3: leave it — it was a pre-threshold observation and should be reconsidered once the pattern recurs in future sessions.
+
 **Write the session summary.**
 Write to \`.pi/learnings/summaries/<date>-<goal-slug>.md\`:
 \`\`\`
