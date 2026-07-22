@@ -297,7 +297,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				tools: ["read", "bash"],
 				customTools: [injectMessageTool],
 				label: "act-as-user",
-				injectEvery: { turns: 3, message: QUESTION_GEN_REMINDER },
+				injectEvery: { turns: 6, message: QUESTION_GEN_REMINDER },
 				abortSignal: signal,
 			});
 		} catch (err) {
