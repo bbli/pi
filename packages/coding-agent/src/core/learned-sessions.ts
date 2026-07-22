@@ -428,7 +428,7 @@ For each relationship ID cited in this session's summary, check how many other s
 grep -rl "[<relationship-id>]" .pi/learnings/summaries/ 2>/dev/null | wc -l
 \`\`\`
 
-If the total count (including this session) reaches ≥3 AND no principle exists yet for this relationship:
+If the grep returns **2 or more** existing summaries (this session is one more, bringing the total to ≥3) AND no principle exists yet for this relationship:
 
 Read the matching summaries. Confirm that a **specific codebase pattern** — not just the abstract relationship being applied — recurs across them. A relationship appearing 3 times does not automatically warrant a principle; a concrete, narrow codebase-specific pattern (a specific log tag, prerequisite, exception condition, or trigger signal) appearing 3 times does.
 
