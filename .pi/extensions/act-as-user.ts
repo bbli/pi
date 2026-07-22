@@ -233,7 +233,7 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 
 ## Step 2: Query the learnings graph
 
-Apply the following traversal procedure, Steps 1–5 only (orient via README, read relationships, clarify frame, search principles or summaries, synthesize). Skip Steps 6–7 — corollary derivation and expand are for active problem-solving, not session orientation.
+Apply the following traversal procedure, Steps 1–4 only (orient via README, read relationships, clarify frame, search principles or summaries). Skip Steps 5–6 — corollary derivation and expand are for active problem-solving, not session orientation.
 
 ${SEARCH_SKILL_TEXT}
 
