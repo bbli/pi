@@ -72,19 +72,19 @@ export async function removeFromLearnQueue(id: string): Promise<boolean> {
 
 /**
  * Relationship design procedure embedded from .pi/skills/relationship-design.md.
- * Describes the schema and guidelines for observations, relationships, and corollaries.
+ * Describes the schema and guidelines for codebase principles, relationships, and corollaries.
  */
 const RELATIONSHIP_DESIGN_SKILL_TEXT = `\
-# Relationship and Observation Design
+# Relationship and Codebase Principle Design
 
-The learnings graph has two complementary layers. A **relationship** says what to do; an **observation** says what to look at when doing it in a specific codebase. Always read both together when consulting the graph.
+The learnings graph has two complementary layers. A **relationship** says what to do; a **codebase principle** says what to look at when doing it in a specific codebase. Always read both together when consulting the graph.
 
 ---
-## observations/
+## principles/
 
-Observations are atomic knowledge nodes — individual facts, scoped methods, prerequisites, exceptions, or triggers discovered about this codebase. Each has its own ID and a typed connection to a relationship (or no connection yet if the abstract relationship isn’t evident).
+Codebase principles are concrete, recurring patterns discovered in this codebase — specific facts, scoped methods, prerequisites, exceptions, or triggers that have appeared as the same specific codebase-level pattern in ≥3 sessions. Each has its own ID and a typed connection to a relationship.
 
-Observations serve as **tags on summaries**. When a session summary cites an observation ID, it marks that session as one where that observation was relevant. This tagging is what enables promotion: an observation cited in 3 or more summaries earns a place in the README as established codebase knowledge.
+Codebase principles serve as **tags on summaries**. When a session summary cites a principle ID, it marks that session as one where that principle was relevant.
 
 ### Format
 
@@ -100,9 +100,9 @@ Use exact names: log tags, file paths, function names, counter names.
 
 ### Connection types
 
-The \`relation\` field describes how this observation connects to its relationship:
+The \`relation\` field describes how this principle connects to its relationship:
 
-**instance-of** — the observation IS the relationship applied to this codebase: the concrete artifact, log tag, or procedure that makes the abstract method executable here.
+**instance-of** — the principle IS the relationship applied to this codebase: the concrete artifact, log tag, or procedure that makes the abstract method executable here.
 > \`relates-to: interleave-expected-vs-actual-timeline\`
 > "use \`rg UNIT_TEST\` under the test’s component tag for expected steps, \`rg space_tuples_trace\` for actual ops; sort both by timestamp and diff"
 
@@ -124,41 +124,33 @@ The \`relation\` field describes how this observation connects to its relationsh
 
 ### Origin
 
-Observations are either **demonstrated** or **inferred**:
+Codebase principles are either **demonstrated** or **inferred**:
 
-- **Demonstrated** — directly observed from a session: the user showed or described it, the agent encountered it, or it was explicitly corrected. This is the default.
-- **Inferred** — derived by composing existing relationships (see Corollaries). Not yet confirmed by a session. Add \`inferred: true\` to frontmatter and note the derivation in prose. Becomes demonstrated once a summary cites it.
-
-### Status
-
-An observation moves through three statuses based on how many summaries cite it:
-
-- **Regular** — cited in fewer than 3 summaries. Known but not yet established.
-- **Promoted** — cited in 3 or more summaries. Appears in the README as established codebase knowledge. Surfaced at session start by the orientation step.
-- **Standing rule candidate** — promoted and stable enough to propose for \`AGENTS.md\` as an unconditional rule. The learn session flags it: “this has been relevant in N sessions — should it become a standing rule?” The user decides.
+- **Demonstrated** — created from ≥3 sessions showing the same specific codebase pattern. This is the default for all non-corollary principles.
+- **Inferred** — derived by composing existing relationships (see Corollaries). Not yet confirmed by sessions. Add \`inferred: true\` to frontmatter and note the derivation in prose. Becomes demonstrated once ≥3 summaries cite it.
 
 ### Scope
 
-Most observations are **codebase-scoped** — they describe facts about this specific codebase and connect to a relationship via \`relates-to\`. But some useful observations are **meta-scoped**: they describe how the user prefers to work, communicate, or make decisions, and don’t connect to any codebase relationship. Examples: “user prefers synthesis over exploration when the picture is clear”, “user asks for diagrams when component boundaries are in question”.
+Most principles are **codebase-scoped** — they describe facts about this specific codebase and connect to a relationship via \`relates-to\`. But some useful principles are **meta-scoped**: they describe how the user prefers to work, communicate, or make decisions, and don’t connect to any codebase relationship. Examples: “user prefers synthesis over exploration when the picture is clear”, “user asks for diagrams when component boundaries are in question”.
 
-Meta-scoped observations have an empty \`relates-to\` and do not get a \`relation\` type. They are still tagged to summaries and can be promoted, but they surface through the README rather than through relationship-based search.
+Meta-scoped principles have an empty \`relates-to\` and do not get a \`relation\` type. They are still tagged to summaries and surface through the README rather than through relationship-based search.
 
 ### File naming
 
-\`observations/<id>.md\` — the filename is the observation ID. Observations are shared across sessions and not session-scoped.
+\`principles/<id>.md\` — the filename is the principle ID. Codebase principles are shared across sessions and not session-scoped.
 
-### How to Write Good Observations
+### How to Write Good Codebase Principles
 
-**Ground in real names.** Use exact names throughout — log tags, file paths, function names, counter names. An observation that says “check \`space_tuples_trace\`” is useful; one that says “check the relevant trace file” is not.
+**Ground in real names.** Use exact names throughout — log tags, file paths, function names, counter names. A principle that says “check \`space_tuples_trace\`” is useful; one that says “check the relevant trace file” is not.
 
-**Use the right connection type.** The \`relation\` field shapes how a future agent uses the observation. An \`instance-of\` tells the agent what to do; a \`prerequisite-for\` tells it what to check first; an \`exception-to\` tells it when to stop; a \`trigger-for\` tells it when to start; a \`composes\` gives it a ready-made recipe. Choosing the wrong type misfires the observation at search time.
+**Use the right connection type.** The \`relation\` field shapes how a future agent uses the principle. An \`instance-of\` tells the agent what to do; a \`prerequisite-for\` tells it what to check first; an \`exception-to\` tells it when to stop; a \`trigger-for\` tells it when to start; a \`composes\` gives it a ready-made recipe. Choosing the wrong type misfires the principle at search time.
 
-**The portability test (what fails it is an observation).** Replace all codebase-specific proper nouns in a candidate entry with generic placeholders. If it collapses — if you can’t say what to do without naming the specific tag or file — it belongs here, not in a relationship file.
+**The portability test (what fails it is a codebase principle).** Replace all codebase-specific proper nouns in a candidate entry with generic placeholders. If it collapses — if you can’t say what to do without naming the specific tag or file — it belongs here, not in a relationship file.
 
 ---
 ## summaries/
 
-Session summaries are narrative records of what happened in a learn session. They cite observation IDs and relationship IDs inline in their prose — observation citations are the tagging mechanism that links the session to the graph; relationship citations provide abstract context for the narrative.
+Session summaries are narrative records of what happened in a learn session. They cite principle IDs and relationship IDs inline in their prose. When a pattern has a codebase principle, cite its principle ID. When a theme does not yet have a principle, cite the relationship ID directly — this is what the learn session greps to detect recurring themes before a principle is created.
 
 ### Format
 
@@ -168,9 +160,8 @@ session-id: <current-session-id>
 goal: "the session goal"
 date: YYYY-MM-DD
 ---
-Narrative prose describing what happened. Cite observation IDs [observation-id] for
-specific facts applied or discovered. Cite relationship IDs [relationship-id] for
-abstract methods that framed the work.
+Narrative prose describing what happened. Cite [principle-id] for established codebase
+patterns. Cite [relationship-id] directly for themes that do not yet have a principle.
 \`\`\`
 
 ### File naming
@@ -213,11 +204,11 @@ should recognise it as applying when the same pattern appears.
 
 **Source is user demonstrations, not agent corrections.** When the user corrects the agent, it tells you the agent was wrong. When the user demonstrates how they would approach a problem, it tells you their method. Only the second produces a relationship. The practical filter: before writing a relationship, ask "what did the user do here?" not "what did the agent fail to do?" If the answer is "the user described a debugging workflow," write it. If the answer is "the user said the agent was wrong about X," don't — that's a local correction, not a transferable method.
 
-**Relationships tell you what to do without codebase lookup.** A relationship should be immediately applicable on a new codebase knowing only the method. If understanding the relationship requires knowing a specific log tag or file name, it's not a relationship — it's an observation that lost its relationship ID citation. The method and the codebase-specific artifact compose: the relationship supplies the method, the observation supplies the artifact.
+**Relationships tell you what to do without codebase lookup.** A relationship should be immediately applicable on a new codebase knowing only the method. If understanding the relationship requires knowing a specific log tag or file name, it’s not a relationship — it belongs in a codebase principle. The method and the codebase-specific artifact compose: the relationship supplies the method, the principle supplies the artifact.
 
-**The portability test (what survives it is a relationship).** Replace all codebase-specific proper nouns in a candidate entry with generic placeholders. If the statement is still meaningful and actionable, it's a relationship. If it collapses, it belongs in observations. Boundary cases — entries that partially survive — should default to an observation line under the parent relationship. A separate relationship file is only justified when the entry needs its own graph structure because other relationships reference it.
+**The portability test (what survives it is a relationship).** Replace all codebase-specific proper nouns in a candidate entry with generic placeholders. If the statement is still meaningful and actionable, it's a relationship. If it collapses, it belongs in a codebase principle. Boundary cases — entries that partially survive — should default to a codebase principle under the parent relationship. A separate relationship file is only justified when the entry needs its own graph structure because other relationships reference it.
 
-**Evidence threshold.** A relationship gains credibility when corroborated by an existing observation - finding a similar pattern in a past session's observation file is a strong signal that the relationship generalises. A single occurrence can still justify a new relationship when the method is clearly described and well-understood; use judgment. When evidence is thin, say so in the prose.
+**Evidence threshold.** A relationship gains credibility when corroborated by an existing codebase principle — finding a similar pattern in a past session’s principle file is a strong signal that the relationship generalises. A single occurrence can still justify a new relationship when the method is clearly described and well-understood; use judgment. When evidence is thin, say so in the prose.
 
 **Ground in real names.** Use real file names, function names, and component names in the prose where they ground the abstraction. The claim itself should remain portable - real names are examples, not constraints. A relationship that names \`space_tuples_trace\` to illustrate an interleaving method is more useful than one that says "check the relevant trace file."
 
@@ -254,7 +245,7 @@ To identify: A and B address the same problem from different angles and their ou
 
 ### Conditional (A → B if P, else C)
 
-A identifies which method to apply. The raw material is a \`trigger-for\` observation establishing when B applies, paired with an \`exception-to\` observation establishing when B does not — and an alternative relationship C that covers the exception case.
+A identifies which method to apply. The raw material is a \`trigger-for\` principle establishing when B applies, paired with an \`exception-to\` principle establishing when B does not — and an alternative relationship C that covers the exception case.
 
 > trigger-for B: “\`space_hazard\` appears alongside test failure → apply interleave method”
 > exception-to B: “coarse timestamps in snapshots cleanup path → interleave unreliable”
@@ -265,14 +256,14 @@ To identify: a \`trigger-for\` and an \`exception-to\` on the same relationship,
 
 ### Fallback (A, then B if A yields nothing)
 
-Apply A; if A produces no useful result, apply B. An \`exception-to\` observation directly signals this: it defines when A breaks down, and B is the relationship that handles that case.
+Apply A; if A produces no useful result, apply B. An \`exception-to\` principle directly signals this: it defines when A breaks down, and B is the relationship that handles that case.
 
 > A: *interleave-by-timestamp*
 > exception-to A: “coarse timestamps in snapshots cleanup path make this unreliable”
 > B: *interleave-by-event-sequence-id*
 > Corollary: try A; if timestamp resolution is insufficient, switch to B
 
-To identify: an \`exception-to\` observation on A paired with a relationship B that handles the exceptional case A cannot.
+To identify: an \`exception-to\` principle on A paired with a relationship B that handles the exceptional case A cannot.
 
 ### When to derive corollaries
 
@@ -280,7 +271,7 @@ After gathering and filtering relationships during triangulation, check whether 
 
 - Do any two relationships form a chain where A’s output is B’s input? → sequential
 - Do any two relationships address the same problem from different angles, with outputs that combine? → conjunctive
-- Does a \`trigger-for\` or \`exception-to\` observation on one relationship pair it with an alternative? → conditional or fallback
+- Does a \`trigger-for\` or \`exception-to\` principle on one relationship pair it with an alternative? → conditional or fallback
 
 Propose derived corollaries alongside demonstrated relationships. The \`composition\` field is the evidence for how they were derived.
 `;
@@ -290,15 +281,15 @@ Propose derived corollaries alongside demonstrated relationships. The \`composit
  * The 7-step sequence for querying the learnings graph.
  */
 export const SEARCH_SKILL_TEXT = `\
-# Search Relationships and Observations
+# Search Relationships and Codebase Principles
 
 The learnings graph has three layers, each serving a different role:
 
 - **Relationships** (\`relationships/\`) — the *thinking frame*: portable methods encoding how the user approaches a type of problem.
-- **Observations** (\`observations/\`) — *typed codebase knowledge*: atomic facts connecting abstract methods to concrete artifacts in this project. Each observation has a \`relation\` field (instance-of, prerequisite-for, exception-to, trigger-for, composes) and a \`relates-to\` field naming its parent relationship.
-- **Summaries** (\`summaries/\`) — *session narrative records*: historical context showing when and how knowledge was applied. Summaries tag observations and relationships by citing their IDs inline in prose.
+- **Codebase Principles** (\`principles/\`) — *typed codebase knowledge*: concrete recurring patterns connecting abstract methods to specific artifacts in this project. Each principle has a \`relation\` field (instance-of, prerequisite-for, exception-to, trigger-for, composes) and a \`relates-to\` field naming its parent relationship.
+- **Summaries** (\`summaries/\`) — *session narrative records*: historical context showing when and how knowledge was applied. Summaries cite principle IDs for established patterns and relationship IDs directly for themes without a principle yet.
 
-Observations answer "what does this relationship look like in this codebase?" Summaries answer "when was this knowledge relevant and what was happening around it?"
+Codebase principles answer "what does this relationship look like in this codebase?" Summaries answer "when was this knowledge relevant and what was happening around it?"
 
 ---
 
@@ -312,8 +303,8 @@ cat .pi/learnings/README.md 2>/dev/null
 
 The README has two sections:
 
-- **Established** — promoted observations (≥3 summary citations), grouped under their parent relationship with connection type noted. Meta-scoped observations (user preferences, no parent relationship) listed at the end.
-- **Accumulating** — relationships that have observations but none yet promoted, with citation count (e.g. 2/3).
+- **Codebase Principles** — principles grouped under their parent relationship with connection type noted. Meta-scoped principles (user preferences, no parent relationship) listed at the end.
+- **Relationships (no principle yet)** — relationships cited directly in summaries but below the ≥3 threshold, with citation count (e.g. 2/3).
 
 Identify relevant relationship IDs from both sections. If \`.pi/learnings/\` does not exist or the README is absent, proceed without the graph and note the absence.
 
@@ -329,9 +320,9 @@ For each relevant relationship, read the full file. This gives the abstract fram
 
 If no clear frame emerges after reading the relationships:
 
-1. Scan observations broadly for terms relevant to the current situation:
+1. Scan principles for terms relevant to the current situation:
    \`\`\`
-   grep -r "<term>" .pi/learnings/observations/ 2>/dev/null
+   grep -r "<term>" .pi/learnings/principles/ 2>/dev/null
    \`\`\`
 2. Scan recent summaries for similar problems:
    \`\`\`
@@ -341,13 +332,17 @@ If no clear frame emerges after reading the relationships:
 
 Use the concrete evidence to select the right relationship or narrow to a candidate, then return to Step 2.
 
-### Step 4 — Search observations
+### Step 4 — Search principles or summaries
+
+For each relevant relationship, check whether a codebase principle exists:
 
 \`\`\`
-grep -rl "relates-to: <relationship-id>" .pi/learnings/observations/ 2>/dev/null
+grep -rl "relates-to: <relationship-id>" .pi/learnings/principles/ 2>/dev/null
 \`\`\`
 
-Read each matching observation file. The \`relation\` field tells you how to use it:
+**If matches are found** — read the principle file(s).
+
+The \`relation\` field tells you how to use it:
 
 - \`instance-of\` — what to do in this codebase: the concrete artifact, log tag, or procedure
 - \`prerequisite-for\` — what to check or enable first; the method silently fails without it
@@ -355,18 +350,15 @@ Read each matching observation file. The \`relation\` field tells you how to use
 - \`trigger-for\` — the codebase-specific signal that indicates this method should be applied
 - \`composes\` — a ready-made recipe combining multiple relationships (check \`relates-to\` list for components)
 
-Promoted observations are already summarised in the README; non-promoted ones here may add detail not yet surfaced.
-
-### Step 5 — Search summaries
+**If no principle exists** — grep summaries by relationship ID directly:
 
 \`\`\`
 grep -rl "[<relationship-id>]" .pi/learnings/summaries/ 2>/dev/null
-grep -rl "[<observation-id>]" .pi/learnings/summaries/ 2>/dev/null
 \`\`\`
 
 Read matching summaries for narrative context: when this knowledge was relevant, what the surrounding situation looked like, how it played out in practice.
 
-### Step 6 — Derive corollaries (goal-directed)
+### Step 5 — Derive corollaries (goal-directed)
 
 Given the current goal, check whether any of the gathered relationships compose into a more direct procedure for achieving it. Only derive a corollary if the composition produces something actionable toward the goal — not as a general reasoning exercise.
 
@@ -374,12 +366,12 @@ Check the four patterns:
 
 - **Sequential (A → B)** — does A's output feed directly into B?
 - **Conjunctive (A + B → C)** — do A and B run independently and combine for C?
-- **Conditional (A → B if P, else C)** — does a \`trigger-for\` observation establish when B applies, and an \`exception-to\` plus alternative relationship C cover the remaining case?
+- **Conditional (A → B if P, else C)** — does a \`trigger-for\` principle establish when B applies, and an \`exception-to\` principle plus alternative relationship C cover the remaining case?
 - **Fallback (A, then B if A yields nothing)** — does an \`exception-to\` on A pair with a relationship B that handles the case A cannot?
 
 Apply the derived procedure if the pattern is clear. Note as a candidate for the next learn session if the corollary appears genuinely new.
 
-### Step 7 — Expand
+### Step 6 — Expand
 
 Follow \`links-to\`, \`used-in\`, and \`corollary-of\` fields on relationships selectively. Stop when the picture is clear — this is a judgment call, not a full traversal.
 `;
@@ -392,9 +384,9 @@ Follow \`links-to\`, \`used-in\`, and \`corollary-of\` fields on relationships s
  *
  * Graph structure:
  *   .pi/learnings/relationships/  — portable methods derived from sessions
- *   .pi/learnings/observations/   — typed codebase knowledge nodes
+ *   .pi/learnings/principles/     — codebase-specific recurring patterns
  *   .pi/learnings/summaries/      — session narrative records
- *   .pi/learnings/README.md       — entry point: promoted observations + accumulating
+ *   .pi/learnings/README.md       — entry point: codebase principles + relationships without principles
  */
 export const LEARN_ANALYSIS_PROMPT = `\
 ### System Role
@@ -412,44 +404,45 @@ Read every user message in the session. For each, note what the user contributed
 - **Correction or redirect** — fixed an agent assumption, redirected the approach
 - **Task direction** — issued a new instruction or extended scope
 
-Build a list of raw observations — these are the inputs to Phase 2.
+Build a list of raw findings — these are the inputs to Phase 2.
 
 ## Phase 2: Learn
 
-### Step 1 — Draft observations
+### Step 1 — Write the session summary
 
-For each notable thing from Phase 1, draft a candidate observation.
+Write the summary first, before considering whether any codebase principle should be created.
 
-**Determine scope first:**
+For each relationship applied or encountered in this session:
+- If a codebase principle already exists for it: cite \`[principle-id]\` in the narrative.
+- If no principle exists yet: cite \`[relationship-id]\` directly in the narrative.
 
-*Codebase-scoped* — describes a concrete fact about this codebase. Assign a connection type:
-- \`instance-of\` — this IS the relationship applied here (artifact, log tag, procedure)
-- \`prerequisite-for\` — must be true before the method works; silently fails without it
-- \`exception-to\` — context where the method breaks down or misleads
-- \`trigger-for\` — the signal that indicates when to apply the method
-- \`composes\` — combines two or more relationships into a unified procedure
+For meta-scoped themes (user preferences, working style): describe them in prose with no ID citation.
 
-Set \`relates-to\` to the parent relationship ID (can be left empty if not yet evident).
+Write with exact names throughout — log tags, file paths, function names, counter names. The summary is the primary record.
 
-*Meta-scoped* — describes how the user prefers to work or communicate. No connection type, no \`relates-to\`.
+### Step 2 — Cross-summary analysis
 
-Draft each as: \`id\` (kebab-case), \`relation\`, \`relates-to\` (or empty), prose using exact names — log tags, file paths, function names, counter names. All session observations have origin \`demonstrated\` by default.
+For each relationship ID cited in this session's summary, check how many other summaries cite it:
 
-### Step 2 — Deduplicate
-
-For each candidate observation, search for an existing one covering the same fact:
 \`\`\`
-grep -rl "relates-to: <relationship-id>" .pi/learnings/observations/ 2>/dev/null
+grep -rl "[<relationship-id>]" .pi/learnings/summaries/ 2>/dev/null | wc -l
 \`\`\`
-Read matching files. If the same fact is already captured: reuse its ID, renaming it if a better name covers both. If nothing matches: new file.
 
-For meta-scoped candidates, scan existing observations with no \`relates-to\` for overlap.
+If the total count (including this session) reaches ≥3 AND no principle exists yet for this relationship:
+
+Read the matching summaries. Confirm that a **specific codebase pattern** — not just the abstract relationship being applied — recurs across them. A relationship appearing 3 times does not automatically warrant a principle; a concrete, narrow codebase-specific pattern (a specific log tag, prerequisite, exception condition, or trigger signal) appearing 3 times does.
+
+If a specific pattern is confirmed: draft a codebase principle:
+- \`id\` (kebab-case), \`relation\`, \`relates-to\` (parent relationship ID), prose using exact names.
+- Choose the relation type with evidence from ≥3 sessions, not from this session alone.
+
+For meta-scoped recurring themes: same threshold (≥3 sessions), no \`relation\` or \`relates-to\`.
 
 ### Step 3 — Draft relationships
 
 ${RELATIONSHIP_DESIGN_SKILL_TEXT}
 
-Reason inductively from the candidate observations:
+Reason inductively from the candidate principles and findings:
 - \`instance-of\` with empty \`relates-to\` — what abstract method does this imply? Draft or match a relationship; fill in \`relates-to\`.
 - \`prerequisite-for\` / \`exception-to\` / \`trigger-for\` / \`composes\` — which relationship do they scope? Fill in \`relates-to\`.
 - For each implied relationship: does an existing one already capture it (revise) or is this genuinely new (draft)?
@@ -472,31 +465,21 @@ ${SEARCH_SKILL_TEXT}
 
 Do existing entries corroborate, conflict with, or subsume any of the drafts? Revise accordingly.
 
-### Step 6 — Check promotion
-
-For each observation (new or reused), count how many summaries currently cite it:
-\`\`\`
-grep -rl "\\[<observation-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l
-\`\`\`
-- **Fewer than 3** — regular, no change to status
-- **3 or more** — promoted; flag for README
-- **Promoted and recurring across many sessions** — standing rule candidate; note "should this become a standing rule in AGENTS.md?"
-
-### Step 7 — Present
+### Step 6 — Present
 
 Present the following clearly, then stop and wait for the user to respond:
 
-1. **New observations** — frontmatter + prose for each, noting scope and connection type
+1. **New codebase principles** — frontmatter + prose for each, noting scope and connection type
 2. **New / revised relationships** — complete file content; note what changed and why for revisions
 3. **Derived corollaries** — relationship files with \`corollary-of\` and \`composition\`
-4. **README changes** — which observations are newly promoted; proposed updated README content
+4. **README changes** — proposed updated README content
 5. **AGENTS.md candidates** — standing rules proposed for addition; user decides each one
 
 After presenting, ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
 
-Do not proceed to Step 8 until the user explicitly approves.
+Do not proceed to Step 7 until the user explicitly approves.
 
-### Step 8 — Write
+### Step 7 — Write
 
 Once the user approves — with or without requested changes — execute all writes in order.
 
@@ -510,20 +493,8 @@ date +%Y-%m-%d
 
 **Create directories if absent:**
 \`\`\`
-mkdir -p .pi/learnings/observations .pi/learnings/summaries .pi/learnings/relationships
+mkdir -p .pi/learnings/principles .pi/learnings/summaries .pi/learnings/relationships
 \`\`\`
-
-**Write observation files.**
-Write each new observation to \`.pi/learnings/observations/<id>.md\`:
-\`\`\`
----
-id: <id>
-relation: <type>
-relates-to: <relationship-id>
----
-<prose>
-\`\`\`
-Rewrite any renamed or revised existing observation files and update all summary citations that used the old ID.
 
 **Write the session summary.**
 Write to \`.pi/learnings/summaries/<date>-<goal-slug>.md\`:
@@ -533,9 +504,21 @@ session-id: <current-session-id>
 goal: "<session goal>"
 date: <date>
 ---
-<Narrative prose. Cite [observation-id] for specific facts applied or discovered.
-Cite [relationship-id] for abstract methods that framed the work.>
+<Narrative prose. Cite [principle-id] for established codebase patterns.
+Cite [relationship-id] directly for themes that do not yet have a principle.>
 \`\`\`
+
+**Write codebase principle files.**
+Write each new principle to \`.pi/learnings/principles/<id>.md\`:
+\`\`\`
+---
+id: <id>
+relation: <type>
+relates-to: <relationship-id>
+---
+<prose>
+\`\`\`
+Rewrite any renamed or revised existing principle files and update all summary citations that used the old ID.
 
 **Write relationship files.**
 Write each new or revised relationship to \`.pi/learnings/relationships/<id>.md\`.
@@ -546,26 +529,28 @@ If any standing rule candidates were approved, append them to \`.pi/AGENTS.md\` 
 
 **Regenerate README.md.**
 
-For every observation file in \`.pi/learnings/observations/\`:
+For every principle file in \`.pi/learnings/principles/\`:
 1. Extract the ID from the filename.
 2. Count summaries citing it: \`grep -rl "\\[<id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l\`
 3. Read its \`relation\`, \`relates-to\`, and first sentence of prose from frontmatter.
 
+For every relationship with no corresponding principle file, count summaries citing the relationship ID directly: \`grep -rl "\\[<rel-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l\`
+
 Write \`.pi/learnings/README.md\`:
 \`\`\`
-## Established
+## Codebase Principles
 
 ### <relationship-id>
-(one entry per promoted codebase-scoped observation grouped under its relates-to relationship,
+(one entry per principle grouped under its relates-to relationship,
 sorted by citation count descending)
-- (<relation-type>) [<obs-id>] — <first sentence>  · <N> sessions
+- (<relation-type>) [<principle-id>] — <first sentence>  · <N> sessions
 
 ### User preferences
-(promoted meta-scoped observations — no parent relationship)
-- [<obs-id>] — <first sentence>  · <N> sessions
+(meta-scoped principles — no parent relationship)
+- [<principle-id>] — <first sentence>  · <N> sessions
 
-## Accumulating
-(relationships whose observations have citations but none yet promoted, sorted by highest count desc)
+## Relationships (no principle yet)
+(relationships cited in summaries but with no corresponding principle, sorted by highest count desc)
 - <relationship-id> — <N>/3 sessions
 \`\`\`
 
