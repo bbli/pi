@@ -86,7 +86,7 @@ observe([
     branch(
       when(offTrack,
         detectPattern(circularResearch | goalDrift),
-        queryLearnings(SEARCH_ALGORITHM),                     // orient → abstract plan → concretize
+        search(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
       ),
       when(onTrack,
         reasonFromConversation(),                             // one concrete thing to examine
@@ -180,9 +180,13 @@ approach itself may be wrong
 
 **If the agent is off track (either pattern) — Phase 2b: form a hypothesis using the learnings graph.**
 
-Apply search(goal) as defined above. Form a hypothesis combining the abstract frame \
-(what kind of situation this is and what move it calls for) with concrete codebase \
-knowledge (which specific artifacts, files, or mechanisms are involved).
+\`\`\`
+search(goal)
+\`\`\`
+
+Form a hypothesis combining the abstract frame (what kind of situation this is and \
+what move it calls for) with concrete codebase knowledge (which specific artifacts, \
+files, or mechanisms are involved).
 
 **If \`.pi/learnings/\` does not exist, or if the learnings do not add clarity beyond \
 what the conversation already shows, reason from the conversation alone and note \
@@ -281,7 +285,7 @@ know yet; that is your advantage.
 orient([
   phase(1, "Read the task"),                                  // → classify task type
   phase(2, "Query learnings graph",
-    search(SEARCH_ALGORITHM),                               // orient → abstract plan → concretize
+    search(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
   ),
   phase(3, "Decide",
     synthesize([
@@ -309,7 +313,9 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 
 ## Phase 2: Query the learnings graph
 
-Apply search(goal) as defined above.
+\`\`\`
+search(goal)
+\`\`\`
 
 If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \
 calling injectMessage.
