@@ -68,7 +68,45 @@ If you have nothing material to add, stop without calling injectMessage.
 
 Active goal: ${goal}\n\n${invocationContext}
 
-Work through the following three phases before deciding whether to call injectMessage.
+Work through the following three phases:
+
+## Algorithm
+
+\`\`\`
+observe([
+  phase(1, "Understand situation", [
+    map(confirmedFacts, assumedFacts),                        // from conversation history
+    drawArchitecturalDiagram(),                               // confirmed [✓] vs assumed [?], real files+fns
+  ]),
+  phase(2, "Identify next step",
+    branch(
+      when(offTrack,
+        detectPattern(circularResearch | goalDrift),
+        queryLearnings(SEARCH_ALGORITHM),                     // steps 1–5 only
+      ),
+      when(onTrack,
+        reasonFromConversation(),                             // one concrete thing to examine
+      ),
+    ),
+    always(                                                   // Phase 2c — runs regardless of branch
+      synthesize([
+        rankCandidates(),                                     // by damage if missed
+        draftInjection(),                                     // must name file/command/mechanism
+        gapCheck(),                                           // already said by agent?
+      ])
+    ),
+  ),
+  phase(3, "Decide",
+    oneOf([
+      when(goalSatisfied,  injectGoalComplete()),
+      when(nothingToAdd,   stop()),                           // vague/speculative = don't inject
+      otherwise(           injectFinding()),                  // highest-ranked concrete finding
+    ])
+  ),
+])
+\`\`\`
+
+---
 
 ## Phase 1: Understand the Current Situation
 
