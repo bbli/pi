@@ -356,6 +356,55 @@ You are reviewing a past pi agent session to extract what the user knows, how th
 
 The session being reviewed is the conversation history that precedes this message — the one that was loaded when this learn session started. Focus your analysis on that conversation, not on this current exchange.
 
+## Algorithm
+
+\`\`\`
+learn([
+  phase(1, "Observe",
+    classify(user_messages, [
+      "domain_knowledge",                   // named a file, mechanism, or log path
+      "debugging_method",                   // described or demonstrated a procedure
+      "preference_or_style",                // pushed back on format, expressed how they work
+      "correction_or_redirect",             // fixed an agent assumption
+      "task_direction",                     // new instruction or extended scope
+    ])
+  ),
+  phase(2, "Learn", [
+    step(1, "Write session summary"),                         // cite [principle-id] or [rel-id]
+    step(2, "Cross-summary analysis",
+      for_each(relationship_id_cited, [
+        count = grep(summaries, pattern="[{relationship_id}]"),
+        if(count >= 2 && !principleExists && specificPatternRecurs):
+          proposePrinciple()                                  // count+1 = this session → ≥3 total
+      ])
+    ),
+    step(3, "Draft relationships",          embeds(SCHEMA_SPEC)),
+    step(4, "Derive corollaries"),
+    step(5, "Triangulate",                  embeds(SEARCH_ALGORITHM)),
+  ]),
+  phase(3, "Present → Write", [
+    present([
+      "new_principles",
+      "new_or_revised_relationships",
+      "derived_corollaries",
+      "readme_changes",
+      "agents_md_candidates",
+    ]),
+    waitForApproval(),                                        // "write it" or corrections
+    write([
+      createDirs(),
+      migrateFromObservations(),                             // if observations/ exists
+      writeSessionSummary(),
+      writePrincipleFiles(),
+      writeRelationshipFiles(),
+      regenerateReadme(README_FORMAT),
+    ]),
+  ]),
+])
+\`\`\`
+
+---
+
 ## Phase 1: Observe
 
 Read every user message in the session. For each, note what the user contributed and classify it:
