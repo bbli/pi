@@ -357,6 +357,34 @@ learnings graph that would help the agent work more effectively from the start �
 it goes deep into work it may have to undo. The agent does not know what it does not \
 know yet; that is your advantage.
 
+## Algorithm
+
+\`\`\`
+orient([
+  step(1, "Read the task"),                                   // → classify task type
+  step(2, "Query learnings graph",
+    search(SEARCH_ALGORITHM, { steps: [1, 2, 3, 4] }),        // orient only — skip corollary + expand
+  ),
+  step(2.5, "Synthesize",
+    synthesize([
+      taskLearningFit(),                                      // directly applicable to this task type?
+      rankByConsequence(),                                    // exception-to/prerequisite-for rank higher
+      gapCheck(),                                             // already in first response?
+      draftInjection(),                                       // "Before diving in: ..."
+    ])
+  ),
+  step(3, "Decide",
+    oneOf([
+      when(nothingFound,   stop()),
+      when(alreadyCovered, stop()),
+      otherwise(           inject("Before diving in: ...")),
+    ])
+  ),
+])
+\`\`\`
+
+---
+
 ## Step 1: Read the task
 
 Read the first user message in the conversation. What is the agent being asked to do? \
