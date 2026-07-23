@@ -82,7 +82,7 @@ observe([
     branch(
       when(offTrack,
         detectPattern(circularResearch | goalDrift),
-        queryLearnings(SEARCH_ALGORITHM),                     // steps 1–5 only
+        queryLearnings(SEARCH_ALGORITHM),                     // orient → abstract plan → concretize
       ),
       when(onTrack,
         reasonFromConversation(),                             // one concrete thing to examine
@@ -363,7 +363,7 @@ know yet; that is your advantage.
 orient([
   step(1, "Read the task"),                                   // → classify task type
   step(2, "Query learnings graph",
-    search(SEARCH_ALGORITHM, { steps: [1, 2, 3, 4] }),        // orient only — skip corollary + expand
+    search(SEARCH_ALGORITHM),                               // orient → abstract plan → concretize
   ),
   step(2.5, "Synthesize",
     synthesize([
@@ -393,7 +393,7 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 
 ## Step 2: Query the learnings graph
 
-Apply the following traversal procedure, Steps 1–4 only (orient via README, read relationships, clarify frame, search principles or summaries). Skip Steps 5–6 — corollary derivation and expand are for active problem-solving, not session orientation.
+Apply the following search procedure (all three steps: orient, form abstract plan, concretize).
 
 ${SEARCH_SKILL_TEXT}
 

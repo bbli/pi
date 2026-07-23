@@ -211,31 +211,30 @@ Propose derived corollaries alongside demonstrated relationships. The \`composit
 export const SEARCH_SKILL_TEXT = `\
 # Search Relationships and Codebase Principles
 
-The learnings graph has three layers, each serving a different role:
+The learnings graph has three layers:
 
-- **Relationships** (\`relationships/\`) — the *thinking frame*: portable methods encoding how the user approaches a type of problem.
-- **Codebase Principles** (\`principles/\`) — *typed codebase knowledge*: concrete recurring patterns connecting abstract methods to specific artifacts in this project. Each principle has a \`relation\` field (instance-of, prerequisite-for, exception-to, trigger-for, composes) and a \`relates-to\` field naming its parent relationship.
-- **Summaries** (\`summaries/\`) — *session narrative records*: historical context showing when and how knowledge was applied. Summaries cite principle IDs for established patterns and relationship IDs directly for themes without a principle yet.
-
-Codebase principles answer "what does this relationship look like in this codebase?" Summaries answer "when was this knowledge relevant and what was happening around it?"
+- **Relationships** (\`relationships/\`) — portable methods encoding how the user approaches a type of problem. The abstract *thinking frame*.
+- **Codebase Principles** (\`principles/\`) — concrete recurring patterns specific to this codebase: exact files, log tags, counters, gotchas. Each has a \`relation\` field (instance-of, prerequisite-for, exception-to, trigger-for, composes) and a \`relates-to\` naming its parent relationship.
+- **Summaries** (\`summaries/\`) — session narrative records. Cite \`[principle-id]\` for established patterns; \`[relationship-id]\` directly for themes without a principle yet.
 
 ## Algorithm
 
 \`\`\`
-search([
-  step(1, "Orient via README"),                               // → identify relevant rel-ids from both sections
-  step(2, "Read relationships"),                              // → get abstract frame: what, when, when-not
-  step(3, "Clarify frame"),                                   // optional — only if no frame emerges from step 2
-  step(4, "Search",
-    for_each(relationship_id, [
-      branch(
-        when(principleExists,  readPrincipleFile()),           // → relation type guides interpretation
-        when(noPrinciple,      grepSummariesByRelId()),        // → interpretive guidelines in step 4
-      )
+search(goal, [
+  step(1, "Orient"),                        // → identify available relationships from README
+  step(2, "Form abstract plan",
+    readRelationships(relevant_ids),         // → what method, when it applies, when it does not
+    clarifyIfAmbiguous(),                    // → if no frame, scan broadly to find right relationship
+    deriveCorollaries(),                     // → compose relationships into a direct procedure for the goal
+    synthesize(abstractPlan),               // → how would a skilled person approach this goal?
+  ),
+  step(3, "Concretize the plan",
+    map(abstractPlan → learnings_directory, [
+      concrete_artifacts,                   //   exact files, log tags, functions, counters
+      gotchas,                             //   exception-to, prerequisite-for findings
+      research_questions,                  //   gaps → researchConversationQuestion(...)
     ])
   ),
-  step(5, "Derive corollaries"),                              // goal-directed only — not as a general exercise
-  step(6, "Expand"),                                          // selective — stop when picture is clear
 ])
 \`\`\`
 
@@ -243,7 +242,7 @@ search([
 
 ## Step Details
 
-### Step 1 — Orient via the README
+### Step 1 — Orient
 
 \`\`\`
 cat .pi/learnings/README.md 2>/dev/null
@@ -251,91 +250,56 @@ cat .pi/learnings/README.md 2>/dev/null
 
 The README has two sections:
 
-- **Codebase Principles** — principles grouped under their parent relationship with connection type noted. Meta-scoped principles (user preferences, no parent relationship) listed at the end.
-- **Relationships (no principle yet)** — relationships cited directly in summaries but below the ≥3 threshold, with citation count (e.g. 2/3).
+- **Codebase Principles** — principles grouped under their parent relationship. Meta-scoped principles (user preferences, no parent relationship) listed at the end.
+- **Relationships (no principle yet)** — relationships cited in summaries below the ≥3 threshold, with citation count.
 
 Identify relevant relationship IDs from both sections. If \`.pi/learnings/\` does not exist or the README is absent, proceed without the graph and note the absence.
 
-### Step 2 — Read relationships
+### Step 2 — Form abstract plan
 
+**Read each relevant relationship:**
 \`\`\`
 cat .pi/learnings/relationships/<id>.md
 \`\`\`
 
-For each relevant relationship, read the full file. This gives the abstract frame: what the pattern means, what move it calls for, when it applies and when it does not.
+This gives the abstract frame: what the method is, what move it calls for, when it applies, and when it does not.
 
-### Step 3 — Clarify frame (when abstract reasoning is ambiguous)
+**Clarify if no frame emerges:** If reading the relationships produces no clear frame, scan broadly — grep principles for relevant terms, or read recent summaries for similar problems — to identify the right relationship, then return to reading it.
 
-If no clear frame emerges after reading the relationships:
-
-1. Scan principles for terms relevant to the current situation:
-   \`\`\`
-   grep -r "<term>" .pi/learnings/principles/ 2>/dev/null
-   \`\`\`
-2. Scan recent summaries for similar problems:
-   \`\`\`
-   ls -t .pi/learnings/summaries/*.md 2>/dev/null | head -5
-   \`\`\`
-   Read the most relevant ones.
-
-Use the concrete evidence to select the right relationship or narrow to a candidate, then return to Step 2.
-
-### Step 4 — Search principles or summaries
-
-For each relevant relationship, check whether a codebase principle exists:
-
-\`\`\`
-grep -rl "relates-to: <relationship-id>" .pi/learnings/principles/ 2>/dev/null
-\`\`\`
-
-**If matches are found** — read the principle file(s).
-
-The \`relation\` field tells you how to use it:
-
-- \`instance-of\` — what to do in this codebase: the concrete artifact, log tag, or procedure
-- \`prerequisite-for\` — what to check or enable first; the method silently fails without it
-- \`exception-to\` — when this method breaks down or misleads; signals a fallback may be needed
-- \`trigger-for\` — the codebase-specific signal that indicates this method should be applied
-- \`composes\` — a ready-made recipe combining multiple relationships (check \`relates-to\` list for components)
-
-**If no principle exists** — grep summaries by relationship ID directly:
-
-\`\`\`
-grep -rl "\\[<relationship-id>\\]" .pi/learnings/summaries/ 2>/dev/null
-\`\`\`
-
-Read matching summaries for narrative context: when this knowledge was relevant, what the surrounding situation looked like, how it played out in practice.
-
-When reading these summaries, apply the following:
-
-**Check for situational fit gaps.** The method described may be exactly right, but some detail of execution may not apply to the current situation. A summary may describe grepping a log file, but in the current situation that log has already been provided — so the grep step is unnecessary. Identify what fits and what needs adapting before applying the finding.
-
-**Read the full narrative arc, not just the outcome.** Summaries describe what happened, including detours and dead ends. "We tried X first, which was inconclusive, then Y revealed the issue" should not be read as simply "do Y" — the ordering and the failure of X are part of the knowledge.
-
-**Weight by citation count.** A relationship cited in 2 summaries is stronger evidence than one cited in 1. One citation is a hint; two is a pattern worth taking seriously.
-
-**Close the loop.** After extracting the relevant pattern, explicitly map it to the current task: what is the concrete next step in this specific situation?
-
-**Distinguish meta-scoped from codebase-scoped.** User preference findings (no \`relates-to\`) transfer directly — they describe how the user works regardless of codebase. Codebase-scoped findings describe a specific project and may need adaptation.
-
-**Ground artifact names in live context.** Before relying on a specific file path, counter name, or log tag found in a summary, verify it exists in the current codebase. Summaries may describe a different version of the code.
-
-### Step 5 — Derive corollaries (goal-directed)
-
-Given the current goal, check whether any of the gathered relationships compose into a more direct procedure for achieving it. Only derive a corollary if the composition produces something actionable toward the goal — not as a general reasoning exercise.
-
-Check the four patterns:
+**Derive corollaries** — check whether any of the gathered relationships compose into a more direct procedure for the current goal:
 
 - **Sequential (A → B)** — does A's output feed directly into B?
-- **Conjunctive (A + B → C)** — do A and B run independently and combine for C?
-- **Conditional (A → B if P, else C)** — does a \`trigger-for\` principle establish when B applies, and an \`exception-to\` principle plus alternative relationship C cover the remaining case?
-- **Fallback (A, then B if A yields nothing)** — does an \`exception-to\` on A pair with a relationship B that handles the case A cannot?
+- **Conjunctive (A + B)** — do A and B address the same problem from different angles and combine?
+- **Conditional (A → B if P, else C)** — does a \`trigger-for\`/\`exception-to\` pair establish when each applies?
+- **Fallback (A, then B)** — does an \`exception-to\` on A pair with a relationship B that handles the case A cannot?
 
-Apply the derived procedure if the pattern is clear. Note as a candidate for the next learn session if the corollary appears genuinely new.
+**Synthesize the abstract plan** — given the current goal and the relationships (and any derived corollaries), state the approach as a sequence of method-level steps. Do not reference codebase-specific artifacts yet — this is the abstract layer.
 
-### Step 6 — Expand
+### Step 3 — Concretize the plan
 
-Follow \`links-to\`, \`used-in\`, and \`corollary-of\` fields on relationships selectively. Stop when the picture is clear — this is a judgment call, not a full traversal.
+Translate each element of the abstract plan into a concrete action for this specific codebase.
+
+The learnings directory:
+\`\`\`
+.pi/learnings/
+  README.md         — index (see step 1)
+  principles/       — codebase-specific patterns; frontmatter: id, relation, relates-to
+  summaries/        — session records citing [principle-id] or [relationship-id]
+\`\`\`
+
+For each abstract plan element, search the learnings for what it looks like in this codebase:
+
+- **Principles** name exact artifacts: the specific log tag, file path, function name, or counter to use. The \`relation\` field shapes how to use the finding:
+  - \`instance-of\` — the concrete artifact or procedure for this method in this codebase
+  - \`prerequisite-for\` — something to check first; the method silently fails without it
+  - \`exception-to\` — a condition where the method breaks down; signals a fallback is needed
+  - \`trigger-for\` — the specific signal that confirms this method applies here
+  - \`composes\` — a ready-made recipe combining multiple relationships
+
+- **Summaries** give context: how the method played out in prior sessions, situational fit gaps to watch for, dead ends to avoid. Check for situational fit gaps — the method may be right but some execution detail may not apply to the current situation.
+
+- **Gaps** — where the learnings provide no relevant specifics, do not proceed on assumption. Formulate a concrete question and call \`researchConversationQuestion\` to fill the gap.
+
 `;
 
 /**
@@ -380,7 +344,7 @@ learn([
     ),
     step(3, "Draft relationships",          embeds(SCHEMA_SPEC)),
     step(4, "Derive corollaries"),
-    step(5, "Triangulate",                  embeds(SEARCH_ALGORITHM)),
+    step(5, "Triangulate",                  checkAgainstExisting(learnings_directory)),
   ]),
   phase(3, "Present → Write", [
     present([
@@ -472,9 +436,17 @@ Draft corollary relationships with \`corollary-of\` and \`composition\` in front
 
 ### Step 5 — Triangulate
 
-${SEARCH_SKILL_TEXT}
+Use the learnings graph to check whether proposed changes are consistent with existing knowledge.
 
-Do existing entries corroborate, conflict with, or subsume any of the drafts? Revise accordingly.
+The directory structure:
+\`\`\`
+.pi/learnings/
+  README.md      — index of established principles and relationships
+  principles/    — grep: grep -rl "relates-to: <rel-id>" principles/
+  summaries/     — grep: grep -rl "\\[<id>\\]" summaries/
+\`\`\`
+
+For each proposed principle or relationship: search for existing entries that corroborate, conflict with, or subsume it. Revise accordingly.
 
 ### Step 6 — Present
 
