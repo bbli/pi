@@ -368,15 +368,13 @@ orient([
   step(2, "Query learnings graph",
     search(SEARCH_ALGORITHM),                               // orient → abstract plan → concretize
   ),
-  step(2.5, "Synthesize",
+  step(3, "Decide",
     synthesize([
       taskLearningFit(),                                      // directly applicable to this task type?
       rankByConsequence(),                                    // exception-to/prerequisite-for rank higher
       gapCheck(),                                             // already in first response?
       draftInjection(),                                       // "Before diving in: ..."
-    ])
-  ),
-  step(3, "Decide",
+    ]),
     oneOf([
       when(nothingFound,   stop()),
       when(alreadyCovered, stop()),
@@ -401,9 +399,9 @@ Apply search(goal) as defined above.
 If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \
 calling injectMessage.
 
-## Step 2.5: Synthesize — map the findings to the task
+## Step 3: Decide whether to inject
 
-Write out your reasoning explicitly before proceeding to Step 3.
+Before deciding, synthesize what you found:
 
 **Task–learning fit.** For each relationship you read, ask whether it applies \
 directly to this specific task — not loosely related, but directly applicable. \
@@ -421,18 +419,16 @@ the highest-value finding? If so, injecting adds nothing.
 tell the agent something concrete and actionable it doesn't already know? If it \
 sounds generic or vague, it is not worth injecting.
 
-Only after completing this step proceed to Step 3.
-
-## Step 3: Decide whether to inject
+Then decide:
 
 **Step 3a — Nothing relevant found.** If Step 2 found no relationships applicable \
 to this task type, stop without calling injectMessage.
 
-**Step 3b — Already covered.** If the highest-ranked finding from Step 2.5 is \
-already present in the agent's first response, stop without calling injectMessage.
+**Step 3b — Already covered.** If the highest-ranked finding is already present \
+in the agent's first response, stop without calling injectMessage.
 
 **Step 3c — Inject.** Otherwise, call injectMessage once with the highest-ranked \
-finding from Step 2.5 in concrete form. Format: "Before diving in: [finding]." \
+finding in concrete form. Format: "Before diving in: [finding]." \
 Stop immediately after.`;
 }
 
