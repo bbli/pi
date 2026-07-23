@@ -86,7 +86,7 @@ observe([
     branch(
       when(offTrack,
         detectPattern(circularResearch | goalDrift),
-        search(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
+        queryLearnings(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
       ),
       when(onTrack,
         reasonFromConversation(),                             // one concrete thing to examine
@@ -181,7 +181,7 @@ approach itself may be wrong
 **If the agent is off track (either pattern) — Phase 2b: form a hypothesis using the learnings graph.**
 
 \`\`\`
-search(goal)
+queryLearnings(goal)
 \`\`\`
 
 Form a hypothesis combining the abstract frame (what kind of situation this is and \
@@ -285,7 +285,7 @@ know yet; that is your advantage.
 orient([
   phase(1, "Read the task"),                                  // → classify task type
   phase(2, "Query learnings graph",
-    search(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
+    queryLearnings(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
   ),
   phase(3, "Decide",
     synthesize([
@@ -314,7 +314,7 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 ## Phase 2: Query the learnings graph
 
 \`\`\`
-search(goal)
+queryLearnings(goal)
 \`\`\`
 
 If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \

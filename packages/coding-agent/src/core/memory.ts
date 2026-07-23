@@ -220,7 +220,7 @@ The learnings graph has three layers:
 ## Algorithm
 
 \`\`\`
-search(goal, [
+queryLearnings(goal, [
   step(1, "Orient"),                        // → identify available relationships from README
   step(2, "Form abstract plan",
     readRelationships(relevant_ids),         // → what method, when it applies, when it does not
