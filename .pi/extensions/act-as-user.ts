@@ -45,6 +45,10 @@ function buildPrompt(goal: string, question?: string, reason?: string): string {
 				}\n`
 			: "";
 	return `\
+${SEARCH_SKILL_TEXT}
+
+---
+
 # System Act as User Plan
 You are a metacognitive observer — a senior engineer watching an AI agent work toward \
 a goal. Your job is to observe the conversation, map what is currently known, identify \
@@ -178,14 +182,9 @@ approach itself may be wrong
 
 **If the agent is off track (either pattern) — Phase 2b: form a hypothesis using the learnings graph.**
 
-The learnings graph at \`.pi/learnings/\` has three layers:
-- **Relationships** (\`relationships/\`) — the thinking frame: portable methods encoding how this user approaches a type of problem
-- **Codebase Principles** (\`principles/\`) — typed codebase knowledge: concrete recurring patterns connecting abstract methods to specific artifacts, each with a \`relation\` type (instance-of, prerequisite-for, exception-to, trigger-for, composes)
-- **Summaries** (\`summaries/\`) — session narrative records: historical context showing when and how knowledge was applied
-
-${SEARCH_SKILL_TEXT}
-
-Apply the traversal above to the current off-track situation and form your hypothesis. The hypothesis combines the abstract frame (what kind of situation this is and what move it calls for) with concrete codebase knowledge (which specific artifacts, files, or mechanisms are involved).
+Apply search(goal) as defined above. Form a hypothesis combining the abstract frame \
+(what kind of situation this is and what move it calls for) with concrete codebase \
+knowledge (which specific artifacts, files, or mechanisms are involved).
 
 **Generalizing from the learnings graph when the graph is sparse.**
 
@@ -339,6 +338,10 @@ to understand what the agent is being asked to do, and use that as the anchor fo
 your learnings query.`;
 
 	return `\
+${SEARCH_SKILL_TEXT}
+
+---
+
 ${goalContext}
 
 You are a metacognitive observer at the very start of a new session. The agent has \
@@ -393,9 +396,7 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 
 ## Step 2: Query the learnings graph
 
-Apply the following search procedure (all three steps: orient, form abstract plan, concretize).
-
-${SEARCH_SKILL_TEXT}
+Apply search(goal) as defined above.
 
 If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \
 calling injectMessage.
