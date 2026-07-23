@@ -309,82 +309,21 @@ This makes the plan falsifiable: the agent knows what to look for at each step a
 
 ### Step 3 — Concretize the plan
 
-Translate each element of the abstract plan into a concrete action for this specific codebase.
+Translate each element of the abstract plan into a concrete action for this codebase.
 
-The learnings directory:
 \`\`\`
 .pi/learnings/
-  README.md         — index (see step 1)
-  principles/       — codebase-specific patterns; frontmatter: id, relation, relates-to
-  summaries/        — session records citing [principle-id] or [relationship-id]
+  principles/    — codebase-specific patterns; frontmatter: id, relation, relates-to
+  summaries/     — session records citing [principle-id] or [relationship-id]
 \`\`\`
 
-For each abstract plan element, search the learnings for what it looks like in this codebase:
+For each abstract plan element:
 
-- **Principles** name exact artifacts: the specific log tag, file path, function name, or counter to use. The \`relation\` field shapes how to use the finding:
-  - \`instance-of\` — the concrete artifact or procedure for this method in this codebase
-  - \`prerequisite-for\` — something to check first; the method silently fails without it
-  - \`exception-to\` — a condition where the method breaks down; signals a fallback is needed
-  - \`trigger-for\` — the specific signal that confirms this method applies here
-  - \`composes\` — a ready-made recipe combining multiple relationships
+- **Principles** give exact artifacts — the specific file, log tag, function, or counter to use, plus gotchas encoded in the \`relation\` field: prerequisites to check first, conditions where the method breaks down, signals that confirm it applies here.
+- **Summaries** give context — how the method played out in prior sessions, situational fit gaps to watch for, dead ends to avoid.
+- **Gaps** — where the learnings provide nothing relevant, formulate a concrete question and call \`researchConversationQuestion\` rather than proceeding on assumption.
 
-- **Summaries** give context: how the method played out in prior sessions, situational fit gaps to watch for, dead ends to avoid. Check for situational fit gaps — the method may be right but some execution detail may not apply to the current situation.
-
-- **Gaps** — where the learnings provide no relevant specifics, do not proceed on assumption. Formulate a concrete question and call \`researchConversationQuestion\` to fill the gap.
-
-**Generalizing when the graph is sparse.** The graph often gives an abstract frame without a \
-ready-made concrete answer for the current service or component. In those cases, generalize \
-rather than stopping — apply whichever of the following fit:
-
-*From relationships:*
-
-- **Principle gap** — When a relationship applies but no principle bridges it to the current \
-service or component, extract the abstract method and call \`researchConversationQuestion\` to \
-instantiate it: “What [observable signal] in [service] indicates [the state the relationship \
-is trying to observe]?”
-
-- **Runtime corollary** — If two or more relationships are relevant and no corollary has been \
-formally derived, compose them inline (sequential, conjunctive, conditional, or fallback) and \
-state the combined procedure.
-
-- **Cross-layer application** — If a relationship was observed in one layer but the \
-investigation has moved to another, ask whether the same method applies and inject the adapted \
-version.
-
-*From summaries:*
-
-- **Artifact analog** — When a summary names a specific artifact (log file, counter, command) \
-from a past session, map its abstract role to the equivalent in the current context. If unknown, \
-call \`researchConversationQuestion\`.
-
-- **Dead-end warning** — When a summary records a failed approach and the conversation shows \
-the agent is about to repeat it, inject the warning before it wastes a turn.
-
-- **Ordering and prerequisites** — When a summary describes steps that were effective in a \
-specific order, or a flag/config required for the method to work, check whether the current \
-context matches before applying the main method.
-
-*From principle relation types:*
-
-- **exception-to** — When a principle marks a method as unreliable under a condition the \
-current context may share, inject the warning before the method is applied.
-
-- **prerequisite-for** — When a prerequisite principle exists but the conversation shows no \
-evidence the agent has checked it, inject the check first. The method silently fails without it.
-
-- **trigger-for** — When a trigger-for principle names a specific signal and the conversation \
-hasn't scanned for it yet, inject: “Scan for [signal] first — it's the entry condition. \
-If absent, the method does not apply here.”
-
-*Cross-cutting:*
-
-- **Portability** — When a relationship uses concrete examples from a different service, \
-replace those proper nouns with the current context's equivalents. If the method survives \
-the substitution, it applies.
-
-- **Threshold awareness** — When the README shows a relationship at 2/3 sessions and the \
-current situation involves the same theme, flag it: this pattern is approaching principle \
-status — watch for whether it applies here.
+**When the graph is sparse:** extract the abstract role of any artifact found and map it to the current context. Adapt rather than stopping — a principle from a different service or layer often applies with proper-noun substitution. If the equivalent in the current context is unknown, \`researchConversationQuestion\` fills the gap.
 
 `;
 
