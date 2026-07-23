@@ -223,10 +223,20 @@ The learnings graph has three layers:
 queryLearnings(goal, [
   step(1, "Orient"),                        // → identify available relationships from README
   step(2, "Form abstract plan",
-    readRelationships(relevant_ids),         // → what method, when it applies, when it does not
-    clarifyIfAmbiguous(),                    // → if no frame, scan broadly to find right relationship
-    deriveCorollaries(),                     // → compose relationships into a direct procedure for the goal
-    synthesize(abstractPlan),               // → how would a skilled person approach this goal?
+    for_each(relevant_id, [
+      read(relationships/<id>),
+      interrogate(relationship, goal),       // inputs required? output? success looks like?
+      assess(applicability),                 // trigger-for present? exception-to blocking?
+    ]),
+    clarifyIfAmbiguous(),                    // → if no frame, scan broadly first
+    holistic(problemShape),                 // → step back: what shape do these relationships describe?
+    deriveCorollaries(fromGoal, [
+      sequential(A → B),                    // A's output feeds B
+      conjunctive(A + B),                   // A and B address orthogonal aspects and combine
+      conditional(A → B if P, else C),     // trigger-for/exception-to establishes which
+      fallback(A, then B),                  // exception-to on A pairs with B
+    ]),
+    synthesize(hypothesisChain),             // → method + expected output + failure indicator per step
   ),
   step(3, "Concretize the plan",
     map(abstractPlan → learnings_directory, [
@@ -257,23 +267,45 @@ Identify relevant relationship IDs from both sections. If \`.pi/learnings/\` doe
 
 ### Step 2 — Form abstract plan
 
-**Read each relevant relationship:**
+This is the core reasoning step. The goal is to produce an abstract plan — a method-level procedure for achieving the goal that would make sense to a domain expert who has never seen this codebase.
+
+**Read and interrogate each relevant relationship:**
 \`\`\`
 cat .pi/learnings/relationships/<id>.md
 \`\`\`
 
-This gives the abstract frame: what the method is, what move it calls for, when it applies, and when it does not.
+Reading is not enough — actively question each relationship against the current situation:
+
+- *What does this method require as input?* Does the current situation already provide those inputs, or would obtaining them be a step in the plan?
+- *What would the output of applying this method be?* Does that output move toward the goal, and what would success look like at the abstract level?
+- *Is this method actively triggered or merely plausible?* A relationship with a \`trigger-for\` signal visible in the current situation is strongly indicated. One without is speculative.
 
 **Clarify if no frame emerges:** If reading the relationships produces no clear frame, scan broadly — grep principles for relevant terms, or read recent summaries for similar problems — to identify the right relationship, then return to reading it.
 
-**Derive corollaries** — check whether any of the gathered relationships compose into a more direct procedure for the current goal:
+**Assess applicability before composing.** Classify each relationship:
 
-- **Sequential (A → B)** — does A's output feed directly into B?
-- **Conjunctive (A + B)** — do A and B address the same problem from different angles and combine?
-- **Conditional (A → B if P, else C)** — does a \`trigger-for\`/\`exception-to\` pair establish when each applies?
-- **Fallback (A, then B)** — does an \`exception-to\` on A pair with a relationship B that handles the case A cannot?
+- **Actively indicated** — a \`trigger-for\` signal is visible in the current situation; high confidence
+- **Plausibly applicable** — the method fits the shape of the problem but the trigger has not been confirmed; medium confidence
+- **Possibly blocked** — an \`exception-to\` condition may be active; note the caveat, proceed with caution or treat as fallback only
 
-**Synthesize the abstract plan** — given the current goal and the relationships (and any derived corollaries), state the approach as a sequence of method-level steps. Do not reference codebase-specific artifacts yet — this is the abstract layer.
+Higher-confidence relationships anchor the plan. Lower-confidence ones are candidates or fallbacks.
+
+**Take a holistic view.** Before checking composition patterns, step back: what is the shape of the problem these relationships together describe? Do they address orthogonal aspects of the same problem? Does one produce what another requires? This view surfaces compositional patterns that mechanical checking alone misses.
+
+**Derive corollaries — working from the goal backwards.** Start with the goal outcome and reason backwards: what do you need to know or establish to achieve it? Which relationships produce those prerequisites? Then check the four composition patterns:
+
+- **Sequential (A → B)** — A's output is the input B requires. The plan follows A with B.
+- **Conjunctive (A + B)** — A and B address orthogonal aspects of the same problem and combine. Run both; synthesize their outputs.
+- **Conditional (A → B if P, else C)** — a \`trigger-for\`/\`exception-to\` pair establishes when each applies. The plan branches on the trigger signal.
+- **Fallback (A, then B)** — an \`exception-to\` on A pairs with relationship B that handles the case A cannot. The plan tries A and switches to B if blocked.
+
+Apply a derived procedure if the pattern is clear. Prefer goal-directed composition over coincidental matches.
+
+**Synthesize the abstract plan as a hypothesis chain.** Express each step as:
+
+> *Apply [method] → expect [what success looks like] → if [failure indicator], then [pivot or fallback]*
+
+This makes the plan falsifiable: the agent knows what to look for at each step and when to change course. Do not reference codebase-specific artifacts — this is the abstract layer. **Abstraction test:** would this plan make sense to a domain expert who has never seen this codebase? If a step requires naming a specific file, log tag, or counter, it is not abstract enough yet.
 
 ### Step 3 — Concretize the plan
 
