@@ -286,6 +286,20 @@ grep -rl "\\[<relationship-id>\\]" .pi/learnings/summaries/ 2>/dev/null
 
 Read matching summaries for narrative context: when this knowledge was relevant, what the surrounding situation looked like, how it played out in practice.
 
+When reading these summaries, apply the following:
+
+**Check for situational fit gaps.** The method described may be exactly right, but some detail of execution may not apply to the current situation. A summary may describe grepping a log file, but in the current situation that log has already been provided — so the grep step is unnecessary. Identify what fits and what needs adapting before applying the finding.
+
+**Read the full narrative arc, not just the outcome.** Summaries describe what happened, including detours and dead ends. "We tried X first, which was inconclusive, then Y revealed the issue" should not be read as simply "do Y" — the ordering and the failure of X are part of the knowledge.
+
+**Weight by citation count.** A relationship cited in 2 summaries is stronger evidence than one cited in 1. One citation is a hint; two is a pattern worth taking seriously.
+
+**Close the loop.** After extracting the relevant pattern, explicitly map it to the current task: what is the concrete next step in this specific situation?
+
+**Distinguish meta-scoped from codebase-scoped.** User preference findings (no \`relates-to\`) transfer directly — they describe how the user works regardless of codebase. Codebase-scoped findings describe a specific project and may need adaptation.
+
+**Ground artifact names in live context.** Before relying on a specific file path, counter name, or log tag found in a summary, verify it exists in the current codebase. Summaries may describe a different version of the code.
+
 ### Step 5 — Derive corollaries (goal-directed)
 
 Given the current goal, check whether any of the gathered relationships compose into a more direct procedure for achieving it. Only derive a corollary if the composition produces something actionable toward the goal — not as a general reasoning exercise.
