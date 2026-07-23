@@ -219,9 +219,29 @@ The learnings graph has three layers, each serving a different role:
 
 Codebase principles answer "what does this relationship look like in this codebase?" Summaries answer "when was this knowledge relevant and what was happening around it?"
 
+## Algorithm
+
+\`\`\`
+search([
+  step(1, "Orient via README"),                               // → identify relevant rel-ids from both sections
+  step(2, "Read relationships"),                              // → get abstract frame: what, when, when-not
+  step(3, "Clarify frame"),                                   // optional — only if no frame emerges from step 2
+  step(4, "Search",
+    for_each(relationship_id, [
+      branch(
+        when(principleExists,  readPrincipleFile()),           // → relation type guides interpretation
+        when(noPrinciple,      grepSummariesByRelId()),        // → interpretive guidelines in step 4
+      )
+    ])
+  ),
+  step(5, "Derive corollaries"),                              // goal-directed only — not as a general exercise
+  step(6, "Expand"),                                          // selective — stop when picture is clear
+])
+\`\`\`
+
 ---
 
-## Traversal Sequence
+## Step Details
 
 ### Step 1 — Orient via the README
 
