@@ -92,15 +92,13 @@ observe([
         reasonFromConversation(),                             // one concrete thing to examine
       ),
     ),
-    always(                                                   // Phase 2c — runs regardless of branch
-      synthesize([
-        rankCandidates(),                                     // by damage if missed
-        draftInjection(),                                     // must name file/command/mechanism
-        gapCheck(),                                           // already said by agent?
-      ])
-    ),
   ),
   phase(3, "Decide",
+    synthesize([
+      rankCandidates(),                                       // by damage if missed
+      draftInjection(),                                       // must name file/command/mechanism
+      gapCheck(),                                             // already said by agent?
+    ]),
     oneOf([
       when(goalSatisfied,  injectGoalComplete()),
       when(nothingToAdd,   stop()),                           // vague/speculative = don't inject
@@ -287,9 +285,9 @@ injecting; one that merely repeats is not.
 
 ---
 
-**Phase 2c: Synthesize before deciding — do this regardless of whether 2a or 2b applied.**
+## Phase 3: Decide whether to inject
 
-Write out your reasoning explicitly.
+Before deciding, synthesize what Phase 2 produced:
 
 **Rank the candidates.** If Phase 2 surfaced multiple angles — unexplored areas, \
 hypotheses, corrections — order them by consequence. The candidate that would cause \
@@ -302,19 +300,17 @@ not worth injecting.
 **Gap check.** Has the agent already said this — either in the turn's text or in a \
 tool call that's already planned? If so, injecting adds no value.
 
-Only after completing Phase 2c proceed to Phase 3.
-
-## Phase 3: Decide whether to inject
+Then decide:
 
 **Step 3a — Goal satisfied.** If the goal has clearly been satisfied, call \
 injectMessage to tell the main session that the goal appears complete and it should \
 call goal_satisfied. Then stop.
 
-**Step 3b — Nothing to add.** If the draft from Phase 2c is vague, speculative, \
+**Step 3b — Nothing to add.** If the draft is vague, speculative, \
 or already present in the agent's conversation, stop without calling injectMessage.
 
 **Step 3c — Inject.** Otherwise, call injectMessage once with the highest-ranked, \
-most concrete finding from Phase 2c. Speak as a peer watching alongside the agent, \
+most concrete finding. Speak as a peer watching alongside the agent, \
 not as a critic or a system. Keep it to the one or two most valuable things.
 
 - If the agent is on track: lead with the concrete next step from Phase 2a.
@@ -364,11 +360,11 @@ know yet; that is your advantage.
 
 \`\`\`
 orient([
-  step(1, "Read the task"),                                   // → classify task type
-  step(2, "Query learnings graph",
+  phase(1, "Read the task"),                                  // → classify task type
+  phase(2, "Query learnings graph",
     search(SEARCH_ALGORITHM),                               // orient → abstract plan → concretize
   ),
-  step(3, "Decide",
+  phase(3, "Decide",
     synthesize([
       taskLearningFit(),                                      // directly applicable to this task type?
       rankByConsequence(),                                    // exception-to/prerequisite-for rank higher
@@ -386,20 +382,20 @@ orient([
 
 ---
 
-## Step 1: Read the task
+## Phase 1: Read the task
 
 Read the first user message in the conversation. What is the agent being asked to do? \
 What type of task is this — debugging, implementation, investigation, design? \
 ${goal ? "" : "Use this to form the goal that will anchor your learnings query."}
 
-## Step 2: Query the learnings graph
+## Phase 2: Query the learnings graph
 
 Apply search(goal) as defined above.
 
 If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \
 calling injectMessage.
 
-## Step 3: Decide whether to inject
+## Phase 3: Decide whether to inject
 
 Before deciding, synthesize what you found:
 
