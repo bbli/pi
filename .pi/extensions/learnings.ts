@@ -61,9 +61,9 @@ ${RELATIONSHIP_DESIGN_SKILL_TEXT}
 ## Codebase Principles
 
 ### <relationship-id>
-(one entry per principle grouped under its relates-to relationship,
+(one entry per principle grouped under its instance-of relationship,
 sorted by citation count descending)
-- (<relation-type>) [<principle-id>] — <first sentence>  · <N> sessions
+- [<principle-id>] — <first sentence>  · <N> sessions
 
 ### User preferences
 (meta-scoped principles — no parent relationship)
@@ -105,8 +105,8 @@ Check for each of the following:
 - **Stale README format** — old format has \`## Established\` / \`## Accumulating\`; \
   current format has \`## Codebase Principles\` / \`## Relationships (no principle yet)\`.
 
-- **Frontmatter schema mismatches** — principle files should have \`id\`, \`relation\`, \
-  \`relates-to\`; relationship files should have \`id\`, \`links-to\`, \`used-in\`, and \
+- **Frontmatter schema mismatches** — principle files should have \`id\`, \`instance-of\`, \
+  \`links-to\`; relationship files should have \`id\`, \`links-to\`, \`used-in\`, and \
   optionally \`corollary-of\` / \`composition\`.
 
 - **Stale \`inferred: true\` flags** — corollary principles marked \`inferred: true\` \
@@ -134,7 +134,7 @@ Make the approved changes. Then regenerate \`.pi/learnings/README.md\` from \
 scratch:
 
 1. For every principle file: extract its ID, count summaries citing \
-   \`\\[<id>\\]\`, read its \`relation\` and \`relates-to\`, take the first \
+   \`\\[<id>\\]\`, read its \`instance-of\`, take the first \
    sentence of its prose.
 2. For every relationship file with no corresponding principle: count \
    summaries citing \`\\[<relationship-id>\\]\` directly.
