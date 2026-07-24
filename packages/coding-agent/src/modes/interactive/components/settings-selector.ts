@@ -141,7 +141,6 @@ class WarningSettingsSubmenu extends Container {
 /** Session types controllable via the keep-alive per-type map. */
 const KEEP_ALIVE_SESSION_TYPES: ReadonlyArray<{ label: string; display: string; description: string }> = [
 	{ label: "research", display: "Research", description: "researchConversationQuestion sessions" },
-	{ label: "procedure", display: "Procedure", description: "researchProcedure sessions" },
 	{ label: "act-as-user", display: "Act as user", description: "act-as-user sessions" },
 	{ label: "advisory:guidelines", display: "Guidelines advisor", description: "advisory guideline sessions" },
 	{ label: "advisory:continuations", display: "Continuations advisor", description: "advisory continuation sessions" },
