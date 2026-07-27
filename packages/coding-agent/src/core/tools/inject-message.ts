@@ -45,7 +45,7 @@ export function makeInjectMessageTool(rootSession: AgentSession): ToolDefinition
 			} else {
 				await rootSession.sendUserMessage(text);
 			}
-			return { content: [{ type: "text" as const, text: "injected" }], details: undefined };
+			return { content: [{ type: "text" as const, text: "injected" }], details: undefined, terminate: true };
 		},
 	});
 }
