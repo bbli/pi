@@ -62,7 +62,7 @@ Meta-scoped principles have an empty \`instance-of\`. They are still tagged to s
 ---
 ## summaries/
 
-Session summaries are narrative records of what happened in a learn session. They cite principle IDs and relationship IDs inline in their prose. When a pattern has a codebase principle, cite its principle ID. When a theme does not yet have a principle, cite the relationship ID directly - this is what the learn session greps to detect recurring themes before a principle is created.
+Session summaries are observed traversals — records of how relationships and principles were sequenced and composed to solve a specific problem. They cite principle IDs and relationship IDs inline in their prose as anchors in the compositional narrative: which relationship was reached for first, what it produced, how that fed the next, where pivots occurred. When a pattern has a codebase principle, cite its principle ID. When a theme does not yet have a principle, cite the relationship ID directly — this is what the learn session greps to detect recurring themes before a principle is created.
 
 ### Format
 
@@ -72,8 +72,9 @@ session-id: <current-session-id>
 goal: "the session goal"
 date: YYYY-MM-DD
 ---
-Narrative prose describing what happened. Cite [principle-id] for established codebase
-patterns. Cite [relationship-id] directly for themes that do not yet have a principle.
+Compositional trajectory: how relationships were sequenced, what each produced, how they
+fed each other, where pivots occurred. Cite [principle-id] for established patterns;
+[relationship-id] for themes without a principle yet. Inline in narrative, not as a list.
 \`\`\`
 
 ### File naming
@@ -199,7 +200,7 @@ The learnings graph has three layers:
 
 - **Relationships** (\`relationships/\`) - portable methods encoding how the user approaches a type of problem. The abstract *thinking frame*.
 - **Codebase Principles** (\`principles/\`) — concrete recurring patterns specific to this codebase: exact files, log tags, counters, gotchas. Each has an \`instance-of\` field naming its parent relationship (optional) and a \`links-to\` list of related principles.
-- **Summaries** (\`summaries/\`) - session narrative records. Cite \`[principle-id]\` for established patterns; \`[relationship-id]\` directly for themes without a principle yet.
+- **Summaries** (\`summaries/\`) - observed traversals: how relationships were sequenced and composed to solve a specific problem. The empirical record of which compositions worked, in what order, and where pivots occurred.
 
 ## Algorithm
 
@@ -264,7 +265,7 @@ Reading is not enough - actively question each relationship against the current 
 - *What would the output of applying this method be?* Does that output move toward the goal, and what would success look like at the abstract level?
 - *Is this method actively triggered or merely plausible?* A relationship with a \`trigger-for\` signal visible in the current situation is strongly indicated. One without is speculative.
 
-**Clarify if no frame emerges:** If reading the relationships produces no clear frame, scan broadly - grep principles for relevant terms, or read recent summaries for similar problems - to identify the right relationship, then return to reading it.
+**Clarify if no frame emerges:** If reading the relationships produces no clear frame, scan broadly — grep principles for relevant terms to identify the right relationship, then return to reading it.
 
 **Assess applicability before composing.** Classify each relationship:
 
@@ -275,6 +276,16 @@ Reading is not enough - actively question each relationship against the current 
 Higher-confidence relationships anchor the plan. Lower-confidence ones are candidates or fallbacks.
 
 **Take a holistic view.** Before checking composition patterns, step back: what is the shape of the problem these relationships together describe? Do they address orthogonal aspects of the same problem? Does one produce what another requires? This view surfaces compositional patterns that mechanical checking alone misses.
+
+**Check summaries for observed compositions.** Before deriving corollaries analytically, check whether any summary already shows the relationships now in view composed for a similar problem:
+
+\`\`\`
+ls .pi/learnings/summaries/ 2>/dev/null
+\`\`\`
+
+Read summaries that appear relevant by filename (goal slug). Look for the traversal sequence: which relationship came first, what it produced, how that fed the next. An observed composition is stronger evidence than analytical derivation — if a summary already shows A → B working for this type of goal, that sequence anchors the plan. Note any pivots or dead ends recorded in the traversal.
+
+If no relevant summaries exist or none match the current problem shape, proceed to analytical derivation.
 
 **Derive corollaries - working from the goal backwards.** Start with the goal outcome and reason backwards: what do you need to know or establish to achieve it? Which relationships produce those prerequisites? Then check the four composition patterns:
 
@@ -298,13 +309,15 @@ Translate each element of the abstract plan into a concrete action for this code
 \`\`\`
 .pi/learnings/
   principles/    — codebase-specific patterns; frontmatter: id, instance-of, links-to
-  summaries/     - session records citing [principle-id] or [relationship-id]
+  summaries/     - observed traversals (compositions, dead ends, sub-threshold patterns)
 \`\`\`
 
 For each abstract plan element:
 
 - **Principles** give exact artifacts — the specific file, log tag, function, or counter to use, plus gotchas encoded in prose and linked principles: prerequisites to check first, conditions where the method breaks down, signals that confirm it applies here.
-- **Summaries** give context - how the method played out in prior sessions, situational fit gaps to watch for, dead ends to avoid.
+- **Summaries** give empirical composition data — read them for two specific cases:
+  - *Sub-threshold relationships* (1–2/3 citations in the README): no principle exists yet, so unformalised detail lives only in the summary. Read the relevant summary to surface gotchas or artifacts not yet promoted to a principle.
+  - *Dead ends and pivots*: a summary records "tried A, hit condition X, switched to B" — the pivot and its cause. A principle records only that X is an exception; the summary records the observed trigger and the fallback that resolved it.
 - **Gaps** - where the learnings provide nothing relevant, formulate a concrete question and call \`researchConversationQuestion\` rather than proceeding on assumption.
 
 **When the graph is sparse:** extract the abstract role of any artifact found and map it to the current context. Adapt rather than stopping - a principle from a different service or layer often applies with proper-noun substitution. If the equivalent in the current context is unknown, \`researchConversationQuestion\` fills the gap.
@@ -325,161 +338,136 @@ For each abstract plan element:
  */
 export const LEARN_ANALYSIS_PROMPT = `\
 ### System Role
-You are reviewing a past pi agent session to extract what the user knows, how they operate, and what they value - knowledge the agent can draw on in future sessions. Work through the two phases below in order.
+You are reviewing a past pi agent session to extract what the user knows, how they operate, and what they value — knowledge the agent can draw on in future sessions.
 
-The session being reviewed is the conversation history that precedes this message - the one that was loaded when this learn session started. Focus your analysis on that conversation, not on this current exchange.
+**⚠️ This is an interactive process with mandatory stops. DO NOT proceed past any gate without explicit user input.**
 
-## Algorithm
+Work through the phases below one at a time. Each phase ends with a gate.
 
-\`\`\`
-learn([
-  phase(1, "Observe",
-    classify(user_messages, [
-      "domain_knowledge",                   // named a file, mechanism, or log path
-      "debugging_method",                   // described or demonstrated a procedure
-      "preference_or_style",                // pushed back on format, expressed how they work
-      "correction_or_redirect",             // fixed an agent assumption
-      "task_direction",                     // new instruction or extended scope
-    ])
-  ),
-  phase(2, "Learn", [
-    step(1, "Write session summary"),                         // cite [principle-id] or [rel-id]
-    step(2, "Cross-summary analysis",
-      for_each(relationship_id_cited, [
-        count = grep(summaries, pattern="[{relationship_id}]"),
-        if(count >= 2 && !principleExists && specificPatternRecurs):
-          proposePrinciple()                                  // count+1 = this session → ≥3 total
-      ])
-    ),
-    step(3, "Draft relationships",          embeds(SCHEMA_SPEC)),
-    step(4, "Derive corollaries"),
-    step(5, "Triangulate",                  checkAgainstExisting(learnings_directory)),
-  ]),
-  phase(3, "Present → Write", [
-    present([
-      "new_principles",
-      "new_or_revised_relationships",
-      "derived_corollaries",
-      "readme_changes",
-      "agents_md_candidates",
-    ]),
-    waitForApproval(),                                        // "write it" or corrections
-    write([
-      createDirs(),
-      migrateFromObservations(),                             // if observations/ exists
-      writeSessionSummary(),
-      writePrincipleFiles(),
-      writeRelationshipFiles(),
-      regenerateReadme(README_FORMAT),
-    ]),
-  ]),
-])
-\`\`\`
+The session being reviewed is the conversation history that precedes this message. Focus your analysis on that conversation, not on this current exchange.
 
 ---
 
-## Phase 1: Observe
+## Phase 1: Act-as-user performance
 
-Read every user message in the session. For each, note what the user contributed and classify it:
+Read every user message in the session. For each, evaluate how the agent performed relative to what the user needed:
 
-- **Domain knowledge** - named a file, component, mechanism, or log path
-- **Debugging method** - described or demonstrated a diagnostic procedure
-- **Preference or style** - pushed back on format, expressed how they like to work
-- **Correction or redirect** - fixed an agent assumption, redirected the approach
-- **Task direction** - issued a new instruction or extended scope
+- **Correction** — the agent took a wrong direction or made a false assumption; user had to redirect
+- **Knowledge gap** — user had to supply information the agent should have found or known (a log tag, file path, mechanism, prerequisite)
+- **Style friction** — agent's format, verbosity, or level of detail didn't match what the user wanted
+- **Blind spot** — agent missed something visible in the codebase or conversation that mattered
+- **Method divergence** — agent approached the problem differently than the user would have
+- **Missed askUser trigger** — a point where the agent should have called \`askUser\` but didn't. Match against the known trigger conditions: assumption contradicted by new evidence, repeated failed attempts on the same issue, scope escalating beyond the original request, speculating without grounding claims in read evidence, circular research (revisiting the same files/questions without applying prior findings), goal drift (work diverging from the stated goal across multiple turns). Note which condition applied and what the call would have surfaced.
+- **Effective** — agent handled something well without needing user intervention
 
-Build a list of raw findings - these are the inputs to Phase 2.
+Build a flat list — one bullet per observation with its classification, a brief description, and (for failures) what the correct behavior would have been.
 
-## Phase 2: Learn
+**🛑 STOP — Gate 1.** Present your findings list.
 
-### Step 1 - Write the session summary
+> Does this look right? Say **'summary'** to draft the session summary, or correct any misclassifications.
 
-Write the summary first, before considering whether any codebase principle should be created.
+DO NOT proceed to Phase 2 until the user responds.
 
-For each relationship applied or encountered in this session:
-- If a codebase principle already exists for it: cite \`[principle-id]\` in the narrative.
-- If no principle exists yet: cite \`[relationship-id]\` directly in the narrative.
+---
 
-For meta-scoped themes (user preferences, working style): describe them in prose with no ID citation.
+## Phase 2: System knowledge
 
-Write with exact names throughout - log tags, file paths, function names, counter names. The summary is the primary record.
+*Enter this phase when the user says 'summary' or approves the Phase 1 findings.*
 
-### Step 2 - Cross-summary analysis
+Write the session summary. The goal is to capture knowledge a future agent could not derive from reading the codebase alone. Be dense and selective — leave out anything the codebase answers directly.
 
-For each relationship ID cited in this session's summary, check how many other summaries cite it:
+**What is worth capturing:**
 
-\`\`\`
-grep -rl "\\[<relationship-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l
-\`\`\`
+- **Navigation priority** — which source to check first, and why the obvious alternative is misleading or noisy. Not "check file X" (greppable). "Check X before Y because Y has 10x noise from unrelated subsystems" (not derivable).
+- **Interpretation keys** — what a specific pattern, counter value, or log signature actually means in practice, as opposed to what the code says it does.
+- **Plausible dead ends** — approaches that look correct from the code but fail in practice, and why. These save a future agent the same detour.
+- **Non-obvious prerequisites** — conditions that must be true before a method works, where the failure mode looks identical to the actual bug.
+- **User judgment and reasoning** — when the user redirected, what principle drove that choice? Not "user changed to approach X" but "user changed because invariant Y must hold before Z can be applied."
+- **Working style** — how the user communicates, what level of detail they want before moving, what they find useful vs. distracting.
 
-If the grep returns **2 or more** existing summaries (this session is one more, bringing the total to ≥3) AND no principle exists yet for this relationship:
+**What is not worth capturing:**
 
-Read the matching summaries. Confirm that a **specific codebase pattern** - not just the abstract relationship being applied - recurs across them. A relationship appearing 3 times does not automatically warrant a principle; a concrete, narrow codebase-specific pattern (a specific log tag, prerequisite, exception condition, or trigger signal) appearing 3 times does.
+- Chronological recaps of what was read or grepped
+- The problem description (rederivable from the code and git history)
+- Single-occurrence events that were not part of a demonstrated method
+- Anything a competent engineer would find in under two minutes from the codebase
 
-If a specific pattern is confirmed: draft a codebase principle:
-- \`id\` (kebab-case), \`instance-of\` (parent relationship ID), \`links-to\` (related principle IDs), prose using exact names.
-- Ground the prose in evidence from ≥3 sessions. Capture prerequisite, exception, trigger, or composition relationships in prose or via \`links-to\`, not as separate frontmatter fields.
+**Test:** Would a future agent reading only this summary and the codebase know something it could not derive from the codebase alone that would change how it approaches a similar problem? If no, leave it out.
 
-For meta-scoped recurring themes: same threshold (≥3 sessions), leave \`instance-of\` empty.
+Write the summary as a compositional trajectory — not a list of what was applied, but a narrative of how relationships and principles connected to solve the problem:
+- What goal or problem was being pursued
+- Which relationship was reached for first and why
+- What it produced, and how that fed the next step
+- Which codebase principles (exact artifacts) were needed to execute each relationship
+- Where relationships composed — one's output becoming another's input
+- Where composition broke down and why (dead ends, pivots)
 
-### Step 3 - Draft relationships
+Cite IDs inline in the narrative as anchors:
+- Established principle: \`[principle-id]\`
+- Relationship without a principle yet: \`[relationship-id]\`
+- Meta-scoped themes (preferences, working style): prose only, no ID
+
+Do not write the file yet. Show the draft content inline for review.
+
+**🛑 STOP — Gate 2.** Show the full draft summary.
+
+> Does this capture what's worth retaining? Correct it or say **'draft'** to propose relationships and principles.
+
+DO NOT proceed to Phase 3 until the user responds.
+
+---
+
+## Phase 3: Draft and triangulate
+
+*Enter this phase when the user says 'draft' or approves the Phase 2 summary.*
+
+### Draft relationships and principles
 
 ${RELATIONSHIP_DESIGN_SKILL_TEXT}
 
-Reason inductively from the candidate principles and findings:
-- A principle with a populated \`instance-of\` — does an existing relationship already capture that method, or is this genuinely new (draft)?
-- Prose that describes a prerequisite, exception, trigger, or composition — what relationship does it scope? Draft or match a relationship for the \`instance-of\` field.
-- For each implied relationship: does an existing one already capture it (revise) or is this genuinely new (draft)?
+From the Phase 2 summary and Phase 1 method-divergence observations, reason inductively:
+- Does the knowledge captured describe a portable method (relationship) or a codebase-specific artifact (principle)?
+- A principle with a populated \`instance-of\` — does an existing relationship already capture that method, or is this genuinely new?
+- Prose describing a prerequisite, exception, trigger, or composition — what relationship does it scope?
+- Phase 1 method-divergence observations — what did the user demonstrate or reach for that the agent did not? Draft or revise a relationship to encode that method.
+- For each implied relationship: revise an existing one or draft a new one.
 
-### Step 4 - Derive corollaries
+For each entry drafted, assign a confidence level:
+- **Well-evidenced** — directly demonstrated in this session; multiple observations or a clear, concrete pattern
+- **Inferred** — derived from a single correction or method-divergence; one data point, needs user confirmation
+- **Speculative** — loose induction with thin evidence; flag explicitly and let the user decide whether to include
 
-Refer to the relationship design reference embedded in Step 3 above, particularly the Corollaries section.
+### Triangulate against existing learnings
 
-Check the four composition patterns across the relationships now in view:
-- **Sequential (A → B)** - does A's output feed directly into B?
-- **Conjunctive (A + B → C)** - do A and B run independently and combine for C?
-- **Conditional (A → B if P, else C)** - does a \`trigger-for\` on B pair with an \`exception-to\` on B plus an alternative relationship C?
-- **Fallback (A, then B)** - does an \`exception-to\` on A pair with a relationship B that handles the case A cannot?
+Check each proposed principle and relationship against the existing learnings graph:
 
-Draft corollary relationships with \`corollary-of\` and \`composition\` in frontmatter and \`inferred: true\`.
-
-### Step 5 - Triangulate
-
-Use the learnings graph to check whether proposed changes are consistent with existing knowledge.
-
-The directory structure:
 \`\`\`
 .pi/learnings/
-  README.md      - index of established principles and relationships
-  principles/    — grep: grep -rl "instance-of: <rel-id>" principles/
-  summaries/     - grep: grep -rl "\\[<id>\\]" summaries/
+  README.md      — read first to orient
+  principles/    — grep -rl "instance-of: <rel-id>" principles/
+  summaries/     — grep -rl "\\[<id>\\]" summaries/
 \`\`\`
 
-For each proposed principle or relationship: search for existing entries that corroborate, conflict with, or subsume it. Revise accordingly.
+For each proposed entry: search for existing entries that corroborate, conflict with, or subsume it. Revise accordingly.
 
-### Step 6 - Present
+**🛑 STOP — Gate 3.** Present the reconciled proposal:
+1. **New codebase principles** — frontmatter + prose, each labeled with its confidence level
+2. **New / revised relationships** — complete file content; note what changed and why for revisions; each labeled with its confidence level
+3. **README changes** — proposed updated content
+4. **AGENTS.md candidates** — standing rules proposed for addition; user decides each
 
-Present the following clearly, then stop and wait for the user to respond:
+> Say **'write it'** to commit these to disk, or make any final corrections.
 
-1. **New codebase principles** - frontmatter + prose for each, noting scope and connection type
-2. **New / revised relationships** - complete file content; note what changed and why for revisions
-3. **Derived corollaries** - relationship files with \`corollary-of\` and \`composition\`
-4. **README changes** - proposed updated README content
-5. **AGENTS.md candidates** - standing rules proposed for addition; user decides each one
+DO NOT write anything until the user explicitly says 'write it'.
 
-After presenting, ask: **"Does this look right? Let me know any corrections or additions, or say 'write it' to commit these to disk."**
+---
 
-Do not proceed to Step 7 until the user explicitly approves.
+## Phase 4: Write
 
-### Step 7 - Write
-
-Once the user approves - with or without requested changes - execute all writes in order.
+*Enter this phase when the user says 'write it'.*
 
 **Prepare metadata:**
 \`\`\`
-# Current session ID
-ls -t ~/.pi/agent/sessions/*.jsonl 2>/dev/null | head -1 | sed 's/.*_\\(.*\\)\\.jsonl$/\\1/'
-# Today's date
 date +%Y-%m-%d
 \`\`\`
 
@@ -489,15 +477,16 @@ mkdir -p .pi/learnings/principles .pi/learnings/summaries .pi/learnings/relation
 \`\`\`
 
 **Migrate from \`observations/\` if present.**
-If \`.pi/learnings/observations/\` exists and this is the first write pass under the new schema:
+If \`.pi/learnings/observations/\` exists:
 \`\`\`
 ls .pi/learnings/observations/ 2>/dev/null
 \`\`\`
-For each observation file found, count how many summaries cite its ID:
+For each observation file found, count summaries citing its ID:
 \`\`\`
 grep -rl "\\[<observation-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l
 \`\`\`
-If the count is **3 or more**: copy the file to \`.pi/learnings/principles/<id>.md\` - it already meets the threshold and is an established codebase principle. If the count is fewer than 3: leave it - it was a pre-threshold observation and should be reconsidered once the pattern recurs in future sessions.
+Count ≥ 3: copy to \`.pi/learnings/principles/<id>.md\`.
+Count < 3: leave it.
 
 **Write the session summary.**
 Write to \`.pi/learnings/summaries/<date>-<goal-slug>.md\`:
@@ -507,8 +496,9 @@ session-id: <current-session-id>
 goal: "<session goal>"
 date: <date>
 ---
-<Narrative prose. Cite [principle-id] for established codebase patterns.
-Cite [relationship-id] directly for themes that do not yet have a principle.>
+<Compositional trajectory: how relationships were sequenced, what each produced, how
+they fed each other. Cite [principle-id] for established patterns, [relationship-id]
+for themes without a principle yet. Inline in narrative, not as a list.>
 \`\`\`
 
 **Write codebase principle files.**
@@ -521,21 +511,21 @@ links-to: []
 ---
 <prose>
 \`\`\`
-Rewrite any renamed or revised existing principle files and update all summary citations that used the old ID.
+Rewrite any renamed or revised existing principle files. Update all summary citations that used the old ID.
 
 **Write relationship files.**
 Write each new or revised relationship to \`.pi/learnings/relationships/<id>.md\`.
 Update the \`used-in\` field of source relationships for any new corollaries.
 
 **Write AGENTS.md additions.**
-If any standing rule candidates were approved, append them to \`.pi/AGENTS.md\` (or the project root \`AGENTS.md\` if that is where project rules live). Create the file if absent.
+If any standing rule candidates were approved, append them to \`.pi/AGENTS.md\` (or the project root \`AGENTS.md\`). Create the file if absent.
 
 **Regenerate README.md.**
 
 For every principle file in \`.pi/learnings/principles/\`:
 1. Extract the ID from the filename.
 2. Count summaries citing it: \`grep -rl "\\[<id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l\`
-3. Read its \`instance-of\` and first sentence of prose from frontmatter.
+3. Read its \`instance-of\` and first sentence of prose.
 
 For every relationship with no corresponding principle file, count summaries citing the relationship ID directly: \`grep -rl "\\[<rel-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l\`
 
@@ -557,4 +547,4 @@ sorted by citation count descending)
 - <relationship-id> — <N>/3 sessions
 \`\`\`
 
-Only write what the conversation gives clear evidence for. If a pattern occurred once and is ambiguous, say so in the prose. Do not speculate beyond what the history shows.`;
+Only write what the conversation gives clear evidence for. Do not speculate beyond what the history shows.`;
