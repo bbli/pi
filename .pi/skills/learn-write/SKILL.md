@@ -50,8 +50,13 @@ session-id: <current-session-id>
 goal: "<session goal>"
 date: <date>
 ---
-<Narrative prose. Cite [principle-id] for established codebase patterns.
-Cite [relationship-id] directly for themes that do not yet have a principle.>
+<### Step 1
+<what was tried, what it produced, or where it hit a wall>
+
+### Step 2
+<next move, correction, or pivot>
+
+... Cite [principle-id] for established patterns, [relationship-id] for themes without a principle yet.>
 ```
 
 ## Step 5 — Write codebase principle files

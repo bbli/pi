@@ -72,9 +72,13 @@ session-id: <current-session-id>
 goal: "the session goal"
 date: YYYY-MM-DD
 ---
-Compositional trajectory: how relationships were sequenced, what each produced, how they
-fed each other, where pivots occurred. Cite [principle-id] for established patterns;
-[relationship-id] for themes without a principle yet. Inline in narrative, not as a list.
+### Step 1
+<what was tried, what it produced, or where it hit a wall>
+
+### Step 2
+<next move, correction, or pivot>
+
+... Cite [principle-id] for established patterns; [relationship-id] for themes without a principle yet.
 \`\`\`
 
 ### File naming
@@ -374,33 +378,9 @@ DO NOT proceed to Phase 2 until the user responds.
 
 *Enter this phase when the user says 'summary' or approves the Phase 1 findings.*
 
-Write the session summary. The goal is to capture knowledge a future agent could not derive from reading the codebase alone. Be dense and selective — leave out anything the codebase answers directly.
+Write a step-by-step account of what happened in the conversation, formatted with numbered markdown headers (\`### Step 1\`, \`### Step 2\`, etc.). Each step is one meaningful move in the investigation: what was tried, what it produced, where it hit a wall, what the user corrected, what the pivot was. Include roadblocks — they are part of the story.
 
-**What is worth capturing:**
-
-- **Navigation priority** — which source to check first, and why the obvious alternative is misleading or noisy. Not "check file X" (greppable). "Check X before Y because Y has 10x noise from unrelated subsystems" (not derivable).
-- **Interpretation keys** — what a specific pattern, counter value, or log signature actually means in practice, as opposed to what the code says it does.
-- **Plausible dead ends** — approaches that look correct from the code but fail in practice, and why. These save a future agent the same detour.
-- **Non-obvious prerequisites** — conditions that must be true before a method works, where the failure mode looks identical to the actual bug.
-- **User judgment and reasoning** — when the user redirected, what principle drove that choice? Not "user changed to approach X" but "user changed because invariant Y must hold before Z can be applied."
-- **Working style** — how the user communicates, what level of detail they want before moving, what they find useful vs. distracting.
-
-**What is not worth capturing:**
-
-- Chronological recaps of what was read or grepped
-- The problem description (rederivable from the code and git history)
-- Single-occurrence events that were not part of a demonstrated method
-- Anything a competent engineer would find in under two minutes from the codebase
-
-**Test:** Would a future agent reading only this summary and the codebase know something it could not derive from the codebase alone that would change how it approaches a similar problem? If no, leave it out.
-
-Write the summary as a compositional trajectory — not a list of what was applied, but a narrative of how relationships and principles connected to solve the problem:
-- What goal or problem was being pursued
-- Which relationship was reached for first and why
-- What it produced, and how that fed the next step
-- Which codebase principles (exact artifacts) were needed to execute each relationship
-- Where relationships composed — one's output becoming another's input
-- Where composition broke down and why (dead ends, pivots)
+Stay at the method and approach level, not the tool invocation level. "Tried timestamp-based interleaving, timestamps were too coarse in the snapshot path, switched to event-sequence ordering" is a step. "Read foo.ts" is not.
 
 Cite IDs inline in the narrative as anchors:
 - Established principle: \`[principle-id]\`
@@ -411,7 +391,7 @@ Do not write the file yet. Show the draft content inline for review.
 
 **🛑 STOP — Gate 2.** Show the full draft summary.
 
-> Does this capture what's worth retaining? Correct it or say **'draft'** to propose relationships and principles.
+> Does this accurately capture what happened? Correct it or say **'draft'** to propose relationships and principles.
 
 DO NOT proceed to Phase 3 until the user responds.
 
@@ -496,9 +476,13 @@ session-id: <current-session-id>
 goal: "<session goal>"
 date: <date>
 ---
-<Compositional trajectory: how relationships were sequenced, what each produced, how
-they fed each other. Cite [principle-id] for established patterns, [relationship-id]
-for themes without a principle yet. Inline in narrative, not as a list.>
+<### Step 1
+<what was tried, what it produced, or where it hit a wall>
+
+### Step 2
+<next move, correction, or pivot>
+
+... Cite [principle-id] for established patterns, [relationship-id] for themes without a principle yet.>
 \`\`\`
 
 **Write codebase principle files.**
