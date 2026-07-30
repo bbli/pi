@@ -4,9 +4,11 @@
  * Invoked in three ways:
  *   1. First turn (turn_end, turnIndex 0, once per session): proactive orientation —
  *      queries the learnings graph and injects domain knowledge before the agent
- *      goes deep. Does not require a goal.
- *   2. Every agent_end (when a goal is set and no continuation fired): reactive
- *      assessment — direction check, learnings query if off-track, next step if on-track.
+ *      goes deep. Does not require a goal. Runs synchronously (awaited) so the
+ *      injection arrives before the next LLM call.
+ *   2. Every subsequent turn (turn_end, turnIndex > 0): reactive assessment —
+ *      fire-and-forget call to runActAsUserSession so it runs concurrently with
+ *      the agent's continued work. Requires an active goal.
  *   3. askUser tool: explicit invocation by the agent when it needs an outside perspective.
  *
  * The branch session has access to:
@@ -14,9 +16,9 @@
  *   - bash: query the learnings graph at .pi/learnings/
  *   - injectMessage: send an observation to the main session
  *
- * Skip conditions (agent_end path only):
+ * Skip conditions (per-turn path only):
  *   - No active goal
- *   - A continuation advisory already fired this cycle (event.continuationFired)
+ *   - A session is already in-flight (_actAsUserTurnRunning)
  */
 
 import { existsSync } from "fs";
@@ -561,51 +563,58 @@ export default function actAsUser(pi: ExtensionAPI): void {
 		},
 	});
 
-	// --- turn_end handler: first turn of session only (proactive orientation) ---
+	// --- turn_end handler ---
+	//
+	// Two paths:
+	//   turnIndex === 0 (sync): proactive orientation — queries the learnings
+	//     graph and injects domain knowledge before the agent goes deep.
+	//     Consumes the first-turn window unconditionally and runs synchronously
+	//     (awaited) so the injection arrives before the next LLM call.
+	//   turnIndex > 0 (async): reactive assessment — fire-and-forget call to
+	//     runActAsUserSession so it runs concurrently with the agent's continued
+	//     work. Skipped if no goal is set or a session is already in-flight.
 
 	let firstTurnFired = false;
+	let _actAsUserTurnRunning = false;
 
 	pi.on("turn_end", async (event, _ctx) => {
-		if (firstTurnFired) return;
-		if (event.turnIndex !== 0) return;
-		// Consume the first-turn window unconditionally — if act-as-user is not
-		// enabled at this moment, the orientation opportunity is gone regardless
-		// of future enable/disable state. This prevents a retroactive first-turn
-		// firing after the agent has already done significant work.
-		firstTurnFired = true;
-		if (!pi.getActAsUserEnabled()) return;
-		// Skip the branch session when the learnings graph hasn't been populated
-		// yet — avoids a full branch session just to discover nothing to inject.
-		if (!existsSync(".pi/learnings")) return;
-		const injectMessageTool = pi.makeInjectMessageTool();
-		try {
-			await pi.runBranchSession(buildFirstTurnPrompt(pi.getGoal()), {
-				seedContext: true,
-				tools: ["read", "bash"],
-				customTools: [injectMessageTool],
-				label: "act-as-user",
-				injectEvery: { turns: 6, message: QUESTION_GEN_REMINDER },
-			});
-		} catch (err) {
-			console.error(
-				`[act-as-user] first-turn runBranchSession failed: ${
-					err instanceof Error ? err.message : String(err)
-				}`,
-			);
+		// --- First-turn orientation (sync) ---
+		if (!firstTurnFired && event.turnIndex === 0) {
+			// Consume the first-turn window unconditionally — if act-as-user is not
+			// enabled at this moment, the orientation opportunity is gone regardless
+			// of future enable/disable state. This prevents a retroactive first-turn
+			// firing after the agent has already done significant work.
+			firstTurnFired = true;
+			if (!pi.getActAsUserEnabled()) return;
+			// Skip when the learnings graph hasn't been populated yet — avoids a
+			// full branch session just to discover nothing to inject.
+			if (!existsSync(".pi/learnings")) return;
+			const injectMessageTool = pi.makeInjectMessageTool();
+			try {
+				await pi.runBranchSession(buildFirstTurnPrompt(pi.getGoal()), {
+					seedContext: true,
+					tools: ["read", "bash"],
+					customTools: [injectMessageTool],
+					label: "act-as-user",
+					injectEvery: { turns: 6, message: QUESTION_GEN_REMINDER },
+				});
+			} catch (err) {
+				console.error(
+					`[act-as-user] first-turn runBranchSession failed: ${
+						err instanceof Error ? err.message : String(err)
+					}`,
+				);
+			}
+			return;
 		}
-	});
 
-	// --- agent_end handler: every run (reactive assessment) ---
-	// Note: on the first agent run this fires after the turn_end orientation
-	// handler has already completed. Both can inject — orientation covers
-	// domain knowledge from the learnings graph, reactive covers direction
-	// and next-step. Step 3's suppression gate ("adds nothing beyond what
-	// the agent has already said") handles thin-context cases where the
-	// reactive assessment has too little to add on a first single-turn run.
-
-	pi.on("agent_end", async (event, _ctx) => {
+		// --- Per-turn reactive assessment (async, fire-and-forget) ---
+		if (!pi.getActAsUserEnabled()) return;
 		if (!pi.getGoal()) return;
-		if (event.continuationFired) return;
-		await runActAsUserSession();
+		if (_actAsUserTurnRunning) return;
+		_actAsUserTurnRunning = true;
+		void runActAsUserSession().finally(() => {
+			_actAsUserTurnRunning = false;
+		});
 	});
 }
