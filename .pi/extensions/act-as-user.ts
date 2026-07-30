@@ -506,7 +506,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				tools: ["read", "bash"],
 				customTools: [injectMessageTool],
 				label: "act-as-user",
-				injectEvery: { turns: 6, message: question ? TARGETED_QUESTION_REMINDER : QUESTION_GEN_REMINDER },
+				injectEvery: { turns: 5, message: question ? TARGETED_QUESTION_REMINDER : QUESTION_GEN_REMINDER },
 				abortSignal: signal,
 			});
 		} catch (err) {
@@ -596,7 +596,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 					tools: ["read", "bash"],
 					customTools: [injectMessageTool],
 					label: "act-as-user",
-					injectEvery: { turns: 6, message: QUESTION_GEN_REMINDER },
+					injectEvery: { turns: 5, message: QUESTION_GEN_REMINDER },
 				});
 			} catch (err) {
 				console.error(

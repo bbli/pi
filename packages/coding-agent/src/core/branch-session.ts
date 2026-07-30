@@ -137,7 +137,7 @@ function wireInjectEvery(
 	return branchSession.subscribe((event) => {
 		if (event.type !== "turn_end") return;
 		turnCount++;
-		if (turnCount === 1 || (turnCount - 1) % turns === 0) {
+		if (turnCount % turns === 0) {
 			debugLog(`[branch:${label}] injectEvery: injecting reminder at turn ${turnCount}`);
 			void branchSession.steer(message);
 		}
