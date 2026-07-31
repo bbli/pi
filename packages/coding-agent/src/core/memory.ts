@@ -284,16 +284,17 @@ For each entry drafted, assign a confidence level:
 
 ### Triangulate against existing learnings
 
-Check each proposed principle and relationship against the existing learnings graph:
+For each proposed principle and relationship, call \`researchConversationQuestion\` with a \
+self-contained question that names the entry and asks whether the learnings graph already \
+has an entry that corroborates, conflicts with, or subsumes it:
 
-\`\`\`
-$(pwd)/.pi/learnings/
-  README.md      — read first to orient
-  principles/    — grep -rl "instance-of: <rel-id>" "$(pwd)/.pi/learnings/principles/"
-  summaries/     — grep -rl "\\[<id>\\]" "$(pwd)/.pi/learnings/summaries/"
-\`\`\`
+> \`researchConversationQuestion("Does $(pwd)/.pi/learnings/ already have a relationship or \
+principle that corroborates, conflicts with, or subsumes [entry-id]: [one-sentence description]? \
+Read README.md first to orient, then grep principles/ and summaries/ for related IDs and \
+read any matches.")\`
 
-For each proposed entry: search for existing entries that corroborate, conflict with, or subsume it. Revise accordingly.
+Call one per proposed entry, all in the same turn so they run in parallel. Use the \
+returned findings to revise each proposal before presenting at Gate 3.
 
 **🛑 STOP — Gate 3.** Present the reconciled proposal:
 1. **New codebase principles** — frontmatter + prose, each labeled with its confidence level
