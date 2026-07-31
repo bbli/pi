@@ -88,7 +88,7 @@ List available summaries and identify ones relevant by filename:
 ls "$(pwd)/.pi/learnings/summaries/" 2>/dev/null
 ```
 
-Read summaries whose filenames match the goal, the component under investigation, or the relationships chosen in Step 2. Summaries show which compositions worked, in what order, and where pivots occurred — an observed traversal for the same type of problem is the strongest signal available.
+Read the most relevant 3–5 by filename match — stop when you have enough to form a hypothesis; this is a judgment call, not a full traversal. Summaries show which compositions worked, in what order, and where pivots occurred — an observed traversal for the same type of problem is the strongest signal available.
 
 ### Step 5 - Synthesize
 
@@ -97,4 +97,4 @@ With the relationships, principles, and summaries in hand, determine how to appl
 - **Exact match** — a summary already records the same type of problem with the same relationships. Apply the traversal directly: the composition sequence, the concrete artifacts, and any pivots already carry the answer.
 - **Modifications needed** — the relationships and principles apply but no summary is an exact match. Adapt: use the relationship methods with the concrete artifacts from the principles, adjusting for any differences the current situation introduces.
 
-Produce the injection: a concrete, actionable suggestion grounded in what was found.
+State what applies directly, what would need adaptation for the current context, and any gaps where `researchConversationQuestion` would be needed. The calling prompt determines what to do with these findings.

@@ -47,7 +47,7 @@ function buildTargetedPrompt(goal: string, question: string, reason?: string): s
 		`Question: ${question}`,
 	].filter(Boolean).join("\n");
 	return `\
-CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and follow its algorithm exactly.
+CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and use its algorithm as your guide.
 
 ---
 
@@ -79,6 +79,8 @@ answer([
 \`\`\`
 
 ## Step 1: Query the learnings graph
+
+Follow the query-learnings skill (\`$(pwd)/.pi/skills/query-learnings/SKILL.md\`) to execute this step.
 
 \`\`\`
 queryLearnings(question)
@@ -118,7 +120,7 @@ function buildPrompt(goal: string, question?: string, reason?: string): string {
 
 function buildAssessmentPrompt(goal: string): string {
 	return `\
-CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and follow its algorithm exactly.
+CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and use its algorithm as your guide.
 
 ---
 
@@ -254,6 +256,8 @@ approach itself may be wrong
 
 **If the agent is off track (either pattern) — Phase 2b: form a hypothesis using the learnings graph.**
 
+Follow the query-learnings skill (\`$(pwd)/.pi/skills/query-learnings/SKILL.md\`) to execute this step.
+
 \`\`\`
 queryLearnings(goal)
 \`\`\`
@@ -274,6 +278,8 @@ Identify what the agent is concretely working on right now — the specific sub-
 file, or operation at the leading edge of the work. Then query the learnings graph \
 anchored to that sub-task: look for principles, caveats, or operational details that \
 apply to what the agent is currently doing.
+
+Follow the query-learnings skill (\`$(pwd)/.pi/skills/query-learnings/SKILL.md\`) to execute this step.
 
 \`\`\`
 queryLearnings(currentTask)   // anchor to the sub-task in progress, not the overall goal
@@ -347,7 +353,7 @@ to understand what the agent is being asked to do, and use that as the anchor fo
 your learnings query.`;
 
 	return `\
-CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and follow its algorithm exactly.
+CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and use its algorithm as your guide.
 
 ---
 
@@ -402,6 +408,8 @@ What type of task is this — debugging, implementation, investigation, design? 
 ${goal ? "" : "Use this to form the goal that will anchor your learnings query."}
 
 ## Phase 2: Query the learnings graph
+
+Follow the query-learnings skill (\`$(pwd)/.pi/skills/query-learnings/SKILL.md\`) to execute this step.
 
 \`\`\`
 queryLearnings(goal)
