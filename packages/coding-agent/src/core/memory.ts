@@ -352,7 +352,30 @@ The session being reviewed is the conversation history that precedes this messag
 
 ---
 
-## Phase 1: Act-as-user performance
+## Phase 1: System knowledge
+
+Write a step-by-step account of what happened in the conversation, formatted with numbered markdown headers (\`### Step 1\`, \`### Step 2\`, etc.). Each step is one meaningful move in the investigation: what was tried, what it produced, what was learned or discovered, where it hit a wall, what the user corrected, what the pivot was. Include roadblocks — they are part of the story.
+
+Stay at the method and approach level, not the tool invocation level. "Tried timestamp-based interleaving, timestamps were too coarse in the snapshot path, switched to event-sequence ordering" is a step. "Read foo.ts" is not.
+
+Cite IDs inline in the narrative as anchors:
+- Established principle: \`[principle-id]\`
+- Relationship without a principle yet: \`[relationship-id]\`
+- Meta-scoped themes (preferences, working style): prose only, no ID
+
+Do not write the file yet. Show the draft content inline for review.
+
+**🛑 STOP — Gate 1.** Show the full draft summary.
+
+> Does this accurately capture what happened? Correct it or say **'assess'** to evaluate act-as-user performance.
+
+DO NOT proceed to Phase 2 until the user responds.
+
+---
+
+## Phase 2: Act-as-user performance
+
+*Enter this phase when the user says 'assess' or approves the Phase 1 summary.*
 
 Read every user message in the session. For each, evaluate how the agent performed relative to what the user needed:
 
@@ -366,32 +389,9 @@ Read every user message in the session. For each, evaluate how the agent perform
 
 Build a flat list — one bullet per observation with its classification, a brief description, and (for failures) what the correct behavior would have been.
 
-**🛑 STOP — Gate 1.** Present your findings list.
+**🛑 STOP — Gate 2.** Present your findings list.
 
-> Does this look right? Say **'summary'** to draft the session summary, or correct any misclassifications.
-
-DO NOT proceed to Phase 2 until the user responds.
-
----
-
-## Phase 2: System knowledge
-
-*Enter this phase when the user says 'summary' or approves the Phase 1 findings.*
-
-Write a step-by-step account of what happened in the conversation, formatted with numbered markdown headers (\`### Step 1\`, \`### Step 2\`, etc.). Each step is one meaningful move in the investigation: what was tried, what it produced, where it hit a wall, what the user corrected, what the pivot was. Include roadblocks — they are part of the story.
-
-Stay at the method and approach level, not the tool invocation level. "Tried timestamp-based interleaving, timestamps were too coarse in the snapshot path, switched to event-sequence ordering" is a step. "Read foo.ts" is not.
-
-Cite IDs inline in the narrative as anchors:
-- Established principle: \`[principle-id]\`
-- Relationship without a principle yet: \`[relationship-id]\`
-- Meta-scoped themes (preferences, working style): prose only, no ID
-
-Do not write the file yet. Show the draft content inline for review.
-
-**🛑 STOP — Gate 2.** Show the full draft summary.
-
-> Does this accurately capture what happened? Correct it or say **'draft'** to propose relationships and principles.
+> Does this look right? Say **'draft'** to propose relationships and principles, or correct any misclassifications.
 
 DO NOT proceed to Phase 3 until the user responds.
 
@@ -399,17 +399,17 @@ DO NOT proceed to Phase 3 until the user responds.
 
 ## Phase 3: Draft and triangulate
 
-*Enter this phase when the user says 'draft' or approves the Phase 2 summary.*
+*Enter this phase when the user says 'draft' or approves the Phase 2 findings.*
 
 ### Draft relationships and principles
 
 ${RELATIONSHIP_DESIGN_SKILL_TEXT}
 
-From the Phase 2 summary and Phase 1 method-divergence observations, reason inductively:
+From the Phase 1 summary and Phase 2 method-divergence observations, reason inductively:
 - Does the knowledge captured describe a portable method (relationship) or a codebase-specific artifact (principle)?
 - A principle with a populated \`instance-of\` — does an existing relationship already capture that method, or is this genuinely new?
 - Prose describing a prerequisite, exception, trigger, or composition — what relationship does it scope?
-- Phase 1 method-divergence observations — what did the user demonstrate or reach for that the agent did not? Draft or revise a relationship to encode that method.
+- Phase 2 method-divergence observations — what did the user demonstrate or reach for that the agent did not? Draft or revise a relationship to encode that method.
 - For each implied relationship: revise an existing one or draft a new one.
 
 For each entry drafted, assign a confidence level:
@@ -477,10 +477,10 @@ goal: "<session goal>"
 date: <date>
 ---
 <### Step 1
-<what was tried, what it produced, or where it hit a wall>
+<what was tried, what it produced, what was learned or discovered, or where it hit a wall>
 
 ### Step 2
-<next move, correction, or pivot>
+<next move, correction, pivot, or what the step revealed>
 
 ... Cite [principle-id] for established patterns, [relationship-id] for themes without a principle yet.>
 \`\`\`
