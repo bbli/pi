@@ -22,7 +22,7 @@
  */
 
 import { existsSync } from "fs";
-import { SEARCH_SKILL_TEXT, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
@@ -47,7 +47,7 @@ function buildTargetedPrompt(goal: string, question: string, reason?: string): s
 		`Question: ${question}`,
 	].filter(Boolean).join("\n");
 	return `\
-${SEARCH_SKILL_TEXT}
+Query algorithm: read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\`
 
 ---
 
@@ -118,7 +118,7 @@ function buildPrompt(goal: string, question?: string, reason?: string): string {
 
 function buildAssessmentPrompt(goal: string): string {
 	return `\
-${SEARCH_SKILL_TEXT}
+Query algorithm: read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\`
 
 ---
 
@@ -159,7 +159,7 @@ observe([
     branch(
       when(offTrack,
         detectPattern(circularResearch | goalDrift),
-        queryLearnings(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
+        queryLearnings(goal),                                          // ↑ read query-learnings skill
       ),
       when(onTrack,
         queryLearnings(currentTask),                          // anchor to sub-task in progress
@@ -347,7 +347,7 @@ to understand what the agent is being asked to do, and use that as the anchor fo
 your learnings query.`;
 
 	return `\
-${SEARCH_SKILL_TEXT}
+Query algorithm: read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\`
 
 ---
 
@@ -375,7 +375,7 @@ know yet; that is your advantage.
 orient([
   phase(1, "Read the task"),                                  // → classify task type
   phase(2, "Query learnings graph",
-    queryLearnings(goal),                                          // ↑ SEARCH_ALGORITHM — defined at top of prompt
+    queryLearnings(goal),                                          // ↑ read query-learnings skill
   ),
   phase(3, "Decide",
     synthesize([

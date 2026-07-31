@@ -156,7 +156,6 @@ export type { ReadonlyFooterDataProvider } from "./core/footer-data-provider.ts"
 export {
 	LEARN_ANALYSIS_PROMPT,
 	RELATIONSHIP_DESIGN_SKILL_TEXT,
-	SEARCH_SKILL_TEXT,
 } from "./core/memory.ts";
 export { convertToLlm } from "./core/messages.ts";
 export { ModelRegistry } from "./core/model-registry.ts";
