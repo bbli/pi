@@ -47,7 +47,7 @@ function buildTargetedPrompt(goal: string, question: string, reason?: string): s
 		`Question: ${question}`,
 	].filter(Boolean).join("\n");
 	return `\
-Query algorithm: read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\`
+CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and follow its algorithm exactly.
 
 ---
 
@@ -118,7 +118,7 @@ function buildPrompt(goal: string, question?: string, reason?: string): string {
 
 function buildAssessmentPrompt(goal: string): string {
 	return `\
-Query algorithm: read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\`
+CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and follow its algorithm exactly.
 
 ---
 
@@ -347,7 +347,7 @@ to understand what the agent is being asked to do, and use that as the anchor fo
 your learnings query.`;
 
 	return `\
-Query algorithm: read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\`
+CRITICAL: Before querying the learnings graph, read \`$(pwd)/.pi/skills/query-learnings/SKILL.md\` and follow its algorithm exactly.
 
 ---
 
