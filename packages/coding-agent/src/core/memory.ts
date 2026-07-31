@@ -243,8 +243,10 @@ queryLearnings(goal, [
 
 ### Step 1 - Orient
 
+> **Note:** \`.pi/learnings/\` is the **local project's** learnings directory — relative to the project working directory, not the pi installation. All bash commands below use \`$(pwd)/.pi/learnings/\` to make this explicit.
+
 \`\`\`
-cat .pi/learnings/README.md 2>/dev/null
+cat "$(pwd)/.pi/learnings/README.md" 2>/dev/null
 \`\`\`
 
 The README has two sections:
@@ -252,7 +254,7 @@ The README has two sections:
 - **Codebase Principles** - principles grouped under their parent relationship. Meta-scoped principles (user preferences, no parent relationship) listed at the end.
 - **Relationships (no principle yet)** - relationships cited in summaries below the ≥3 threshold, with citation count.
 
-Identify relevant relationship IDs from both sections. If \`.pi/learnings/\` does not exist or the README is absent, proceed without the graph and note the absence.
+Identify relevant relationship IDs from both sections. If \`$(pwd)/.pi/learnings/\` does not exist or the README is absent, proceed without the graph and note the absence.
 
 ### Step 2 - Form abstract plan
 
@@ -260,7 +262,7 @@ This is the core reasoning step. The goal is to produce an abstract plan - a met
 
 **Read and interrogate each relevant relationship:**
 \`\`\`
-cat .pi/learnings/relationships/<id>.md
+cat "$(pwd)/.pi/learnings/relationships/<id>.md"
 \`\`\`
 
 Reading is not enough - actively question each relationship against the current situation:
@@ -284,7 +286,7 @@ Higher-confidence relationships anchor the plan. Lower-confidence ones are candi
 **Check summaries for observed compositions.** Before deriving corollaries analytically, check whether any summary already shows the relationships now in view composed for a similar problem:
 
 \`\`\`
-ls .pi/learnings/summaries/ 2>/dev/null
+ls "$(pwd)/.pi/learnings/summaries/" 2>/dev/null
 \`\`\`
 
 Read summaries that appear relevant by filename (goal slug). Look for the traversal sequence: which relationship came first, what it produced, how that fed the next. An observed composition is stronger evidence than analytical derivation — if a summary already shows A → B working for this type of goal, that sequence anchors the plan. Note any pivots or dead ends recorded in the traversal.
@@ -311,7 +313,7 @@ This makes the plan falsifiable: the agent knows what to look for at each step a
 Translate each element of the abstract plan into a concrete action for this codebase.
 
 \`\`\`
-.pi/learnings/
+$(pwd)/.pi/learnings/
   principles/    — codebase-specific patterns; frontmatter: id, instance-of, links-to
   summaries/     - observed traversals (compositions, dead ends, sub-threshold patterns)
 \`\`\`
@@ -422,10 +424,10 @@ For each entry drafted, assign a confidence level:
 Check each proposed principle and relationship against the existing learnings graph:
 
 \`\`\`
-.pi/learnings/
+$(pwd)/.pi/learnings/
   README.md      — read first to orient
-  principles/    — grep -rl "instance-of: <rel-id>" principles/
-  summaries/     — grep -rl "\\[<id>\\]" summaries/
+  principles/    — grep -rl "instance-of: <rel-id>" "$(pwd)/.pi/learnings/principles/"
+  summaries/     — grep -rl "\\[<id>\\]" "$(pwd)/.pi/learnings/summaries/"
 \`\`\`
 
 For each proposed entry: search for existing entries that corroborate, conflict with, or subsume it. Revise accordingly.
@@ -453,17 +455,17 @@ date +%Y-%m-%d
 
 **Create directories if absent:**
 \`\`\`
-mkdir -p .pi/learnings/principles .pi/learnings/summaries .pi/learnings/relationships
+mkdir -p "$(pwd)/.pi/learnings/principles" "$(pwd)/.pi/learnings/summaries" "$(pwd)/.pi/learnings/relationships"
 \`\`\`
 
 **Migrate from \`observations/\` if present.**
-If \`.pi/learnings/observations/\` exists:
+If \`$(pwd)/.pi/learnings/observations/\` exists:
 \`\`\`
-ls .pi/learnings/observations/ 2>/dev/null
+ls "$(pwd)/.pi/learnings/observations/" 2>/dev/null
 \`\`\`
 For each observation file found, count summaries citing its ID:
 \`\`\`
-grep -rl "\\[<observation-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l
+grep -rl "\\[<observation-id>\\]" "$(pwd)/.pi/learnings/summaries/" 2>/dev/null | wc -l
 \`\`\`
 Count ≥ 3: copy to \`.pi/learnings/principles/<id>.md\`.
 Count < 3: leave it.
@@ -508,10 +510,10 @@ If any standing rule candidates were approved, append them to \`.pi/AGENTS.md\` 
 
 For every principle file in \`.pi/learnings/principles/\`:
 1. Extract the ID from the filename.
-2. Count summaries citing it: \`grep -rl "\\[<id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l\`
+2. Count summaries citing it: \`grep -rl "\\[<id>\\]" "$(pwd)/.pi/learnings/summaries/" 2>/dev/null | wc -l\`
 3. Read its \`instance-of\` and first sentence of prose.
 
-For every relationship with no corresponding principle file, count summaries citing the relationship ID directly: \`grep -rl "\\[<rel-id>\\]" .pi/learnings/summaries/ 2>/dev/null | wc -l\`
+For every relationship with no corresponding principle file, count summaries citing the relationship ID directly: \`grep -rl "\\[<rel-id>\\]" "$(pwd)/.pi/learnings/summaries/" 2>/dev/null | wc -l\`
 
 Write \`.pi/learnings/README.md\`:
 \`\`\`

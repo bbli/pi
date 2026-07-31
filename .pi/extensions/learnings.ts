@@ -81,9 +81,9 @@ principle threshold.
 
 ## Step 1 — Inspect
 
-Read what is actually on disk:
+Read what is actually on disk (\`.pi/learnings/\` is the **local project's** learnings directory, relative to the project working directory):
 \`\`\`
-ls .pi/learnings/ 2>/dev/null
+ls "$(pwd)/.pi/learnings/" 2>/dev/null
 \`\`\`
 
 Read the README if it exists, and sample one or two files from each \

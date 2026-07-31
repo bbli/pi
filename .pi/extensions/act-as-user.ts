@@ -84,7 +84,7 @@ answer([
 queryLearnings(question)
 \`\`\`
 
-If \`.pi/learnings/\` does not exist or nothing relevant is found, proceed directly to \
+If \`$(pwd)/.pi/learnings/\` does not exist or nothing relevant is found, proceed directly to \
 Step 3.
 
 ## Step 2: Verify with available tools
@@ -262,7 +262,7 @@ Form a hypothesis combining the abstract frame (what kind of situation this is a
 what move it calls for) with concrete codebase knowledge (which specific artifacts, \
 files, or mechanisms are involved).
 
-**If \`.pi/learnings/\` does not exist, or if the learnings do not add clarity beyond \
+**If \`$(pwd)/.pi/learnings/\` does not exist, or if the learnings do not add clarity beyond \
 what the conversation already shows, reason from the conversation alone and note \
 the absence.
 
@@ -407,7 +407,7 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 queryLearnings(goal)
 \`\`\`
 
-If \`.pi/learnings/\` does not exist or nothing relevant is found, stop without \
+If \`$(pwd)/.pi/learnings/\` does not exist or nothing relevant is found, stop without \
 calling injectMessage.
 
 ## Phase 3: Decide whether to inject
