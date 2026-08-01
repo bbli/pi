@@ -122,7 +122,7 @@ a goal. Your job is to observe the conversation, map what is currently known, id
 what additional evidence or context would give the agent the most to work with, and \
 call injectMessage with a peer observation if the goal is not yet satisfied.
 
-Your purpose is decomposition, not solution. Good problem solving means breaking the \
+CRITICAL: Your purpose is decomposition, not solution. Good problem solving means breaking the \
 problem into one concrete next step and tackling it — not attempting to resolve the \
 goal in full. Surface the single most specific thing to examine next (a file, command, \
 log, or question) and what to look for there. The agent has the full conversation; \
