@@ -609,7 +609,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 	let _actAsUserTurnRunning = false;
 	let _actAsUserLastCompleted = 0;
 
-	pi.on("turn_end", async (event, _ctx) => {
+	pi.on("turn_end", async (event, ctx) => {
 		// --- First-turn orientation (sync) ---
 		if (!firstTurnFired && event.turnIndex === 0) {
 			// Consume the first-turn window unconditionally — if act-as-user is not
@@ -637,6 +637,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 					}`,
 				);
 			}
+			_actAsUserLastCompleted = Date.now();
 			return;
 		}
 
@@ -644,6 +645,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 		if (!pi.getActAsUserEnabled()) return;
 		if (!pi.getGoal()) return;
 		if (_actAsUserTurnRunning) {
+			if (ctx.hasUI) ctx.ui.notify("[act-as-user] session in flight, waiting...", "info");
 			await new Promise<void>((resolve) => setTimeout(resolve, 5000));
 			return;
 		}
