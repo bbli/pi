@@ -17,6 +17,7 @@ import type {
 	ExtensionUIContext,
 	ProviderConfig,
 	ToolDefinition,
+	TurnEndEvent,
 } from "../src/core/extensions/types.ts";
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
 import { ModelRegistry } from "../src/core/model-registry.ts";
@@ -861,6 +862,28 @@ describe("ExtensionRunner", () => {
 
 			expect(continuations).toHaveLength(1);
 			expect(continuations[0]?.triggerPrompt).toBe("from-ext1");
+		});
+
+		it("emitTurnEnd never fires a branch session regardless of advisory state", async () => {
+			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
+			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
+
+			let branchCalled = false;
+			runner.bindCore(
+				{
+					...extensionActions,
+					runBranchSession: async () => {
+						branchCalled = true;
+						return undefined;
+					},
+				},
+				extensionContextActions,
+			);
+			runner.setAdvisoryEnabled(true);
+
+			await runner.emitTurnEnd({ type: "turn_end" } as unknown as TurnEndEvent);
+
+			expect(branchCalled).toBe(false);
 		});
 	});
 
