@@ -2327,7 +2327,6 @@ export class AgentSession {
 					return newBranchSession(prompt, options, this, this._agentManager);
 				},
 				makeInjectMessageTool: () => makeInjectMessageTool(this),
-				getGuidelines: () => this._extensionRunner.getAllGuidelines(),
 				getContinuations: () => this._extensionRunner.getAllContinuations(),
 				injectUserMessage: (text, deliverAs) => {
 					if (this.isStreaming) {

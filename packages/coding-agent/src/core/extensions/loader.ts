@@ -35,7 +35,6 @@ import type {
 	ExtensionAPI,
 	ExtensionFactory,
 	ExtensionRuntime,
-	GuidelineDefinition,
 	LoadExtensionsResult,
 	MessageRenderer,
 	ProviderConfig,
@@ -154,7 +153,6 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		runBranchSession: notInitialized,
 		newBranchSession: notInitialized,
 		makeInjectMessageTool: notInitialized,
-		getGuidelines: notInitialized,
 		getContinuations: notInitialized,
 		setGoal: notInitialized,
 		getGoal: notInitialized,
@@ -163,8 +161,6 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		getAdvisoryEnabled: notInitialized,
 		setActAsUserEnabled: notInitialized,
 		getActAsUserEnabled: notInitialized,
-		setGuidelineEnabled: notInitialized,
-		getGuidelineEnabled: notInitialized,
 		setContinuationEnabled: notInitialized,
 		getContinuationEnabled: notInitialized,
 		injectUserMessage: notInitialized,
@@ -255,14 +251,6 @@ function createExtensionAPI(
 			extension.messageRenderers.set(customType, renderer as MessageRenderer);
 		},
 
-		registerGuideline(def: GuidelineDefinition): () => void {
-			runtime.assertActive();
-			extension.guidelines.set(def.id, def);
-			return () => {
-				extension.guidelines.delete(def.id);
-			};
-		},
-
 		registerContinuation(def: ContinuationDefinition): () => void {
 			runtime.assertActive();
 			extension.continuations.set(def.id, def);
@@ -306,16 +294,6 @@ function createExtensionAPI(
 			return runtime.getActAsUserEnabled();
 		},
 
-		setGuidelineEnabled(id: string, enabled: boolean): void {
-			runtime.assertActive();
-			runtime.setGuidelineEnabled(id, enabled);
-		},
-
-		getGuidelineEnabled(id: string): boolean {
-			runtime.assertActive();
-			return runtime.getGuidelineEnabled(id);
-		},
-
 		setContinuationEnabled(id: string, enabled: boolean): void {
 			runtime.assertActive();
 			runtime.setContinuationEnabled(id, enabled);
@@ -324,11 +302,6 @@ function createExtensionAPI(
 		getContinuationEnabled(id: string): boolean {
 			runtime.assertActive();
 			return runtime.getContinuationEnabled(id);
-		},
-
-		getGuidelines(): readonly GuidelineDefinition[] {
-			runtime.assertActive();
-			return runtime.getGuidelines();
 		},
 
 		getContinuations(): readonly ContinuationDefinition[] {
@@ -484,7 +457,6 @@ function createExtension(extensionPath: string, resolvedPath: string): Extension
 		commands: new Map(),
 		flags: new Map(),
 		shortcuts: new Map(),
-		guidelines: new Map(),
 		continuations: new Map(),
 	};
 }

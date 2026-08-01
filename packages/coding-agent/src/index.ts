@@ -93,7 +93,6 @@ export type {
 	ExtensionWidgetOptions,
 	FindToolCallEvent,
 	GrepToolCallEvent,
-	GuidelineDefinition,
 	InputEvent,
 	InputEventResult,
 	InputSource,

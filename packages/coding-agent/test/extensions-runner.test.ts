@@ -17,7 +17,6 @@ import type {
 	ExtensionUIContext,
 	ProviderConfig,
 	ToolDefinition,
-	TurnEndEvent,
 } from "../src/core/extensions/types.ts";
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
 import { ModelRegistry } from "../src/core/model-registry.ts";
@@ -79,7 +78,6 @@ describe("ExtensionRunner", () => {
 		runBranchSession: async () => undefined,
 		newBranchSession: async () => "",
 		makeInjectMessageTool: () => ({}) as unknown as ToolDefinition,
-		getGuidelines: () => [],
 		getContinuations: () => [],
 		injectUserMessage: () => {},
 	};
@@ -834,57 +832,7 @@ describe("ExtensionRunner", () => {
 		});
 	});
 
-	describe("guidelines and continuations", () => {
-		it("registers guidelines from extension state", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerGuideline({ id: "g1", triggerPrompt: "trigger 1", injectPrompt: "inject 1" });
-					pi.registerGuideline({ id: "g2", triggerPrompt: "trigger 2", injectPrompt: "inject 2" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
-
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-
-			expect(runner.getAllGuidelines()).toEqual([
-				{ id: "g1", triggerPrompt: "trigger 1", injectPrompt: "inject 1" },
-				{ id: "g2", triggerPrompt: "trigger 2", injectPrompt: "inject 2" },
-			]);
-		});
-
-		it("unsubscriber from registerGuideline removes it", async () => {
-			const extCode = `
-				export default function(pi) {
-					const unsub = pi.registerGuideline({ id: "to-remove", triggerPrompt: "t", injectPrompt: "i" });
-					pi.registerGuideline({ id: "to-keep", triggerPrompt: "t", injectPrompt: "i" });
-					unsub();
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
-
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-
-			expect(runner.getAllGuidelines().map((g) => g.id)).toEqual(["to-keep"]);
-		});
-
-		it("registerGuideline upserts by id", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerGuideline({ id: "g1", triggerPrompt: "original", injectPrompt: "i" });
-					pi.registerGuideline({ id: "g1", triggerPrompt: "updated", injectPrompt: "i" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
-
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-
-			expect(runner.getAllGuidelines()).toHaveLength(1);
-			expect(runner.getAllGuidelines()[0]?.triggerPrompt).toBe("updated");
-		});
-
+	describe("continuations", () => {
 		it("registers continuations from extension state", async () => {
 			const extCode = `
 				export default function(pi) {
@@ -899,37 +847,6 @@ describe("ExtensionRunner", () => {
 			expect(runner.getAllContinuations()).toEqual([
 				{ id: "c1", triggerPrompt: "trigger 1", injectPrompt: "inject 1" },
 			]);
-		});
-
-		it("getAllGuidelines collects from multiple extensions", async () => {
-			const ext1 = `export default function(pi) { pi.registerGuideline({ id: "a", triggerPrompt: "t", injectPrompt: "i" }); }`;
-			const ext2 = `export default function(pi) { pi.registerGuideline({ id: "b", triggerPrompt: "t", injectPrompt: "i" }); }`;
-			fs.writeFileSync(path.join(extensionsDir, "ext1.ts"), ext1);
-			fs.writeFileSync(path.join(extensionsDir, "ext2.ts"), ext2);
-
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-
-			expect(
-				runner
-					.getAllGuidelines()
-					.map((g) => g.id)
-					.sort(),
-			).toEqual(["a", "b"]);
-		});
-
-		it("getAllGuidelines deduplicates by id across extensions (first wins)", async () => {
-			const ext1 = `export default function(pi) { pi.registerGuideline({ id: "shared", triggerPrompt: "from-ext1", injectPrompt: "i" }); }`;
-			const ext2 = `export default function(pi) { pi.registerGuideline({ id: "shared", triggerPrompt: "from-ext2", injectPrompt: "i" }); }`;
-			fs.writeFileSync(path.join(extensionsDir, "ext1.ts"), ext1);
-			fs.writeFileSync(path.join(extensionsDir, "ext2.ts"), ext2);
-
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-			const guidelines = runner.getAllGuidelines();
-
-			expect(guidelines).toHaveLength(1);
-			expect(guidelines[0]?.triggerPrompt).toBe("from-ext1");
 		});
 
 		it("getAllContinuations deduplicates by id across extensions (first wins)", async () => {
@@ -1368,30 +1285,16 @@ describe("ExtensionRunner", () => {
 		});
 	});
 
-	describe("per-item guideline/continuation toggles", () => {
+	describe("per-item continuation toggles", () => {
 		/** Minimal runner with no extensions — sufficient for pure state tests. */
 		const makeRunner = () => {
 			const runtime = createExtensionRuntime();
 			return new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
 		};
 
-		it("getGuidelineEnabled returns true by default including for unknown ids", () => {
-			const runner = makeRunner();
-			expect(runner.getGuidelineEnabled("unknown-id")).toBe(true);
-			expect(runner.getGuidelineEnabled("any-other-id")).toBe(true);
-		});
-
 		it("getContinuationEnabled returns true by default including for unknown ids", () => {
 			const runner = makeRunner();
 			expect(runner.getContinuationEnabled("unknown-id")).toBe(true);
-		});
-
-		it("setGuidelineEnabled false then true round-trips correctly", () => {
-			const runner = makeRunner();
-			runner.setGuidelineEnabled("g1", false);
-			expect(runner.getGuidelineEnabled("g1")).toBe(false);
-			runner.setGuidelineEnabled("g1", true);
-			expect(runner.getGuidelineEnabled("g1")).toBe(true);
 		});
 
 		it("setContinuationEnabled false then true round-trips correctly", () => {
@@ -1400,83 +1303,6 @@ describe("ExtensionRunner", () => {
 			expect(runner.getContinuationEnabled("c1")).toBe(false);
 			runner.setContinuationEnabled("c1", true);
 			expect(runner.getContinuationEnabled("c1")).toBe(true);
-		});
-
-		it("getAllGuidelines returns full list regardless of disabled state", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerGuideline({ id: "g1", triggerPrompt: "t1", injectPrompt: "i1" });
-					pi.registerGuideline({ id: "g2", triggerPrompt: "t2", injectPrompt: "i2" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-			runner.bindCore({ ...extensionActions }, extensionContextActions);
-
-			runner.setGuidelineEnabled("g1", false);
-
-			expect(runner.getAllGuidelines()).toHaveLength(2);
-		});
-
-		it("emitTurnEnd skips branch session when all guidelines are disabled", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerGuideline({ id: "g1", triggerPrompt: "t1", injectPrompt: "i1" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-
-			let branchCalled = false;
-			runner.bindCore(
-				{
-					...extensionActions,
-					runBranchSession: async () => {
-						branchCalled = true;
-						return undefined;
-					},
-				},
-				extensionContextActions,
-			);
-			runner.setAdvisoryEnabled(true);
-			runner.setGuidelineEnabled("g1", false);
-
-			await runner.emitTurnEnd({ type: "turn_end" } as unknown as TurnEndEvent);
-
-			expect(branchCalled).toBe(false);
-		});
-
-		it("emitTurnEnd passes only enabled guidelines to branch session", async () => {
-			const extCode = `
-				export default function(pi) {
-					pi.registerGuideline({ id: "g1", triggerPrompt: "trigger-for-g1", injectPrompt: "i1" });
-					pi.registerGuideline({ id: "g2", triggerPrompt: "trigger-for-g2", injectPrompt: "i2" });
-				}
-			`;
-			fs.writeFileSync(path.join(extensionsDir, "guidelines.ts"), extCode);
-			const result = await discoverAndLoadExtensions([], tempDir, tempDir);
-			const runner = new ExtensionRunner(result.extensions, result.runtime, tempDir, sessionManager, modelRegistry);
-
-			let capturedPrompt = "";
-			runner.bindCore(
-				{
-					...extensionActions,
-					runBranchSession: async (prompt) => {
-						capturedPrompt = prompt;
-						return undefined;
-					},
-				},
-				extensionContextActions,
-			);
-			runner.setAdvisoryEnabled(true);
-			runner.setGuidelineEnabled("g1", false);
-
-			await runner.emitTurnEnd({ type: "turn_end" } as unknown as TurnEndEvent);
-
-			expect(capturedPrompt).not.toContain("trigger-for-g1");
-			expect(capturedPrompt).toContain("trigger-for-g2");
 		});
 
 		it("emitAgentEnd skips branch session when all continuations are disabled", async () => {

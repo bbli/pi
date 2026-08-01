@@ -127,56 +127,6 @@ For each slice:
 After all slices are committed, briefly note what was done and return to the original task.`;
 
 
-const RESEARCH_UNCERTAINTIES_PROMPT_BODY = `You have unresolved questions or uncertainties \
-in this conversation. Before investigating, apply a progress filter — research that won't \
-change your conclusion or next action is a distraction, not a step forward.
-
-**Progress filter — apply to each question before any tool call:**
-For each question or uncertainty, ask: "If I learn the answer, would it change my hypothesis, \
-recommended fix, or what I do next toward the goal?" Use the active goal if one was set \
-(via set_goal), or the implicit goal from the conversation.
-- If yes — it qualifies for investigation.
-- If no — it is a secondary or epistemic gap: note it briefly and skip it. \
-  Do not call any research tool for it.
-
-If no questions pass the filter, say so in one or two sentences and stop — \
-do not proceed to investigation.
-
-For each question that qualifies:
-1. Choose the right tool based on the nature of the question:
-   - researchConversationQuestion(question) — for codebase questions: gaps, unverified \
-     assumptions, or uncertainties that can be answered by reading code, files, or logs.
-   - For system-specific operational unknowns (SSH paths, log locations, CLI flags, access \
-     workflows): look them up inline using bash (man pages, --help, public docs via curl) or \
-     check skills. The RESEARCH_PROCEDURE guideline will activate if needed.
-2. Read the returned findings.
-3. Repeat for each remaining question.
-4. Once you have the findings, apply them to the current task before continuing. \
-Consider whether the answers resolve your uncertainties sufficiently to proceed. \
-Also reflect on any gaps or uncertainties the research itself surfaced — they may not \
-require further investigation, but they can surface new angles or reveal assumptions \
-worth revisiting before acting.
-
-If your questions are already answered or you have sufficient context to proceed, \
-skip this instruction.`;
-
-const RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES — ${RESEARCH_UNCERTAINTIES_PROMPT_BODY}`;
-
-const RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT = `\
-[SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES — ${RESEARCH_UNCERTAINTIES_PROMPT_BODY}`;
-
-const DEBUG_WORKFLOW_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: DEBUG_WORKFLOW — You must follow this workflow before proceeding. \
-Skip only if you are already actively working through these steps.]
-
-You are about to debug an issue. Before making any changes:
-
-1. Reproduce the problem — confirm you can see the failure.
-2. Form a hypothesis about the root cause.
-3. Verify the hypothesis by reading the relevant code (do not guess).
-4. Apply the minimal fix.
-5. Confirm the failure no longer occurs, then run npm run check.`;
 
 const REVIEW_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: CODE_REVIEW — You must work through this checklist for the commit \
@@ -480,142 +430,6 @@ Conclude with a SUMMARY section using:
 - **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**
 - **ALWAYS include workflow and interaction impact in the summary - emergent behaviors from combining new and existing mechanisms are a critical risk and are invisible to single-component analysis**
 - **ALWAYS include IMPLEMENTATION SCOPE in the summary listing only Critical and Important findings**`;
-
-const RESEARCH_BEFORE_ACTION_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION — Before taking the next action, \
-read the relevant source code first. \
-Skip only if you have already read the relevant source files for the current \
-investigation in this conversation, or if a [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_BEFORE_ACTION] \
-message already appears in the conversation for the current investigation.]
-
-A background monitor has detected that you appear to be about to take an action \
-without first reading the relevant source code. The specific action is described in \
-the advisory observation above.
-
-Acting without grounding yourself in the code produces wasted effort: log searches \
-find nothing useful because you did not know what to look for; code edits miss callers \
-or side effects; diagnostic commands return results you cannot interpret.
-
-Before taking the next action, consider:
-- Read the relevant source files to understand the structure and behavior of the code involved.
-- Form a specific hypothesis about what you expect to find before searching logs or running commands.
-- For unfamiliar areas, call \`researchConversationQuestion\` to explore efficiently without \
-  polluting the main context with exploratory reads.
-- After each round of log searching or diagnostic output, re-read the relevant code to \
-  revise your hypothesis before searching again — do not iterate on evidence alone.
-
-This tends to apply when:
-- You are about to grep logs or search output without having read the code that produces them
-- You are debugging a failure and moving directly to evidence collection without a code-grounded hypothesis
-- You are about to edit code in an area you have not yet explored in this conversation
-- You have received log output or command results and are about to run more commands \
-  without revisiting the source to revise your hypothesis
-
-It is less applicable when:
-- You have already read the relevant source files in this conversation before taking this action
-- The action itself is the research (reading files, calling researchConversationQuestion)
-- The change is a simple, already-understood, bounded edit
-- A single bash command fully resolves the request without needing code context
-
-Once you have read the relevant code and formed a grounded hypothesis, apply that \
-understanding to decide your next action. Reflect on any gaps the code reveals — \
-they may reframe the problem or suggest a different approach.`;
-
-const RESEARCH_PROCEDURE_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE — Call \`askUser\` before proceeding. \
-Skip only if the specific steps are already confirmed from a skill, code, or logs \
-read in this session, or if a [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_PROCEDURE] \
-message covering this same task already appears in the recent conversation.]
-
-A background monitor has detected that you are about to perform an operational task — \
-accessing a remote system, using system-specific CLI commands, or retrieving data from \
-a specific path — without a confirmed procedure for how to do it.
-
-Proceeding without a confirmed procedure risks wasted effort: wrong path, wrong flags, \
-results you cannot interpret.
-
-Call \`askUser\` now with:
-- question: a precise description of the operational task — the exact access path, \
-  command, or log location you need confirmed
-- reason: "procedure lookup — about to perform an operational task without a confirmed procedure"
-
-An external observer will query the learnings graph and available documentation, then \
-inject the confirmed procedure or direct you to call researchConversationQuestion for \
-a deeper codebase lookup.
-
-Wait for the injected response, then follow it.`;
-
-const GATHER_EVIDENCE_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: GATHER_EVIDENCE Before iterating further on your current \
-hypothesis, consider whether you have exhausted available direct evidence sources. \
-Skip only if you have already accessed new direct operational data sources (system logs, \
-infrastructure logs, remote machine logs) after forming your current hypothesis.]
-
-A background monitor has detected that you have a working hypothesis but appear to be \
-continuing to iterate on the same evidence base. The specific pattern is described in \
-the advisory observation above.
-
-Iterating further on inference from the same evidence rarely changes the conclusion \
-the hypothesis becomes more elaborate but not better grounded. Direct evidence is what \
-changes the conclusion.
-
-Before continuing:
-
-Call \`askUser\` with:
-- question: what logs, services, or system components would directly record the \
-  behavior you are trying to confirm — name the specific event, not a generic question
-- reason: "gather evidence — have a hypothesis but iterating on the same evidence base"
-
-An external observer will query the learnings graph and identify concrete direct \
-evidence sources, then inject a specific next step or direct you to call \
-researchConversationQuestion for a deeper lookup.
-
-Wait for the injected response, then act on it: access the evidence sources it \
-names directly via bash, or follow any researchConversationQuestion delegation it provides.
-
-The key distinction: indirect evidence (code reading, inferring from adjacent logs) builds \
-a plausible hypothesis. Direct evidence (the specific log that records the exact event at \
-the exact time) confirms or refutes it. If direct evidence is available and not yet \
-accessed, another round of inference is unlikely to improve confidence on its own.
-
-This tends to apply when:
-- You have noted "I can't confirm X" without attempting to access a different log source
-- You have called researchConversationQuestion multiple times in succession without \
-  accessing new operational data
-- You have identified a potential direct evidence source but haven't attempted to access it
-- Your stated confidence is medium or low and there are plausible ways to strengthen it \
-  with direct evidence
-
-It is less applicable when:
-- You have already accessed all plausible direct evidence sources for this investigation
-- The investigation is purely code-focused with no operational components
-- The hypothesis already has high confidence with direct supporting evidence
-- The relevant evidence no longer exists or is inaccessible (e.g., the system is no \
-  longer in the state it was during the event)
-
-Once you have acted on the injected response, apply what you find to your hypothesis \
-before continuing. If the evidence source is inaccessible, note explicitly what is \
-missing and what that means for confidence, then continue with your best-available \
-hypothesis.`;
-
-const REGROUND_PROMPT = `\
-[SYSTEM GUIDELINE INSTRUCTIONS: REGROUND — An external monitor has detected that the \
-investigation needs grounding. Call askUser as described below. \
-Skip only if a [SYSTEM GUIDELINE INSTRUCTIONS: REGROUND] message already appears in \
-the conversation after the most recent triggering event.]
-
-A background monitor has detected that the investigation needs to reground. \
-The specific condition is described in the advisory observation above.
-
-Call askUser now with:
-- question: what you are currently trying to figure out or resolve
-- reason: the specific condition detected and a brief description of what was observed \
-  (e.g. "circular research — researchConversationQuestion called 4 times without \
-applying findings", "goal drift — investigating area X while goal requires Y", \
-"repeated failed attempts — same fix tried 3 times")
-
-An external observer will analyse the full conversation and inject a grounded \
-observation to help you move forward.`;
 
 const RESUME_TASK_PROMPT = `\
 [SYSTEM CONTINUATION INSTRUCTIONS: RESUME_TASK — An advisory workflow has completed \
@@ -1175,7 +989,6 @@ class AdvisoryStatusComponent extends Container {
 	constructor(pi: ExtensionAPI, onClose: () => void) {
 		super();
 
-		const guidelines = pi.getGuidelines();
 		const continuations = pi.getContinuations();
 
 		const items: SettingItem[] = [
@@ -1184,40 +997,23 @@ class AdvisoryStatusComponent extends Container {
 				label: "Advisory System",
 				currentValue: pi.getAdvisoryEnabled() ? "enabled" : "disabled",
 				values: ["enabled", "disabled"],
-				description:
-					"Toggle the advisory system on or off. When disabled, no guidelines " +
-					"or continuations are evaluated.",
+				description: "Toggle the advisory system on or off. When disabled, no continuations are evaluated.",
 			},
 		];
 
-		if (guidelines.length === 0 && continuations.length === 0) {
-			items.push({ id: "empty", label: "No guidelines or continuations registered", currentValue: "" });
+		if (continuations.length === 0) {
+			items.push({ id: "empty", label: "No continuations registered", currentValue: "" });
 		} else {
-			if (guidelines.length > 0) {
-				items.push({ id: "section:guidelines", label: "── Guidelines ──", currentValue: "" });
-				for (const g of guidelines) {
-					const trigger = g.triggerPrompt.length > 1000 ? g.triggerPrompt.slice(0, 1000) + "…" : g.triggerPrompt;
-					items.push({
-						id: `guideline:${g.id}`,
-						label: g.label ?? g.id,
-						currentValue: pi.getGuidelineEnabled(g.id) ? "enabled" : "disabled",
-						values: ["enabled", "disabled"],
-						description: `Trigger: ${trigger}`,
-					});
-				}
-			}
-			if (continuations.length > 0) {
-				items.push({ id: "section:continuations", label: "── Continuations ──", currentValue: "" });
-				for (const c of continuations) {
-					const trigger = c.triggerPrompt.length > 1000 ? c.triggerPrompt.slice(0, 1000) + "…" : c.triggerPrompt;
-					items.push({
-						id: `continuation:${c.id}`,
-						label: c.label ?? c.id,
-						currentValue: pi.getContinuationEnabled(c.id) ? "enabled" : "disabled",
-						values: ["enabled", "disabled"],
-						description: `Trigger: ${trigger}`,
-					});
-				}
+			items.push({ id: "section:continuations", label: "── Continuations ──", currentValue: "" });
+			for (const c of continuations) {
+				const trigger = c.triggerPrompt.length > 1000 ? c.triggerPrompt.slice(0, 1000) + "…" : c.triggerPrompt;
+				items.push({
+					id: `continuation:${c.id}`,
+					label: c.label ?? c.id,
+					currentValue: pi.getContinuationEnabled(c.id) ? "enabled" : "disabled",
+					values: ["enabled", "disabled"],
+					description: `Trigger: ${trigger}`,
+				});
 			}
 		}
 
@@ -1228,8 +1024,6 @@ class AdvisoryStatusComponent extends Container {
 			(id, newValue) => {
 				if (id === "system") {
 					pi.setAdvisoryEnabled(newValue === "enabled");
-				} else if (id.startsWith("guideline:")) {
-					pi.setGuidelineEnabled(id.slice("guideline:".length), newValue === "enabled");
 				} else if (id.startsWith("continuation:")) {
 					pi.setContinuationEnabled(id.slice("continuation:".length), newValue === "enabled");
 				}
@@ -1258,208 +1052,6 @@ const QUIT_OPT_NO = "No \u2014 quit without learning";
 const QUIT_OPT_INSPECT = "Inspect first \u2014 stay in session";
 
 export default function osAgent(pi: ExtensionAPI): void {
-	// --- Guidelines (turn_start, async) ---
-
-	// pi.registerGuideline({
-	// 	id: "debug-workflow",
-	// 	triggerPrompt:
-	// 		"Is the user starting a new debugging or bug-fix task that hasn't already received " +
-	// 		"debugging workflow guidance in the recent conversation? " +
-	// 		"Use your judgment: if this looks like a fresh debugging request that hasn't " +
-	// 		"been covered by a recent [SYSTEM GUIDELINE INSTRUCTIONS: DEBUG_WORKFLOW] message, trigger. " +
-	// 		"If the conversation already has debug guidance covering this task, do not trigger.",
-	// 	injectPrompt: DEBUG_WORKFLOW_PROMPT,
-	// 	label: "advisory:debug-workflow",
-	// });
-
-	// --- Guidelines + Continuations: research-uncertainties ---
-
-	const researchUncertaintiesTrigger =
-		"Does anything recent in the conversation contain explicit, unresolved questions or " +
-		"uncertainties that have NOT yet been investigated? " +
-		"Look for any of the following: " +
-		"1. An Implementation Uncertainty Report (⚠️ IMPLEMENTATION UNCERTAINTIES) containing " +
-		"   🔴 CRITICAL or 🟠 LOW confidence items. " +
-		"2. Anything that explicitly enumerates knowledge gaps, evidence gaps, or open questions " +
-		"   — including but not limited to: " +
-		"   - Numbered or bulleted open items (e.g. [ ] unchecked gaps, [?] unconfirmed steps) " +
-		"   - Sections titled Evidence Gaps, Unverified Assumptions, Alternative Hypotheses Not " +
-		"     Ruled Out, or Unconfirmed Callpath Steps " +
-		"   - Statements like 'I need to verify X', 'not confirmed from source', or 'no log confirms' " +
-		"3. A Phase 5 / Uncertainty & Confidence Assessment block where Overall Confidence is rated " +
-		"   Medium or Low, or where any evidence gap or unconfirmed step is listed with a [ ] or [?] marker. " +
-		"Do NOT trigger if any of these are true: " +
-		"- researchConversationQuestion was already called after the uncertainties appeared, or the agent has already begun looking up operational procedures inline. " +
-		"- A [SYSTEM GUIDELINE INSTRUCTIONS: RESEARCH_UNCERTAINTIES] or " +
-		"  [SYSTEM CONTINUATION INSTRUCTIONS: RESEARCH_UNCERTAINTIES] message already follows the uncertainties. " +
-		"- The questions were answered by the user or resolved through direct context. " +
-		"- The assistant ended its turn proceeding confidently and produced no enumerated gaps or [ ]/[?] markers.";
-
-	pi.registerGuideline({
-		id: "research-before-action",
-		triggerPrompt:
-			"Is the agent about to take a concrete action — such as editing code, grepping logs, " +
-			"or running diagnostic bash commands — without having first read the relevant source " +
-			"code to form a grounded hypothesis? " +
-			"Strong signals this APPLIES: " +
-			"- The agent's apparent next step is to grep logs, search output, or run diagnostic " +
-			"  commands without having read the source files that produce those logs. " +
-			"- The agent is debugging a failure and moving directly to evidence collection " +
-			"  (log searches, command runs) without first reading the relevant code. " +
-			"- The agent has received log output or command results and is about to take another " +
-			"  action round without revisiting the source code to revise its hypothesis. " +
-			"- The agent is about to edit code in an area not yet explored in this conversation. " +
-			"Strong signals this does NOT apply: " +
-			"- The agent has already read the relevant source files in this conversation before " +
-			"  taking the current action. " +
-			"- The agent is currently doing research (reading files, calling researchConversationQuestion). " +
-			"- The action is a simple, bounded lookup where no code context is needed. " +
-      "- The agent has already read the source files that produce the specific logs or outputs it is about to search in this conversation" + 
-			"In the `reason` argument, include a brief description of the specific action the agent " +
-			"appears about to take (e.g. 'grep logs for error X', 'edit parser.ts', 'run diagnostic command Y').",
-		injectPrompt: RESEARCH_BEFORE_ACTION_PROMPT,
-		label: "advisory:research-before-action",
-	});
-
-	pi.registerGuideline({
-		id: "gather-evidence",
-		triggerPrompt:
-			"Has the agent formed a working hypothesis or diagnosis about a system-level or operational " +
-			"issue, but there is remaining uncertainty \u2014 medium or low stated confidence, unconfirmed " +
-			"steps, or explicit gaps like 'I can't confirm X from the available logs' \u2014 AND the agent " +
-			"appears to be continuing to iterate on the same evidence base (repeated researchConversationQuestion " +
-			"calls, re-reading the same files, chaining inferences from existing data) without having " +
-			"attempted to access new direct evidence sources such as system logs on remote machines, " +
-			"service-specific logs, or infrastructure event logs? " +
-			"Strong signals this SHOULD trigger: " +
-			"- Agent has stated a hypothesis but rates confidence as medium or low, or lists unconfirmed steps or gaps. " +
-			"- Agent has noted a specific evidence gap: 'the logs don't show whether Y happened', 'I can't confirm X'. " +
-			"- Agent has made multiple consecutive researchConversationQuestion calls without running bash " +
-			"  commands to access new operational data. " +
-			"- Agent has explicitly identified a potential direct evidence source (e.g., 'blade-level logs " +
-			"  would show the rescan events directly') but has not attempted to access it. " +
-			"Strong signals this should NOT trigger: " +
-			"- Agent has already used bash to access new operational data sources after the current hypothesis was formed. " +
-			"- The investigation is purely code-focused with no operational or infrastructure components. " +
-			"- The hypothesis is high confidence with sufficient direct supporting evidence. " +
-			"- No hypothesis has been formed yet \u2014 the agent is still in initial exploration. " +
-			"In the `reason` argument, describe: (1) what iteration pattern the agent is in " +
-			"(e.g., 'repeated researchConversationQuestion calls about catalog behavior'), and " +
-			"(2) what direct evidence source appears untapped " +
-			"(e.g., 'blade-level NFS logs on ir1-ir7 that would show the rescan events directly').",
-		injectPrompt: GATHER_EVIDENCE_PROMPT,
-		label: "advisory:gather-evidence",
-	});
-
-	pi.registerGuideline({
-		id: "research-procedure",
-		triggerPrompt:
-			"Is the agent about to perform an operational task — accessing a remote system, " +
-			"running system-specific CLI commands, or retrieving data from a specific path — " +
-			"where the exact procedure, access path, or command syntax has NOT been confirmed " +
-			"from skills, code, or logs already read in this session? " +
-			"Strong signals this APPLIES: " +
-			"- The agent says it needs to access something but doesn't know where it lives or how to get there. " +
-			"- The agent is about to use SSH paths, log file locations, or specialized CLI flags " +
-			"  that haven't been confirmed in this conversation. " +
-			"- The agent is guessing at a path or command format without having looked it up. " +
-			"- The agent describes going to look at a remote or infrastructure resource without " +
-			"  knowing the specific access procedure. " +
-			"Strong signals this does NOT apply: " +
-			"- The exact path, command, or procedure has already been confirmed from skills, code, " +
-			"  or logs in this conversation. " +
-			"- The agent is using well-known general commands (git, npm, standard bash) where no " +
-			"  system-specific knowledge is needed. " +
-			"- The agent has already looked up or confirmed the specific procedure, path, or command syntax needed for the current task from skills, documentation, or prior session context" +
-			"- The agent is currently doing the research (reading docs, checking man pages, checking skills). " +
-			"In the `reason` argument, describe what specific operational task or resource the " +
-			"agent is about to work with and what procedure appears to be unconfirmed.",
-		injectPrompt: RESEARCH_PROCEDURE_PROMPT,
-		label: "advisory:research-procedure",
-	});
-
-	pi.registerGuideline({
-		id: "reground",
-		triggerPrompt:
-      "Does the current conversation show any of the following signs that the agent " +                       
-      "needs to step back and rebuild a grounded understanding before continuing? " +                         
-			"Representative examples of when this applies include, but are not limited to: " +
-			"(1) ASSUMPTION CONTRADICTED: Information, evidence, or an argument has been " +
-			"    presented that contradicts or undermines a position, hypothesis, or assumption " +
-			"    the agent stated earlier. Strong signals: the user says the diagnosis is wrong " +
-			"    and explains why; the user provides log lines, test results, or code that " +
-			"    contradict the agent's stated understanding; the agent predicted X and the user " +
-			"    reports Y happened instead. " +
-			"(2) REPEATED FAILED ATTEMPTS: The user has reported that a fix or change the agent " +
-			"    made did not resolve the problem, and this has happened more than once for the " +
-			"    same issue. Strong signals: the user says something is 'still' broken after a " +
-			"    fix; the agent has made multiple fix attempts on the same issue with none " +
-			"    confirmed working. " +
-			"(3) SCOPE ESCALATED: The task has grown significantly beyond what the original " +
-			"    request implied. Strong signals: what started as a change to one file now " +
-			"    touches many layers or subsystems; the agent is investigating areas not " +
-			"    mentioned or implied by the original task. " +
-			"(4) SPECULATING WITHOUT EVIDENCE: The agent's most recent output makes central " +
-			"    claims through heavy hedging ('it might be', 'perhaps', 'probably') without " +
-			"    grounding them in something directly read or confirmed in this conversation. " +
-			"    Strong signals: the agent proposes a cause or mechanism without having read " +
-			"    the code or logs that would confirm it. " +
-			"(5) CIRCULAR RESEARCH: researchConversationQuestion has been called repeatedly " +
-			"    across recent turns in a way that appears circular or unproductive. " +
-			"    Strong signals: the agent asks similar or overlapping questions in successive " +
-			"    calls; prior research findings are visible in the conversation but the agent " +
-			"    calls researchConversationQuestion again without having visibly applied those " +
-			"    findings to advance the investigation; three or more calls appear in the recent " +
-			"    conversation and the investigation does not appear to have made forward progress " +
-			"    between them. " +
-			"    Weak signal (does not apply on its own): two or three researchConversationQuestion " +
-			"    calls batched within a single turn — batching parallel questions is the correct " +
-			"    usage pattern and is not a sign of circular research. " +
-			"(6) GOAL DRIFT: call get_goal to retrieve the active goal text. If it returns " +
-			"    empty, this condition does not apply. Otherwise compare the returned goal " +
-			"    text against the agent's recent tool calls and reasoning. Strong signals: " +
-			"    the agent has been reading files, running commands, or reasoning about an " +
-			"    area that is several steps removed from the stated goal across multiple " +
-			"    consecutive turns, with no visible explanation of why the current detour " +
-			"    is necessary to achieve that specific goal. " +
-			"    Weak signals (do not apply on their own): the agent is doing exploratory " +
-			"    work that is plausibly preparatory; the goal is broad and the work could " +
-			"    reasonably fall within it; the agent explicitly noted why the current area " +
-			"    is relevant to the goal. " +
-			"Strong signals this does NOT apply: " +
-			"- The user corrects a minor detail (typo, wrong port, filename) that does not " +
-			"  affect the agent's overall model. " +
-			"- The user asks a clarifying question or expresses uncertainty without asserting " +
-			"  a contradiction. " +
-			"- The agent has not yet attempted any fix (for condition 2). " +
-			"- Hedged claims are peripheral and do not affect the core approach (for condition 4). " +
-			"- researchConversationQuestion calls are batched in a single turn or address " +
-			"  clearly distinct topics with findings visibly applied between them (for condition 5). " +
-			"- No goal is set in the conversation, or the agent's recent work is plausibly " +
-			"  preparatory to the goal even if not directly about it, or the agent has " +
-			"  explicitly explained why the current area is relevant (for condition 6). " +
-			"- The agent has already produced an explicit reassessment of its understanding after the triggering event visible in this conversation" +
-			"In the `reason` argument, include a brief description of which condition applies " +
-			"and what specifically was detected — for condition 6, include the goal text " +
-			"returned by get_goal and describe what the agent was actually doing instead.",
-		injectPrompt: REGROUND_PROMPT,
-		label: "advisory:reground",
-	});
-
-	// pi.registerGuideline({
-	// 	id: "research-uncertainties",
-	// 	triggerPrompt: researchUncertaintiesTrigger,
-	// 	injectPrompt: RESEARCH_UNCERTAINTIES_GUIDELINE_PROMPT,
-	// 	label: "advisory:research-uncertainties",
-	// });
-	//
-	// pi.registerContinuation({
-	// 	id: "research-uncertainties",
-	// 	triggerPrompt: researchUncertaintiesTrigger,
-	// 	injectPrompt: RESEARCH_UNCERTAINTIES_CONTINUATION_PROMPT,
-	// 	label: "advisory:research-uncertainties",
-	// });
-
 	// --- Continuations (agent_end, sync) ---
 
 	pi.registerContinuation({
@@ -1650,9 +1242,6 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- Startup logging (fires after bindCore, so advisory API is live) ---
 
 	pi.on("session_start", (_, ctx) => {
-		const guidelines = pi.getGuidelines();
-		const continuations = pi.getContinuations();
-
 		// Apply --advisor flag if set.
 		if (pi.getFlag("advisor") === true) {
 			pi.setAdvisoryEnabled(true);

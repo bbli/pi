@@ -1187,25 +1187,6 @@ export interface BranchSessionOptions {
 	onWaiting?: () => void;
 }
 
-/** A guideline registered via registerGuideline(). Evaluated at turn_end. */
-export interface GuidelineDefinition {
-	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
-	id: string;
-	/**
-	 * Condition fed to the advisory branch LLM. The LLM calls fire(id) if the condition is met.
-	 * Should be a concise, specific question about the current conversation state.
-	 */
-	triggerPrompt: string;
-	/**
-	 * Content injected into the main session when the trigger fires, via steer.
-	 * Should include idempotency language, e.g.:
-	 * "[ADVISORY: FOO — if already following these instructions, skip]"
-	 */
-	injectPrompt: string;
-	/** Human-readable label shown in the TUI footer while the branch session runs. */
-	label?: string;
-}
-
 /** A continuation registered via registerContinuation(). Evaluated synchronously at agent_end. */
 export interface ContinuationDefinition {
 	/** Stable ID — used for dedup and as the argument to fire(id) in the advisory branch session. */
@@ -1322,14 +1303,6 @@ export interface ExtensionAPI {
 	// =========================================================================
 
 	/**
-	 * Register a guideline. At turn_end a single advisory branch session evaluates all
-	 * registered guidelines' triggerPrompts and steers injectPrompt into the main session
-	 * for each that fires. Runs asynchronously — does not block the LLM call.
-	 * Returns an unsubscriber.
-	 */
-	registerGuideline(def: GuidelineDefinition): () => void;
-
-	/**
 	 * Register a continuation. At agent_end a single advisory branch session evaluates all
 	 * registered continuations' triggerPrompts and batches triggered injectPrompts into one
 	 * followUp message, restarting the agent loop. Runs synchronously (awaited).
@@ -1358,20 +1331,11 @@ export interface ExtensionAPI {
 	/** Whether the act-as-user question generator is currently enabled. */
 	getActAsUserEnabled(): boolean;
 
-	/** Enable or disable a specific guideline by ID. Disabled guidelines are excluded from advisory evaluation. */
-	setGuidelineEnabled(id: string, enabled: boolean): void;
-
-	/** Whether a specific guideline is currently enabled. Returns true for unknown IDs. */
-	getGuidelineEnabled(id: string): boolean;
-
 	/** Enable or disable a specific continuation by ID. Disabled continuations are excluded from advisory evaluation. */
 	setContinuationEnabled(id: string, enabled: boolean): void;
 
 	/** Whether a specific continuation is currently enabled. Returns true for unknown IDs. */
 	getContinuationEnabled(id: string): boolean;
-
-	/** Return all registered guidelines across all loaded extensions. */
-	getGuidelines(): readonly GuidelineDefinition[];
 
 	/** Return all registered continuations across all loaded extensions. */
 	getContinuations(): readonly ContinuationDefinition[];
@@ -1724,7 +1688,6 @@ export interface ExtensionActions {
 	runBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string | undefined>;
 	newBranchSession: (prompt: string, options: BranchSessionOptions) => Promise<string>;
 	makeInjectMessageTool: () => ToolDefinition;
-	getGuidelines: () => readonly GuidelineDefinition[];
 	getContinuations: () => readonly ContinuationDefinition[];
 	/**
 	 * Inject a user message into the session immediately.
@@ -1798,10 +1761,6 @@ export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionAction
 	setActAsUserEnabled: (enabled: boolean) => void;
 	/** Whether the act-as-user question generator is currently enabled. Self-wired by ExtensionRunner.bindCore(). */
 	getActAsUserEnabled: () => boolean;
-	/** Enable or disable a specific guideline. Self-wired by ExtensionRunner.bindCore(). */
-	setGuidelineEnabled: (id: string, enabled: boolean) => void;
-	/** Whether a specific guideline is enabled. Self-wired by ExtensionRunner.bindCore(). */
-	getGuidelineEnabled: (id: string) => boolean;
 	/** Enable or disable a specific continuation. Self-wired by ExtensionRunner.bindCore(). */
 	setContinuationEnabled: (id: string, enabled: boolean) => void;
 	/** Whether a specific continuation is enabled. Self-wired by ExtensionRunner.bindCore(). */
@@ -1819,8 +1778,6 @@ export interface Extension {
 	commands: Map<string, RegisteredCommand>;
 	flags: Map<string, ExtensionFlag>;
 	shortcuts: Map<KeyId, ExtensionShortcut>;
-	/** Guidelines registered via registerGuideline(). Keyed by id. */
-	guidelines: Map<string, GuidelineDefinition>;
 	/** Continuations registered via registerContinuation(). Keyed by id. */
 	continuations: Map<string, ContinuationDefinition>;
 }

@@ -83,7 +83,6 @@ export type {
 	GetThinkingLevelHandler,
 	GrepToolCallEvent,
 	GrepToolResultEvent,
-	GuidelineDefinition,
 	// Events - Input
 	InputEvent,
 	InputEventResult,

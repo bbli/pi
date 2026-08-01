@@ -36,7 +36,6 @@ import type {
 	ExtensionRuntime,
 	ExtensionShortcut,
 	ExtensionUIContext,
-	GuidelineDefinition,
 	InputEvent,
 	InputEventResult,
 	InputSource,
@@ -371,28 +370,6 @@ export function makeInjectGuidelineTool(
 	});
 }
 
-/**
- * Creates the get_goal tool for advisory evaluator branch sessions.
- * The evaluator calls this to retrieve the active goal text before composing
- * a reason string for injectGuideline — particularly for condition 6 (goal drift)
- * where the reason must quote the actual goal.
- */
-export function makeGetGoalTool(runner: ExtensionRunner) {
-	return defineTool({
-		name: "get_goal",
-		label: "Get Goal",
-		description:
-			"Returns the currently active session goal text, or an empty string if no goal is set. " +
-			"Call this before injecting a goal-drift advisory so you can include the actual goal " +
-			"text in the reason parameter of injectGuideline.",
-		parameters: Type.Object({}),
-		execute: async () => ({
-			content: [{ type: "text" as const, text: runner.getGoal() ?? "" }],
-			details: undefined,
-		}),
-	});
-}
-
 export class ExtensionRunner {
 	private extensions: Extension[];
 	private runtime: ExtensionRuntime;
@@ -429,8 +406,6 @@ export class ExtensionRunner {
 	private _actAsUserEnabled = false;
 	/** Listeners notified whenever act-as-user enabled state changes. */
 	private _actAsUserChangeListeners = new Set<(enabled: boolean) => void>();
-	/** IDs of guidelines disabled via setGuidelineEnabled(). */
-	private _disabledGuidelineIds = new Set<string>();
 	/** IDs of continuations disabled via setContinuationEnabled(). */
 	private _disabledContinuationIds = new Set<string>();
 	/** Whether the keep-alive system is enabled (master toggle). */
@@ -442,11 +417,6 @@ export class ExtensionRunner {
 	 * Populated by _runContinuationsSync; drained one entry per emitAgentEnd call.
 	 */
 	private _continuationTasks: string[] = [];
-	/**
-	 * True while a guideline branch session is in-flight at turn_end.
-	 * Guards against re-entrant advisory runs when turns fire rapidly.
-	 */
-	private _advisoryRunning = false;
 	/** Active session goal set via /goal or set_goal tool. Cleared when the LLM calls goal_satisfied. */
 	private _goal: string | undefined = undefined;
 
@@ -491,7 +461,6 @@ export class ExtensionRunner {
 		this.runtime.runBranchSession = actions.runBranchSession;
 		this.runtime.newBranchSession = actions.newBranchSession;
 		this.runtime.makeInjectMessageTool = actions.makeInjectMessageTool;
-		this.runtime.getGuidelines = actions.getGuidelines;
 		this.runtime.getContinuations = actions.getContinuations;
 		this.runtime.injectUserMessage = actions.injectUserMessage;
 		// Self-wired: goal state lives on the runner, not on agent-session.
@@ -508,9 +477,7 @@ export class ExtensionRunner {
 			this.setActAsUserEnabled(enabled);
 		};
 		this.runtime.getActAsUserEnabled = () => this._actAsUserEnabled;
-		// Self-wired: per-item guideline/continuation toggle state lives on the runner.
-		this.runtime.setGuidelineEnabled = (id, enabled) => this.setGuidelineEnabled(id, enabled);
-		this.runtime.getGuidelineEnabled = (id) => this.getGuidelineEnabled(id);
+		// Self-wired: per-item continuation toggle state lives on the runner.
 		this.runtime.setContinuationEnabled = (id, enabled) => this.setContinuationEnabled(id, enabled);
 		this.runtime.getContinuationEnabled = (id) => this.getContinuationEnabled(id);
 
@@ -599,18 +566,6 @@ export class ExtensionRunner {
 		return this.extensions.map((e) => e.path);
 	}
 
-	/** Collect all guidelines registered across all loaded extensions, deduplicating by id (first wins). */
-	getAllGuidelines(): GuidelineDefinition[] {
-		const seen = new Set<string>();
-		return this.extensions
-			.flatMap((e) => [...e.guidelines.values()])
-			.filter((g) => {
-				if (seen.has(g.id)) return false;
-				seen.add(g.id);
-				return true;
-			});
-	}
-
 	/** Collect all continuations registered across all loaded extensions, deduplicating by id (first wins). */
 	getAllContinuations(): ContinuationDefinition[] {
 		const seen = new Set<string>();
@@ -663,17 +618,6 @@ export class ExtensionRunner {
 	/** Whether the advisory system is currently enabled. */
 	getAdvisoryEnabled(): boolean {
 		return this._advisoryEnabled;
-	}
-
-	/** Enable or disable a specific guideline by ID. Disabled guidelines are excluded from advisory evaluation. */
-	setGuidelineEnabled(id: string, enabled: boolean): void {
-		if (enabled) this._disabledGuidelineIds.delete(id);
-		else this._disabledGuidelineIds.add(id);
-	}
-
-	/** Whether a specific guideline is enabled. Returns true for unknown IDs. */
-	getGuidelineEnabled(id: string): boolean {
-		return !this._disabledGuidelineIds.has(id);
 	}
 
 	/** Enable or disable a specific continuation by ID. Disabled continuations are excluded from advisory evaluation. */
@@ -754,44 +698,10 @@ export class ExtensionRunner {
 	}
 
 	/**
-	 * Emit turn_end to extension handlers and, on each turn when advisory is
-	 * enabled and not already running, fire guideline evaluation asynchronously.
+	 * Emit turn_end to extension handlers.
 	 */
 	async emitTurnEnd(event: TurnEndEvent): Promise<void> {
-		if (this._advisoryEnabled && !this._advisoryRunning) {
-			const guidelines = this.getAllGuidelines().filter((g) => this.getGuidelineEnabled(g.id));
-			if (guidelines.length > 0) {
-				void this._runGuidelinesAsync(guidelines);
-			}
-		}
 		await this.emit(event);
-	}
-
-	/**
-	 * Evaluate all guidelines in one branch session. The LLM calls injectUserMessage
-	 * directly for each condition it deems met. Detached from emitTurnEnd.
-	 */
-	private async _runGuidelinesAsync(guidelines: GuidelineDefinition[]): Promise<void> {
-		this._advisoryRunning = true;
-		const systemPrompt = buildAdvisoryEvalSystemPrompt("[SYSTEM GUIDELINE INSTRUCTIONS:");
-		try {
-			await this.runtime.runBranchSession(buildAdvisoryEvalPrompt(guidelines, systemPrompt), {
-				systemPrompt,
-				systemPromptOverride: true,
-				tools: ["read", "grep", "find", "ls"],
-				customTools: [
-					makeInjectGuidelineTool(guidelines, (prompt) => this.runtime.injectUserMessage(prompt, "steer")),
-					makeGetGoalTool(this),
-				],
-				label: "advisory:guidelines",
-				seedContext: true,
-				injectEvery: { turns: 3, message: ADVISORY_REMINDER_TEXT },
-			});
-		} catch (err) {
-			console.error(`[advisory] guidelines error: ${err instanceof Error ? err.message : String(err)}`);
-		} finally {
-			this._advisoryRunning = false;
-		}
 	}
 
 	/**
