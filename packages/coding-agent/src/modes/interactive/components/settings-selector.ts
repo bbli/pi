@@ -141,8 +141,8 @@ class WarningSettingsSubmenu extends Container {
 /** Session types controllable via the keep-alive per-type map. */
 const KEEP_ALIVE_SESSION_TYPES: ReadonlyArray<{ label: string; display: string; description: string }> = [
 	{ label: "research", display: "Research", description: "researchConversationQuestion sessions" },
-	{ label: "act-as-user", display: "Act as user", description: "act-as-user sessions" },
-	{ label: "advisory:guidelines", display: "Guidelines advisor", description: "advisory guideline sessions" },
+	{ label: "act-as-user", display: "Act as user", description: "act-as-user assessment sessions" },
+	{ label: "act-as-user:ask", display: "Act as user (ask)", description: "act-as-user askUser sessions" },
 	{ label: "advisory:continuations", display: "Continuations advisor", description: "advisory continuation sessions" },
 ];
 
@@ -305,8 +305,7 @@ export class SettingsSelectorComponent extends Container {
 			{
 				id: "advisory",
 				label: "Advisory system",
-				description:
-					"Run a branch-session evaluator after each turn to check registered guidelines and continuations",
+				description: "Run a branch-session evaluator after each agent turn to check registered continuations",
 				currentValue: config.advisoryEnabled ? "true" : "false",
 				values: ["true", "false"],
 			},
