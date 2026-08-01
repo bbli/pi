@@ -228,9 +228,6 @@ assumed (inferred but not directly observed). For example:
 This diagram becomes the reference for Phase 2 — the unexplored or assumed areas it \
 reveals are where the most useful expansions tend to be.
 
-The goal of this step is a clear picture of the current information landscape, not a \
-diagnosis of what is wrong.
-
 After the diagram, enumerate the agent's behavioral patterns explicitly as concrete \
 observations — not general characterizations. These are the signals Phase 2 anchors its \
 learnings query to when deciding which relationships apply:
@@ -253,6 +250,9 @@ mention and the agent has not explained?
 State each as a sentence, e.g. "bash was called twice before any source file was read \
 this turn" or "researchConversationQuestion was called 4 times across the last 3 turns \
 with overlapping questions about catalog behavior."
+
+The goal of this step is a clear picture of the current information landscape, not a \
+diagnosis of what is wrong.
 
 ## Phase 2: Identify the Next Best Step
 
