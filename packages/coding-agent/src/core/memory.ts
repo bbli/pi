@@ -219,9 +219,11 @@ The session being reviewed is the conversation history that precedes this messag
 
 ## Phase 1: System knowledge
 
-Write a step-by-step account of what happened in the conversation, formatted with numbered markdown headers (\`### Step 1\`, \`### Step 2\`, etc.). Each step is one meaningful move in the investigation: what was tried, what it produced, what was learned or discovered, where it hit a wall, what the user corrected, what the pivot was. Include roadblocks — they are part of the story.
+Write a step-by-step account of what happened in the conversation, formatted with numbered markdown headers (\`### Step 1\`, \`### Step 2\`, etc.). Each step is one meaningful move in the investigation: what was tried, what it revealed about the problem space, where it hit a wall, what the user corrected, what the pivot was. Include roadblocks — they are part of the story.
 
 Stay at the method and approach level, not the tool invocation level. "Tried timestamp-based interleaving, timestamps were too coarse in the snapshot path, switched to event-sequence ordering" is a step. "Read foo.ts" is not.
+
+Do not record conclusions, root causes, or fixes. The value of a summary is the investigative path, not the answer — recording the answer invites the agent to skip thinking when it encounters a similar situation later and pattern-match to a memorised conclusion instead of reasoning from evidence. Write what was tried and what it revealed about the problem space, not what the problem turned out to be.
 
 Cite IDs inline in the narrative as anchors:
 - Established principle: \`[principle-id]\`
@@ -343,7 +345,7 @@ goal: "<session goal>"
 date: <date>
 ---
 <### Step 1
-<what was tried, what it produced, what was learned or discovered, or where it hit a wall>
+<what was tried, what it revealed about the problem space, or where it hit a wall — not what the root cause or fix turned out to be>
 
 ### Step 2
 <next move, correction, pivot, or what the step revealed>
@@ -366,9 +368,6 @@ Rewrite any renamed or revised existing principle files. Update all summary cita
 **Write relationship files.**
 Write each new or revised relationship to \`.pi/learnings/relationships/<id>.md\`.
 Update the \`used-in\` field of source relationships for any new corollaries.
-
-**Write AGENTS.md additions.**
-If any standing rule candidates were approved, append them to \`.pi/AGENTS.md\` (or the project root \`AGENTS.md\`). Create the file if absent.
 
 **Regenerate README.md.**
 
