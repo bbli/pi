@@ -231,6 +231,29 @@ reveals are where the most useful expansions tend to be.
 The goal of this step is a clear picture of the current information landscape, not a \
 diagnosis of what is wrong.
 
+After the diagram, enumerate the agent's behavioral patterns explicitly as concrete \
+observations — not general characterizations. These are the signals Phase 2 anchors its \
+learnings query to when deciding which relationships apply:
+
+- **Tool call sequence**: what specific tools did the agent call in its most recent turn, \
+and in what order? Did bash or grep appear before any source-reading (read, \
+researchConversationQuestion)?
+- **Research iteration**: how many times has researchConversationQuestion been called \
+across the last 3–5 turns? Were the questions on distinct topics or overlapping variations?
+- **Evidence base**: is the agent re-examining the same files, logs, or outputs across \
+multiple turns without accessing a new source?
+- **Confidence language**: are the agent's central claims in its most recent output made \
+with heavy hedging ("might be", "probably", "I think") without backing from a \
+directly-read source?
+- **Goal alignment**: compare the active goal to what the agent worked on in its most \
+recent 3 turns. Name the gap if one exists.
+- **Scope trend**: has the investigation expanded into areas the original task did not \
+mention and the agent has not explained?
+
+State each as a sentence, e.g. "bash was called twice before any source file was read \
+this turn" or "researchConversationQuestion was called 4 times across the last 3 turns \
+with overlapping questions about catalog behavior."
+
 ## Phase 2: Identify the Next Best Step
 
 With the current situation mapped, first determine whether the agent is on track. \
@@ -500,6 +523,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 		question?: string,
 		reason?: string,
 		signal?: AbortSignal,
+		label = "act-as-user",
 	): Promise<"ok" | "no-goal" | "disabled"> {
 		if (!pi.getActAsUserEnabled()) return "disabled";
 		const goal = pi.getGoal();
@@ -513,7 +537,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 				seedContext: true,
 				tools: ["read", "bash"],
 				customTools: [injectMessageTool],
-				label: "act-as-user",
+				label,
 				injectEvery: { turns: 5, message: question ? TARGETED_QUESTION_REMINDER : QUESTION_GEN_REMINDER },
 				abortSignal: signal,
 			});
@@ -560,7 +584,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 			return text;
 		},
 		execute: async (_id, params, signal) => {
-			const result = await runActAsUserSession(params.question, params.reason, signal);
+			const result = await runActAsUserSession(params.question, params.reason, signal, "act-as-user:ask");
 			const text =
 				result === "no-goal"
 					? "No active goal — set a goal first with set_goal before calling askUser."
