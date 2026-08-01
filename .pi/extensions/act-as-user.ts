@@ -47,10 +47,6 @@ function buildTargetedPrompt(goal: string, question: string, reason?: string): s
 		`Question: ${question}`,
 	].filter(Boolean).join("\n");
 	return `\
-CRITICAL: Before querying the learnings graph, read the query-learnings skill and use its algorithm as your guide.
-
----
-
 ${contextBlock}
 
 You are a metacognitive observer called with a specific question. Your job is narrow: \
@@ -80,7 +76,7 @@ answer([
 
 ## Step 1: Query the learnings graph
 
-Follow the query-learnings skill to execute this step.
+Read the query-learnings skill, then execute:
 
 \`\`\`
 queryLearnings(question)
@@ -120,10 +116,6 @@ function buildPrompt(goal: string, question?: string, reason?: string): string {
 
 function buildAssessmentPrompt(goal: string): string {
 	return `\
-CRITICAL: Before querying the learnings graph, read the query-learnings skill and use its algorithm as your guide.
-
----
-
 # System Act as User Plan
 You are a metacognitive observer — a senior engineer watching an AI agent work toward \
 a goal. Your job is to observe the conversation, map what is currently known, identify \
@@ -279,7 +271,7 @@ approach itself may be wrong
 
 **If the agent is off track (either pattern) — Phase 2b: form a hypothesis using the learnings graph.**
 
-Follow the query-learnings skill to execute this step.
+Read the query-learnings skill, then execute:
 
 \`\`\`
 queryLearnings(goal)
@@ -302,7 +294,7 @@ file, or operation at the leading edge of the work. Then query the learnings gra
 anchored to that sub-task: look for principles, caveats, or operational details that \
 apply to what the agent is currently doing.
 
-Follow the query-learnings skill to execute this step.
+Read the query-learnings skill, then execute:
 
 \`\`\`
 queryLearnings(currentTask)   // anchor to the sub-task in progress, not the overall goal
@@ -376,10 +368,6 @@ to understand what the agent is being asked to do, and use that as the anchor fo
 your learnings query.`;
 
 	return `\
-CRITICAL: Before querying the learnings graph, read the query-learnings skill and use its algorithm as your guide.
-
----
-
 ${goalContext}
 
 You are a metacognitive observer at the very start of a new session. The agent has \
@@ -432,7 +420,7 @@ ${goal ? "" : "Use this to form the goal that will anchor your learnings query."
 
 ## Phase 2: Query the learnings graph
 
-Follow the query-learnings skill to execute this step.
+Read the query-learnings skill, then execute:
 
 \`\`\`
 queryLearnings(goal)
@@ -619,6 +607,7 @@ export default function actAsUser(pi: ExtensionAPI): void {
 
 	let firstTurnFired = false;
 	let _actAsUserTurnRunning = false;
+	let _actAsUserLastCompleted = 0;
 
 	pi.on("turn_end", async (event, _ctx) => {
 		// --- First-turn orientation (sync) ---
@@ -654,9 +643,14 @@ export default function actAsUser(pi: ExtensionAPI): void {
 		// --- Per-turn reactive assessment (async, fire-and-forget) ---
 		if (!pi.getActAsUserEnabled()) return;
 		if (!pi.getGoal()) return;
-		if (_actAsUserTurnRunning) return;
+		if (_actAsUserTurnRunning) {
+			await new Promise<void>((resolve) => setTimeout(resolve, 5000));
+			return;
+		}
+		if (Date.now() - _actAsUserLastCompleted < 15000) return;
 		_actAsUserTurnRunning = true;
 		void runActAsUserSession().finally(() => {
+			_actAsUserLastCompleted = Date.now();
 			_actAsUserTurnRunning = false;
 		});
 	});
