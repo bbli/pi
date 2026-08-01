@@ -560,7 +560,18 @@ export default function actAsUser(pi: ExtensionAPI): void {
 			"Invoke an external observer that analyses the conversation and injects a grounded " +
 			"observation into the session. Use when the investigation needs an outside perspective — " +
 			"to identify unexplored system areas, surface contradictions, or suggest a pivot.",
-		promptSnippet: "askUser(question, reason): ask an external observer to analyse the conversation and inject an observation",
+		promptSnippet:
+			"askUser(question, reason): ask an external observer to analyse the conversation and inject a grounded observation. " +
+			"Call this when you detect any of: " +
+			"(1) about to run bash/grep/edit in an area without having read the relevant source files first; " +
+			"(2) about to perform an operational task (SSH, log retrieval, system-specific CLI) without a confirmed path or procedure; " +
+			"(3) hypothesis formed but continuing to iterate on the same evidence base without accessing a new source; " +
+			"(4) assumption or diagnosis contradicted by new evidence from the user; " +
+			"(5) same fix attempted more than once without success; " +
+			"(6) scope grown significantly beyond the original request; " +
+			"(7) central claims made through heavy hedging without backing from directly-read code or logs; " +
+			"(8) researchConversationQuestion called 3 or more times across recent turns without forward progress; " +
+			"(9) work has drifted from the stated goal across multiple turns.",
 		parameters: Type.Object({
 			question: Type.String({
 				description: "What you are currently trying to figure out or resolve.",
