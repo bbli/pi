@@ -220,29 +220,6 @@ assumed (inferred but not directly observed). For example:
 This diagram becomes the reference for Phase 2 — the unexplored or assumed areas it \
 reveals are where the most useful expansions tend to be.
 
-After the diagram, enumerate the agent's behavioral patterns explicitly as concrete \
-observations — not general characterizations. These are the signals Phase 2 anchors its \
-learnings query to when deciding which relationships apply:
-
-- **Tool call sequence**: what specific tools did the agent call in its most recent turn, \
-and in what order? Did bash or grep appear before any source-reading (read, \
-researchConversationQuestion)?
-- **Research iteration**: how many times has researchConversationQuestion been called \
-across the last 3–5 turns? Were the questions on distinct topics or overlapping variations?
-- **Evidence base**: is the agent re-examining the same files, logs, or outputs across \
-multiple turns without accessing a new source?
-- **Confidence language**: are the agent's central claims in its most recent output made \
-with heavy hedging ("might be", "probably", "I think") without backing from a \
-directly-read source?
-- **Goal alignment**: compare the active goal to what the agent worked on in its most \
-recent 3 turns. Name the gap if one exists.
-- **Scope trend**: has the investigation expanded into areas the original task did not \
-mention and the agent has not explained?
-
-State each as a sentence, e.g. "bash was called twice before any source file was read \
-this turn" or "researchConversationQuestion was called 4 times across the last 3 turns \
-with overlapping questions about catalog behavior."
-
 The goal of this step is a clear picture of the current information landscape, not a \
 diagnosis of what is wrong.
 
@@ -271,7 +248,7 @@ approach itself may be wrong
 
 **If the agent is off track (either pattern) — Phase 2b: form a hypothesis using the learnings graph.**
 
-Read the query-learnings skill, then execute:
+CRITICAL: Read the query-learnings SKILL, then execute:
 
 \`\`\`
 queryLearnings(goal)
@@ -294,7 +271,7 @@ file, or operation at the leading edge of the work. Then query the learnings gra
 anchored to that sub-task: look for principles, caveats, or operational details that \
 apply to what the agent is currently doing.
 
-Read the query-learnings skill, then execute:
+CRITICAL: Read the query-learnings SKILL, then execute:
 
 \`\`\`
 queryLearnings(currentTask)   // anchor to the sub-task in progress, not the overall goal
