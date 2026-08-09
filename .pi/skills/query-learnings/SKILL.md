@@ -15,9 +15,10 @@ The learnings graph has three layers:
 
 ```
 queryLearnings(goal, [
-  step(1, "Read README"),                    // → all relationships and principles visible at once
+  step(1, "ls relationships/"),              // → relationship IDs only; no principles, no anchoring bias
   step(2, "Choose relevant relationships",   // → read each relevant relationship file
     read(relationships/<id>),
+    bfs(links-to, relevant-only),              // CRITICAL: follow relevant links-to entries; stop when expansion yields no new understanding
   ),
   step(3, "Grep codebase principles",        // → concrete artifacts for the chosen relationships
     grep(instance-of: <rel-id>),             //   pass A: principles linked to chosen relationships
@@ -35,20 +36,15 @@ queryLearnings(goal, [
 
 ## Step Details
 
-### Step 1 - Read README
+### Step 1 - ls relationships/
 
 > **Note:** `.pi/learnings/` is the **local project's** learnings directory — relative to the project working directory, not the pi installation. All bash commands below use `$(pwd)/.pi/learnings/` to make this explicit.
 
 ```
-cat "$(pwd)/.pi/learnings/README.md" 2>/dev/null
+ls "$(pwd)/.pi/learnings/relationships/" 2>/dev/null
 ```
 
-The README has two sections:
-
-- **Codebase Principles** - principles grouped under their parent relationship. Meta-scoped principles (user preferences, no parent relationship) listed at the end.
-- **Relationships (no principle yet)** - relationships cited in summaries below the ≥3 threshold, with citation count.
-
-From both sections, identify relationship IDs relevant to the current goal. If `$(pwd)/.pi/learnings/` does not exist or the README is absent, proceed without the graph and note the absence.
+This lists relationship IDs only — no codebase principles, no concrete artifact names. Identify which relationships are relevant to the current goal based on their names alone. If `$(pwd)/.pi/learnings/` does not exist or the relationships directory is absent, proceed without the graph and note the absence.
 
 ### Step 2 - Choose relevant relationships
 
@@ -59,6 +55,14 @@ cat "$(pwd)/.pi/learnings/relationships/<id>.md"
 ```
 
 Read to understand what the method does and whether it fits the current situation. Select the relationships that apply.
+
+> **CRITICAL — goal-directed BFS expansion over `links-to`.** After reading the initial set of relevant relationships, inspect the `links-to` field in each one's frontmatter. For each linked ID, judge whether it appears relevant to the current goal given what you have read so far — if so, read it:
+>
+> ```
+> cat "$(pwd)/.pi/learnings/relationships/<linked-id>.md"
+> ```
+>
+> Add relevant newly-read relationships to the frontier and repeat for their `links-to` entries in turn. Stop expanding when the frontier yields no linked IDs that add to your understanding of the goal — when linked names either name methods already covered or are clearly outside the goal's scope. This is a judgment call, not a full traversal; stop when the picture is clear.
 
 ### Step 3 - Grep codebase principles
 
@@ -96,5 +100,7 @@ With the relationships, principles, and summaries in hand, determine how to appl
 
 - **Exact match** — a summary already records the same type of problem with the same relationships. Apply the traversal directly: the composition sequence, the concrete artifacts, and any pivots already carry the answer.
 - **Modifications needed** — the relationships and principles apply but no summary is an exact match. Adapt: use the relationship methods with the concrete artifacts from the principles, adjusting for any differences the current situation introduces.
+
+**Scope-alignment check for Pass B hits.** Principles surfaced by keyword match (Pass B) may share vocabulary with the goal without being scoped to the component under investigation. Before recommending a Pass B principle, verify that the component or service being investigated appears in the principle's emitter list, file paths, or named scope. If the principle names specific emitters and the component under investigation is not among them, do not surface it — a keyword match on "space" or "shared" is not sufficient grounds to recommend a tag emitted only by gc_rewriter or medium_cleanup_worker when the failing component is shared_space_worker.
 
 State what applies directly, what would need adaptation for the current context, and any gaps where `researchConversationQuestion` would be needed. The calling prompt determines what to do with these findings.
