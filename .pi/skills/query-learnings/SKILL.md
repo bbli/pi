@@ -1,15 +1,14 @@
 ---
 name: query-learnings
-description: Query the local project's .pi/learnings/ graph to surface relevant relationships, codebase principles, and session summaries for the current goal. Use when starting an investigation, before diving into implementation, or when the learnings graph should inform the next step.
+description: Query the local project's .pi/learnings/ graph to surface relevant relationships and codebase principles for the current goal. Use when starting an investigation, before diving into implementation, or when the learnings graph should inform the next step.
 ---
 
 # Search Relationships and Codebase Principles
 
-The learnings graph has three layers:
+The learnings graph has two layers:
 
 - **Relationships** (`relationships/`) - portable methods encoding how the user approaches a type of problem. The abstract *thinking frame*.
 - **Codebase Principles** (`principles/`) — concrete recurring patterns specific to this codebase: exact files, log tags, counters, gotchas. Each has an `instance-of` field naming its parent relationship (optional) and a `links-to` list of related principles.
-- **Summaries** (`summaries/`) - observed traversals: how relationships were sequenced and composed to solve a specific problem. The empirical record of which compositions worked, in what order, and where pivots occurred.
 
 ## Algorithm
 
@@ -24,8 +23,7 @@ queryLearnings(goal, [
     grep(instance-of: <rel-id>),             //   pass A: principles linked to chosen relationships
     grep(keywords-from-goal),                //   pass B: broader sweep for cross-cutting principles
   ),
-  step(4, "Grep summaries"),                 // → ls summaries/ then read by filename relevance
-  step(5, "Synthesize",
+  step(4, "Synthesize",
     check(exactMatch || modifications),      // exact: apply directly; modifications: adapt
     inject(suggestion),
   ),
@@ -84,22 +82,12 @@ grep -ril "<keyword>" "$(pwd)/.pi/learnings/principles/" 2>/dev/null
 
 Use 2–3 keywords drawn from the goal (component names, action verbs, artifact names). Read any principle files not already found in Pass A.
 
-### Step 4 - Grep summaries
+### Step 4 - Synthesize
 
-List available summaries and identify ones relevant by filename:
+With the relationships and principles in hand, determine how to apply the findings:
 
-```
-ls "$(pwd)/.pi/learnings/summaries/" 2>/dev/null
-```
-
-Read the most relevant 3–5 by filename match — stop when you have enough to form a hypothesis; this is a judgment call, not a full traversal. Summaries show which compositions worked, in what order, and where pivots occurred — an observed traversal for the same type of problem is the strongest signal available.
-
-### Step 5 - Synthesize
-
-With the relationships, principles, and summaries in hand, determine how to apply the findings:
-
-- **Exact match** — a summary already records the same type of problem with the same relationships. Apply the traversal directly: the composition sequence, the concrete artifacts, and any pivots already carry the answer.
-- **Modifications needed** — the relationships and principles apply but no summary is an exact match. Adapt: use the relationship methods with the concrete artifacts from the principles, adjusting for any differences the current situation introduces.
+- **Direct match** — the relationships and principles apply directly. Apply the methods with the concrete artifacts as-is.
+- **Modifications needed** — the relationships and principles apply but need adaptation. Use the relationship methods with the concrete artifacts from the principles, adjusting for differences the current situation introduces.
 
 **Scope-alignment check for Pass B hits.** Principles surfaced by keyword match (Pass B) may share vocabulary with the goal without being scoped to the component under investigation. Before recommending a Pass B principle, verify that the component or service being investigated appears in the principle's emitter list, file paths, or named scope. If the principle names specific emitters and the component under investigation is not among them, do not surface it — a keyword match on "space" or "shared" is not sufficient grounds to recommend a tag emitted only by gc_rewriter or medium_cleanup_worker when the failing component is shared_space_worker.
 

@@ -30,12 +30,11 @@ CRITICAL: You have no memory of prior sessions. Treat this as a clean-slate inve
 Instructions:
 1. Load and apply the \`query-learnings\` skill using the scenario as your goal.
 2. Walk through the full query-learnings algorithm: ls relationships/, choose \
-relevant ones, grep principles/ (two passes), sample summaries/.
+relevant ones, grep principles/ (two passes).
 3. Produce a structured findings report showing exactly what would be injected into a \
 future agent session given this scenario:
    - **Relationships surfaced** — IDs, full file content
    - **Principles surfaced** — IDs, full file content
-   - **Summary excerpts** — filenames and relevant passages
    - **Relevance verdict** — does the injected content directly address the scenario?
    - **Gaps** — anything that appears relevant by scenario content but was NOT surfaced, \
 with a likely cause (vocabulary mismatch, no principle yet, thin citation count, etc.)
@@ -43,7 +42,7 @@ with a likely cause (vocabulary mismatch, no principle yet, thin citation count,
 5. When your report is complete, stop immediately.`;
 
 const TEST_LEARNING_REMINDER =
-	"Reminder: complete all steps of the query-learnings skill algorithm (ls relationships/, read relevant files, grep principles/ both passes, sample summaries/) and return exactly what would be injected into a future session — the relationships, principles, and summary excerpts a real agent would receive. Then stop.";
+	"Reminder: complete all steps of the query-learnings skill algorithm (ls relationships/, read relevant files, grep principles/ both passes) and return exactly what would be injected into a future session — the relationships and principles a real agent would receive. Then stop.";
 
 export function makeTestLearningTool(session: AgentSession, manager: AgentManager): ToolDefinition {
 	return defineTool({
