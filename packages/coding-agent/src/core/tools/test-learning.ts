@@ -89,7 +89,7 @@ export function makeTestLearningTool(session: AgentSession, manager: AgentManage
 						label: "test-learning",
 						seedContext: false,
 						abortSignal: signal,
-						injectEvery: { turns: 3, message: TEST_LEARNING_REMINDER },
+						injectEvery: { turns: 5, message: TEST_LEARNING_REMINDER },
 					},
 					session,
 					manager,

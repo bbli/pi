@@ -396,4 +396,31 @@ sorted by citation count descending)
 - <relationship-id> — <N>/3 sessions
 \`\`\`
 
-Only write what the conversation gives clear evidence for. Do not speculate beyond what the history shows.`;
+Only write what the conversation gives clear evidence for. Do not speculate beyond what the history shows.
+
+---
+
+## Phase 5: Validation
+
+*Enter this phase immediately after Phase 4 completes.*
+
+For each new or revised relationship and codebase principle written in Phase 4, generate one concrete \
+test scenario: a brief (1–3 sentence) self-contained prompt a future agent would naturally \
+receive that the new learning should inform. The scenario must contain no reference to this \
+session, its goal, or its specific files — it should be a generic situation where the \
+relationship or principle would be useful.
+
+Call \`testPromptResult\` for **all scenarios in a single turn** so they run in parallel. \
+Each call spawns a fresh-context subagent with no conversation history that applies the \
+\`query-learnings\` skill to the scenario and reports what it surfaced.
+
+After all results return, present a validation summary:
+
+- **Discoverable** — the fresh agent surfaced the new learning (or a closely related one). Note the IDs found.
+- **Not surfaced** — the learning was missed. Flag it and identify the likely cause:
+  - Vocabulary mismatch: scenario words don't appear in the relationship/principle prose
+  - Thin citation count: too few summaries cite this ID for it to rank
+  - ID naming: the relationship name doesn't suggest itself given the scenario terms
+  - For each miss, propose a targeted fix (rename, prose tweak, add keywords)
+
+This is the final step. No gate required — present the summary and stop.`;

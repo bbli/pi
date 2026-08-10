@@ -18,6 +18,7 @@ import { createAgentSession } from "./sdk.ts";
 import { buildSessionContext, SessionManager } from "./session-manager.ts";
 import { makeInjectMessageTool } from "./tools/inject-message.ts";
 import { makeResearchTool } from "./tools/research.ts";
+import { makeTestLearningTool } from "./tools/test-learning.ts";
 
 // ============================================================================
 // Types
@@ -69,6 +70,7 @@ export class AgentManager {
 		this._runtime = runtime;
 		runtime.session.setAgentManager(this);
 		runtime.session.addBuiltinTool(makeResearchTool(runtime.session, this));
+		runtime.session.addBuiltinTool(makeTestLearningTool(runtime.session, this));
 	}
 
 	// =========================================================================
@@ -311,6 +313,7 @@ export class AgentManager {
 			// Wire the manager and built-in tools into the newly created root session.
 			this._runtime.session.setAgentManager(this);
 			this._runtime.session.addBuiltinTool(makeResearchTool(this._runtime.session, this));
+			this._runtime.session.addBuiltinTool(makeTestLearningTool(this._runtime.session, this));
 			await cb();
 		});
 	}
