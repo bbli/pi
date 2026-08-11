@@ -161,6 +161,7 @@ export function createExtensionRuntime(): ExtensionRuntime {
 		getAdvisoryEnabled: notInitialized,
 		setActAsUserEnabled: notInitialized,
 		getActAsUserEnabled: notInitialized,
+		onActAsUserChange: notInitialized,
 		setContinuationEnabled: notInitialized,
 		getContinuationEnabled: notInitialized,
 		injectUserMessage: notInitialized,
@@ -292,6 +293,11 @@ function createExtensionAPI(
 		getActAsUserEnabled(): boolean {
 			runtime.assertActive();
 			return runtime.getActAsUserEnabled();
+		},
+
+		onActAsUserChange(cb: (enabled: boolean) => void): () => void {
+			runtime.assertActive();
+			return runtime.onActAsUserChange(cb);
 		},
 
 		setContinuationEnabled(id: string, enabled: boolean): void {

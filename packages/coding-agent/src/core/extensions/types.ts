@@ -1331,6 +1331,9 @@ export interface ExtensionAPI {
 	/** Whether the act-as-user question generator is currently enabled. */
 	getActAsUserEnabled(): boolean;
 
+	/** Subscribe to act-as-user enabled state changes. Returns an unsubscribe function. */
+	onActAsUserChange(cb: (enabled: boolean) => void): () => void;
+
 	/** Enable or disable a specific continuation by ID. Disabled continuations are excluded from advisory evaluation. */
 	setContinuationEnabled(id: string, enabled: boolean): void;
 
@@ -1761,6 +1764,8 @@ export interface ExtensionRuntime extends ExtensionRuntimeState, ExtensionAction
 	setActAsUserEnabled: (enabled: boolean) => void;
 	/** Whether the act-as-user question generator is currently enabled. Self-wired by ExtensionRunner.bindCore(). */
 	getActAsUserEnabled: () => boolean;
+	/** Subscribe to act-as-user enabled state changes. Self-wired by ExtensionRunner.bindCore(). */
+	onActAsUserChange: (cb: (enabled: boolean) => void) => () => void;
 	/** Enable or disable a specific continuation. Self-wired by ExtensionRunner.bindCore(). */
 	setContinuationEnabled: (id: string, enabled: boolean) => void;
 	/** Whether a specific continuation is enabled. Self-wired by ExtensionRunner.bindCore(). */

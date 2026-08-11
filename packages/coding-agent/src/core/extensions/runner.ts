@@ -477,6 +477,7 @@ export class ExtensionRunner {
 			this.setActAsUserEnabled(enabled);
 		};
 		this.runtime.getActAsUserEnabled = () => this._actAsUserEnabled;
+		this.runtime.onActAsUserChange = (cb) => this.onActAsUserChange(cb);
 		// Self-wired: per-item continuation toggle state lives on the runner.
 		this.runtime.setContinuationEnabled = (id, enabled) => this.setContinuationEnabled(id, enabled);
 		this.runtime.getContinuationEnabled = (id) => this.getContinuationEnabled(id);
