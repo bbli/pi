@@ -1221,10 +1221,14 @@ export default function osAgent(pi: ExtensionAPI): void {
 		},
 	});
 
-	// --- session_before_quit: prompt to run /learn (advisory sessions only) ---
+	// --- session_before_quit: prompt to run /learn (advisory or act-as-user sessions) ---
+
+	// Track whether act-as-user was ever enabled during this session.
+	// Initialized in session_start (action methods cannot be called during loading).
+	let actAsUserEverEnabled = false;
 
 	pi.on("session_before_quit", async (_, ctx) => {
-		if (!pi.getAdvisoryEnabled()) return;
+		if (!pi.getAdvisoryEnabled() && !actAsUserEverEnabled) return;
 		const choice = await ctx.ui.select(
 			"Run /learn on this session before quitting?",
 			[QUIT_OPT_LEARN, QUIT_OPT_NO, QUIT_OPT_INSPECT],
@@ -1242,6 +1246,11 @@ export default function osAgent(pi: ExtensionAPI): void {
 	// --- Startup logging (fires after bindCore, so advisory API is live) ---
 
 	pi.on("session_start", (_, ctx) => {
+		// Capture initial act-as-user state and subscribe to future changes.
+		if (pi.getActAsUserEnabled()) actAsUserEverEnabled = true;
+		pi.onActAsUserChange((enabled) => {
+			if (enabled) actAsUserEverEnabled = true;
+		});
 		// Apply --advisor flag if set.
 		if (pi.getFlag("advisor") === true) {
 			pi.setAdvisoryEnabled(true);
