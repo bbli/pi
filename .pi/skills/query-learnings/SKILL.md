@@ -17,7 +17,7 @@ queryLearnings(goal, [
   step(1, "ls relationships/"),              // → relationship IDs only; no principles, no anchoring bias
   step(2, "Choose relevant relationships",   // → read each relevant relationship file
     read(relationships/<id>),
-    bfs(links-to, relevant-only),              // CRITICAL: follow relevant links-to entries; stop when expansion yields no new understanding
+    bfs(links-to, frontier-explicit),        // CRITICAL: write FRONTIER after each read; skip only with stated reason; stop when frontier empty
   ),
   step(3, "Grep codebase principles",        // → concrete artifacts for the chosen relationships
     grep(instance-of: <rel-id>),             //   pass A: principles linked to chosen relationships
@@ -54,13 +54,19 @@ cat "$(pwd)/.pi/learnings/relationships/<id>.md"
 
 Read to understand what the method does and whether it fits the current situation. Select the relationships that apply.
 
-> **CRITICAL — goal-directed BFS expansion over `links-to`.** After reading the initial set of relevant relationships, inspect the `links-to` field in each one's frontmatter. For each linked ID, judge whether it appears relevant to the current goal given what you have read so far — if so, read it:
+> **CRITICAL — goal-directed BFS expansion over `links-to`.** After reading each relationship file, write:
+>
+> ```
+> FRONTIER: [all links-to IDs from this file not yet visited]
+> ```
+>
+> For each ID on the frontier: read it, unless you can state a specific reason it is clearly outside the scope of the current goal — in that case write `SKIP [id]: [reason]` and remove it from the frontier. If you cannot state a reason, read it. After reading each newly-visited file, extend the frontier with any new unread `links-to` IDs it introduces.
+>
+> Do not proceed to Step 3 until the frontier is empty — every ID either visited or explicitly excluded with a stated reason.
 >
 > ```
 > cat "$(pwd)/.pi/learnings/relationships/<linked-id>.md"
 > ```
->
-> Add relevant newly-read relationships to the frontier and repeat for their `links-to` entries in turn. Stop expanding when the frontier yields no linked IDs that add to your understanding of the goal — when linked names either name methods already covered or are clearly outside the goal's scope. This is a judgment call, not a full traversal; stop when the picture is clear.
 
 ### Step 3 - Grep codebase principles
 
