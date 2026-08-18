@@ -1259,9 +1259,11 @@ export default function osAgent(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("review", {
-		description: "Run a comprehensive code review on the most recent implementation.",
-		handler: async (_args, ctx) => {
-			pi.sendUserMessage(REVIEW_PROMPT, { deliverAs: "followUp" });
+		description: "Run a comprehensive code review. Optionally specify what to review (e.g. a commit, file, or diff).",
+		handler: async (args, ctx) => {
+			const target = args.trim();
+			const prompt = target ? `${REVIEW_PROMPT}\n\n${target}` : REVIEW_PROMPT;
+			pi.sendUserMessage(prompt, { deliverAs: "followUp" });
 			ctx.ui.notify("[review] code review queued", "info");
 		},
 	});
