@@ -210,7 +210,7 @@ Using the context established in Phase 1, structure your review using Markdown h
   - Identify any logical errors or incorrect implementations
   - Justify findings with direct code snippets, including line numbers and filenames
   - **Caller Impact Analysis (CRITICAL)**:
-    - **Search the codebase for all callers of modified functions**
+    - **Search the codebase for all callers of modified functions** — use \`researchConversationQuestion\` for each modified function, one call per function, asking for all call sites and their compatibility with the change. Run them in parallel.
     - For each modified function signature (parameters added/removed/reordered, return type changed, exceptions modified):
       - Identify all call sites in the codebase
       - Verify each caller is compatible with the changes
@@ -270,7 +270,42 @@ Using the context established in Phase 1, structure your review using Markdown h
   - Identify single points of failure or unbounded resource usage introduced by the change
   - Note any state or consistency concerns arising from new component interactions
 
-3. **Workflow and Interaction Impact Analysis (CRITICAL)**:
+3. **Cross-System Propagation Analysis (CRITICAL)**:
+  This section is mandatory. After establishing what the change does, determine whether the \
+  same fix, guard, pattern, or design improvement should be applied elsewhere in the system.
+
+  **Step 1 — Characterize the change.**
+  In one sentence, state the *kind* of change: e.g. "added a null guard before X", \
+  "extracted shared logic into a helper", "switched from eager to lazy initialization". \
+  This becomes the propagation signal you search for.
+
+  **Step 2 — Search for structural siblings.**
+  Use \`researchConversationQuestion\` to locate code \
+  that is structurally analogous to what was changed. Look in:
+  - Sibling modules / parallel implementations of the same interface or abstraction
+  - Other functions that perform the same category of work (other parsers, handlers, \
+    validators, writers, etc.)
+  - Other modules the Phase 1 diagram shows sharing the same layer or responsibility
+  - Any location the diff itself references (callers, dependents, similar utility functions)
+
+  **Step 3 — Evaluate each sibling.**
+  For each structural sibling found, decide whether the same change should propagate:
+  - **Same gap / same bug**: does the sibling exhibit the exact defect this change fixed?
+  - **Same pattern improvement**: would the sibling benefit from the same structural change?
+  - **Context mismatch**: is there a principled reason the sibling should *not* receive \
+    the change (different invariants, intentionally different behavior, different owner)?
+
+  **Format findings as:**
+  > **Location:** [file/function]
+  > **Relationship:** [why it is a sibling — same pattern, same layer, same abstraction]
+  > **Propagation needed:** [Yes / No / Investigate]
+  > **Reason:** [why the same change applies or why it does not]
+  > **Severity:** [🔴 Critical / 🟡 Important / 🔵 Minor]
+
+  If no structural siblings are found after searching, state that explicitly — this is a \
+  valid and complete finding.
+
+4. **Workflow and Interaction Impact Analysis (CRITICAL)**:
   This section is mandatory. It focuses on **normal, expected usage flows** — scenarios where both the new and existing mechanisms are working correctly, but their combination produces an effect the author didn't anticipate. This is distinct from edge cases (unusual inputs) and concurrency (parallel execution): it is about the common happy-path scenario where independently correct code produces an unintended combined result.
 
   **For each distinct behavior the change adds**, use the lenses below as needed — apply the ones relevant to the change at hand, not as an exhaustive checklist:
@@ -289,13 +324,13 @@ Using the context established in Phase 1, structure your review using Markdown h
 
   If no cross-mechanism interactions are found, state that explicitly — this is a valid and complete finding.
 
-4. **Edge Cases and Control Flow Analysis**:
+5. **Edge Cases and Control Flow Analysis**:
   - Think critically about edge cases for newly implemented code
   - Analyze if changes can cause unwanted control flow
   - **Point out any gaps in test coverage**
   - When applicable, demonstrate how test code interacts with the main codebase changes
 
-5. **Logging, Observability, and Debugging Analysis (CRITICAL)**:
+6. **Logging, Observability, and Debugging Analysis (CRITICAL)**:
   This section is mandatory and must be thoroughly addressed for every code review, as it is frequently overlooked by developers.
   
   **Logging:**
@@ -332,7 +367,7 @@ Using the context established in Phase 1, structure your review using Markdown h
   - Identify code paths where additional observability would significantly reduce MTTR (Mean Time To Resolution)
   - Consider: "If this fails in production at 3 AM, what information would I need to debug it?"
 
-6. **Deleted Code Regression Analysis**:
+7. **Deleted Code Regression Analysis**:
   - **Analyze if deleted or modified code had important side effects or edge case handling**:
     - Check if removed functions handled specific error conditions or edge cases
     - Identify if deleted code provided critical fallback mechanisms
@@ -341,7 +376,7 @@ Using the context established in Phase 1, structure your review using Markdown h
     - **Check if deleted code had logging, metrics, or tracing that needs to be preserved**
   - Verify that replacement code maintains the same level of robustness
 
-7. **Code Quality and Maintenance**:
+8. **Code Quality and Maintenance**:
   - Look for typos or accidentally deleted code
   - Check for naming conventions, code clarity, and maintainability
   - Identify any architectural concerns
@@ -371,26 +406,24 @@ const allUsers = getAllUsers();
 
 Reasoning: Clear variable names improve code readability and make the intent obvious to other developers.
 
-## Phase 3: Gather Context for Unit Test Recommendations
+## Phase 3: Unit Test Implementation
 
-After completing the code review analysis, perform a focused investigation to identify specific **EXISTING** unit tests:
+After completing the code review analysis, identify coverage gaps and write new tests for them. Follow this procedure:
 
 1. **Re-examine Code Changes with Test Focus**:
   - Review each modified function, class, and module specifically for testability
   - Identify the exact methods, edge cases, and failure scenarios that need validation
   - Map each issue found in Phase 2 to specific test requirements
 
-2. **Locate and Analyze Existing Test Files**:
-  - Search for existing test files that cover the modified code (look for naming patterns like *.test.js, *_test.py, test_*.py, etc.)
+2. **Locate Existing Test Files**:
+  - Use \`researchConversationQuestion\` to find test files covering the modified code (naming patterns like *.test.js, *_test.py, test_*.py, etc.)
   - Examine the structure and coverage of existing tests
-  - Identify gaps between existing tests and the changes made
+  - Identify which gaps are NOT covered by any existing test
 
-3. **Create Specific Test Recommendations with Reasoning**:
-  - For each recommended test, provide:
-    - **Exact test file path and test name/description**
-    - **Step-by-step reasoning**: Why this specific test is needed based on the code changes and issues identified
-    - **What the test should validate**: Specific behaviors, edge cases, or regressions
-    - **Priority level**: Critical/Important/Nice-to-have based on risk assessment
+3. **Write New Tests for Every Uncovered Gap**:
+  - For each gap, read the existing test file to learn its structure, helper functions, and conventions
+  - Write complete, copy-paste-ready test code — do not just describe what should be tested
+  - Follow the exact naming convention and boilerplate of the existing suite
 
 4. **Address Gaps and Conflicts**:
   - If any definitions, context, or dependencies are missing, explicitly state this
@@ -403,12 +436,10 @@ Conclude with a SUMMARY section using:
 - Bullet points for main findings and recommendations from Phase 2
 - **ARCHITECTURAL ASSESSMENT (CRITICAL)**: Summarize the key architectural findings — boundary/responsibility issues, new coupling or dependency concerns, integration and failure-mode risks, and overall structural soundness of the change
 - **CALLER COMPATIBILITY ISSUES (CRITICAL)**: List all affected callers of modified functions and their compatibility status
+- **CROSS-SYSTEM PROPAGATION (CRITICAL)**: List every structural sibling identified and its propagation verdict (Yes / No / Investigate). For each "Yes" or "Investigate" finding, state the severity and the reason the same change applies. If no siblings were found, state that explicitly.
 - **WORKFLOW AND INTERACTION IMPACT (CRITICAL)**: For each emergent behavior identified — describe the scenario, the combined effect, and whether it was addressed
 - **LOGGING AND OBSERVABILITY RECOMMENDATIONS (CRITICAL)**: Summarize key logging, metrics, and tracing additions needed
-- **UNIT TESTS TO RUN (CRITICAL)**: Present the specific unit test recommendations from Phase 3, including:
-  - Exact test file paths and test names
-  - Step-by-step reasoning for each recommended test
-  - Priority levels for each test based on risk assessment
+- **UNIT TESTS WRITTEN (CRITICAL)**: For each gap identified in Phase 3, paste the complete test code. For existing tests that already cover a risk, name them. Every 🔴 Critical and 🟡 Important gap must have either an existing test named or new test code written — recommendations alone are not acceptable.
 - **IMPLEMENTATION SCOPE**: List only 🔴 Critical and 🟡 Important findings here by name. 🔵 Minor findings appear in the review above but are excluded from this list. The Code Implementation Workflow only triggers when this list is non-empty.
 - One to two sentence overall assessment of the changes
 - If helpful, include a free form ASCII text diagram to clarify key architectural or flow concepts affected by the changes
@@ -424,10 +455,12 @@ Conclude with a SUMMARY section using:
 - Think through feedback step by step before responding
 - Focus on actionable, specific suggestions rather than general advice
 - **Phase 3 unit test recommendations must be based on the specific issues and risks identified in Phase 2**
+- **ALWAYS write complete test code for uncovered gaps — do not just name what should be tested. Read the existing test file first to match its style, then produce runnable code.**
 - **ALWAYS include specific unit tests to run in the summary with detailed reasoning - this is a critical requirement**
 - **ALWAYS include logging and observability analysis and recommendations - this is frequently overlooked and is critical for production support**
 - **ALWAYS include caller compatibility analysis in the summary - breaking changes to callers are a critical risk**
 - **ALWAYS include the architectural assessment in the summary - structural regressions are a critical risk**
+- **ALWAYS perform cross-system propagation analysis — the same fix or improvement frequently applies to structural siblings and is invisible to single-location review**
 - **ALWAYS include workflow and interaction impact in the summary - emergent behaviors from combining new and existing mechanisms are a critical risk and are invisible to single-component analysis**
 - **ALWAYS include IMPLEMENTATION SCOPE in the summary listing only Critical and Important findings**`;
 
@@ -1197,6 +1230,40 @@ export default function osAgent(pi: ExtensionAPI): void {
 			"quoted or paraphrased from the agent's note at the start of the advisory workflow.",
 		injectPrompt: RESUME_TASK_PROMPT,
 		label: "advisory:resume-task",
+	});
+
+	// --- Advisory prompt commands ---
+
+	pi.registerCommand("code-workflow", {
+		description: "Run the code implementation workflow (context → plan → slice-by-slice commits).",
+		handler: async (_args, ctx) => {
+			pi.sendUserMessage(CODE_WORKFLOW_PROMPT, { deliverAs: "followUp" });
+			ctx.ui.notify("[code-workflow] queued", "info");
+		},
+	});
+
+	pi.registerCommand("flesh-out", {
+		description: "Diagnose a finished implementation for missing behaviors, usability issues, and edge cases.",
+		handler: async (_args, ctx) => {
+			pi.sendUserMessage(FLESH_OUT_PROMPT, { deliverAs: "followUp" });
+			ctx.ui.notify("[flesh-out] queued", "info");
+		},
+	});
+
+	pi.registerCommand("refactor", {
+		description: "Run a flag-and-suggest refactoring review on the most recent implementation.",
+		handler: async (_args, ctx) => {
+			pi.sendUserMessage(REFACTORING_REVIEW_PROMPT, { deliverAs: "followUp" });
+			ctx.ui.notify("[refactor] queued", "info");
+		},
+	});
+
+	pi.registerCommand("review", {
+		description: "Run a comprehensive code review on the most recent implementation.",
+		handler: async (_args, ctx) => {
+			pi.sendUserMessage(REVIEW_PROMPT, { deliverAs: "followUp" });
+			ctx.ui.notify("[review] code review queued", "info");
+		},
 	});
 
 	// --- /advisor command ---
